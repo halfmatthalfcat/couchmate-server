@@ -1,4 +1,4 @@
-package com.couchmate.data.models.user
+package com.couchmate.data.models
 
 import enumeratum._
 

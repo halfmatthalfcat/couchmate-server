@@ -2,14 +2,14 @@ package com.couchmate.data.schema
 
 import java.util.UUID
 
-import com.couchmate.data.models.user.User
+import com.couchmate.data.models.User
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Tag
 
 import scala.concurrent.{ExecutionContext, Future}
 
 class UserDAO(tag: Tag) extends Table[User](tag, "user") {
-  def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey)
+  def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
   def username: Rep[String] = column[String]("username")
   def active: Rep[Boolean] = column[Boolean]("active", O.Default(true))
   def verified: Rep[Boolean] = column[Boolean]("verified", O.Default(false))
@@ -26,7 +26,7 @@ object UserDAO {
   ): Future[User] = {
     user match {
       case User(None, _, _, _) =>
-        db.run((userTable returning userTable) += user.copy(user_id = Some(UUID.randomUUID())))
+        db.run((userTable returning userTable) += user.copy(userId = Some(UUID.randomUUID())))
       case User(Some(userId), _, _, _) =>
         for {
           _ <- db.run(userTable.filter(_.userId === userId).update(user))
@@ -38,14 +38,6 @@ object UserDAO {
   def getUser(userId: UUID)(implicit db: Database): Future[Option[User]] = {
     db.run(
       userTable.filter(_.userId === userId).result.headOption
-    )
-  }
-
-  def getUsers(userIds: UUID*)(implicit db: Database): Future[Seq[User]] = {
-    db.run(
-      (for {
-        user <- userTable if user.userId inSetBind userIds
-      } yield user).result
     )
   }
 }

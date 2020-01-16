@@ -39,10 +39,10 @@ lazy val sever = project.in(file("."))
     mainClass in (Compile, run) := Some("com.couchmate.Server"),
     scalacOptions ++= Seq(
       "-Xfatal-warnings",
-      "-Xlog-implicits",
+      // "-Xlog-implicits",
       "-deprecation",
-      "-feature",
-      "-unchecked",
+      // "-feature",
+      // "-unchecked",
       "-language:postfixOps"
     ),
   )
