@@ -66,6 +66,45 @@ object UserProviderDAO {
     }.exists.result)
   }
 
-  // TODO upsert
-  // TODO get unique internal/external
+  def upsertUserProvider(userProvider: UserProvider)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+  ): Future[UserProvider] = {
+    db.run(
+      userProviderTable.filter { up =>
+        up.userId === userProvider.userId
+      }.exists.result
+    ) flatMap {
+      case true => for {
+        _ <- db.run(
+          userProviderTable.filter(_.userId === userProvider.userId).update(userProvider)
+        )
+        updatedUp <- db.run(
+          userProviderTable.filter(_.userId === userProvider.userId).result.head
+        )
+      } yield updatedUp
+      case false => db.run(
+        (userProviderTable returning userProviderTable) += userProvider
+      )
+    }
+  }
+
+  def getUniqueInternalProviders()(
+    implicit
+    db: Database,
+  ): Future[Seq[Long]] = {
+    db.run(userProviderTable.distinct.result).map(_.map(_.providerId))
+  }
+
+  def getUniqueProviders()(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+  ): Future[Seq[String]] = {
+    db.run((for {
+      p <- ProviderDAO.providerTable
+      up <- userProviderTable if p.providerId === up.providerId
+    } yield p.extId).distinct.result)
+  }
 }
