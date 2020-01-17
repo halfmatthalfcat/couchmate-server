@@ -7,7 +7,7 @@ import slick.lifted.Tag
 import scala.concurrent.{ExecutionContext, Future}
 
 class ChannelDAO(tag: Tag) extends Table[Channel](tag, "channel") {
-  def channelId: Rep[Long] = column[Long]("channel_id", O.PrimaryKey)
+  def channelId: Rep[Long] = column[Long]("channel_id", O.PrimaryKey, O.AutoInc)
   def sourceId: Rep[Long] = column[Long]("source_id")
   def extId: Rep[Long] = column[Long]("ext_id")
   def callsign: Rep[String] = column[String]("callsign")
