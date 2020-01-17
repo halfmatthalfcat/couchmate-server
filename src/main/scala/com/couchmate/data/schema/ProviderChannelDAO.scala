@@ -1,7 +1,7 @@
 package com.couchmate.data.schema
 
 import com.couchmate.data.models.ProviderChannel
-import slick.jdbc.PostgresProfile.api._
+import PgProfile.api._
 import slick.lifted.Tag
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -19,7 +19,7 @@ class ProviderChannelDAO(tag: Tag) extends Table[ProviderChannel](tag, "provider
   ) <> ((ProviderChannel.apply _).tupled, ProviderChannel.unapply)
 
   def providerFk = foreignKey(
-    "provider_fk",
+    "provider_channel_provider_fk",
     providerId,
     ProviderDAO.providerTable,
   )(
@@ -29,7 +29,7 @@ class ProviderChannelDAO(tag: Tag) extends Table[ProviderChannel](tag, "provider
   )
 
   def channelFk = foreignKey(
-    "channel_fk",
+    "provider_channel_channel_fk",
     channelId,
     ChannelDAO.channelTable,
   )(

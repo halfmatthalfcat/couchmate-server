@@ -1,7 +1,7 @@
 package com.couchmate.data.schema
 
 import com.couchmate.data.models.Provider
-import slick.jdbc.PostgresProfile.api._
+import PgProfile.api._
 import slick.lifted.Tag
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -23,7 +23,7 @@ class ProviderDAO(tag: Tag) extends Table[Provider](tag, "provider") {
   ) <> ((Provider.apply _).tupled, Provider.unapply)
 
   def sourceFK = foreignKey(
-    "source_fk",
+    "provider_source_fk",
     sourceId,
     SourceDAO.sourceTable
   )(
@@ -31,7 +31,7 @@ class ProviderDAO(tag: Tag) extends Table[Provider](tag, "provider") {
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict
   )
-  def sourceIdx = index("source_idx", (sourceId, extId))
+  def sourceIdx = index("provider_source_idx", (sourceId, extId))
 }
 
 object ProviderDAO {

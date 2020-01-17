@@ -3,7 +3,7 @@ package com.couchmate.data.schema
 import java.util.UUID
 
 import com.couchmate.data.models.User
-import slick.jdbc.PostgresProfile.api._
+import PgProfile.api._
 import slick.lifted.Tag
 
 import scala.concurrent.{ExecutionContext, Future}

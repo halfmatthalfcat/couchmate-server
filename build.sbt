@@ -21,6 +21,8 @@ lazy val sever = project.in(file("."))
       akka("slf4j"),
       slick("slick"),
       slick("slick-hikaricp"),
+      slickPg(),
+      slickPg("play-json"),
       "com.beachape"                %%  "enumeratum"                % "1.5.15",
       "com.beachape"                %%  "enumeratum-play-json"      % "1.5.16",
       "com.typesafe.akka"           %%  "akka-http"                 % "10.1.11",

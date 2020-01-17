@@ -1,7 +1,7 @@
 package com.couchmate.data.schema
 
 import com.couchmate.data.models.Channel
-import slick.jdbc.PostgresProfile.api._
+import PgProfile.api._
 import slick.lifted.Tag
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -19,7 +19,7 @@ class ChannelDAO(tag: Tag) extends Table[Channel](tag, "channel") {
   ) <> ((Channel.apply _).tupled, Channel.unapply)
 
   def sourceFk = foreignKey(
-    "source_fk",
+    "channel_source_fk",
     sourceId,
     SourceDAO.sourceTable,
   )(

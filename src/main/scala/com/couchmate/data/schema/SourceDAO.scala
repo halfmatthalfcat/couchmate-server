@@ -1,7 +1,7 @@
 package com.couchmate.data.schema
 
 import com.couchmate.data.models.Source
-import slick.jdbc.PostgresProfile.api._
+import PgProfile.api._
 import slick.lifted.Tag
 
 import scala.concurrent.{ExecutionContext, Future}

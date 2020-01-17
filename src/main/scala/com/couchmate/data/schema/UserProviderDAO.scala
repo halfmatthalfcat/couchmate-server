@@ -3,7 +3,7 @@ package com.couchmate.data.schema
 import java.util.UUID
 
 import com.couchmate.data.models.{Provider, UserProvider}
-import slick.jdbc.PostgresProfile.api._
+import PgProfile.api._
 import slick.lifted.Tag
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -15,7 +15,7 @@ class UserProviderDAO(tag: Tag) extends Table[UserProvider](tag, "user_provider"
   def * = (userId, zipCode, providerId) <> ((UserProvider.apply _).tupled, UserProvider.unapply)
 
   def userFK = foreignKey(
-    "user_fk",
+    "user_provider_user_fk",
     userId,
     UserDAO.userTable,
   )(
@@ -25,7 +25,7 @@ class UserProviderDAO(tag: Tag) extends Table[UserProvider](tag, "user_provider"
   )
 
   def providerFK = foreignKey(
-    "provider_fk",
+    "user_provider_provider_fk",
     providerId,
     ProviderDAO.providerTable,
   )(
