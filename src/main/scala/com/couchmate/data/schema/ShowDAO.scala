@@ -17,7 +17,7 @@ class ShowDAO(tag: Tag) extends Table[Show](tag, "show") {
   def sportEventId: Rep[Option[Long]] = column[Option[Long]]("sport_event_id")
   def title: Rep[String] = column[String]("title")
   def description: Rep[String] = column[String]("description")
-  def originalAirDate: Rep[Option[OffsetDateTime]] = column[Option[OffsetDateTime]]("original_air_date")
+  def originalAirDate: Rep[Option[OffsetDateTime]] = column[Option[OffsetDateTime]]("original_air_date", O.SqlType("timestampz"))
   def * = (
     showId.?,
     sourceId,
