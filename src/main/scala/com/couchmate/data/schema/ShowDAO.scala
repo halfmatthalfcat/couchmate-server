@@ -40,6 +40,26 @@ class ShowDAO(tag: Tag) extends Table[Show](tag, "show") {
     onDelete = ForeignKeyAction.Restrict,
   )
 
+  def showFk = foreignKey(
+    "show_episode_fk",
+    episodeId,
+    EpisodeDAO.episodeTable,
+  )(
+    _.episodeId,
+    onUpdate = ForeignKeyAction.Cascade,
+    onDelete = ForeignKeyAction.Restrict,
+  )
+  
+  def sportFk = foreignKey(
+    "sport_episode_fk",
+    sportEventId,
+    SportEventDAO.sportEventTable,
+  )(
+    _.sportOrganizationId,
+    onUpdate = ForeignKeyAction.Cascade,
+    onDelete = ForeignKeyAction.Restrict,
+  )
+
   def sourceExtIdx = index(
     "show_source_ext_idx",
     (sourceId, extId),
