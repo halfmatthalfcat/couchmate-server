@@ -15,6 +15,16 @@ class SportEventDAO(tag: Tag) extends Table[SportEvent](tag, "sport_event") {
     sportOrganizationId,
     sportEventTitle,
   ) <> ((SportEvent.apply _).tupled, SportEvent.unapply)
+
+  def sportOrganizationFk = foreignKey(
+    "sport_event_sport_org_fk",
+    sportOrganizationId,
+    SportOrganizationDAO.sportOrganizationTable,
+  )(
+    _.sportOrganizationId,
+    onUpdate = ForeignKeyAction.Cascade,
+    onDelete = ForeignKeyAction.Restrict,
+  )
 }
 
 object SportEventDAO {
