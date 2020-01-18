@@ -49,7 +49,7 @@ class ShowDAO(tag: Tag) extends Table[Show](tag, "show") {
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict,
   )
-  
+
   def sportFk = foreignKey(
     "sport_episode_fk",
     sportEventId,

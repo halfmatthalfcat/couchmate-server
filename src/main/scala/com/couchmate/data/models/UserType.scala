@@ -8,10 +8,10 @@ object UserType extends Enum[UserType] with PlayJsonEnum[UserType] {
 
   val values: IndexedSeq[UserType] = findValues
 
-  case object Admin extends UserType
-  case object Anon extends UserType
-  case object Registered extends UserType
-  case object Subbed extends UserType
-  case object Analytics extends UserType
+  case object Admin       extends UserType
+  case object Anon        extends UserType
+  case object Registered  extends UserType
+  case object Subbed      extends UserType
+  case object Analytics   extends UserType
 
 }
