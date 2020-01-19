@@ -1,7 +1,7 @@
 package com.couchmate.data.schema
 
 import PgProfile.api._
-import com.couchmate.data.models.{RoomActivityType, UserType}
+import com.couchmate.data.models.{RoomActivityType, UserActivityType, UserType}
 import enumeratum.{Enum, EnumEntry}
 
 trait EnumMappers {
@@ -14,5 +14,6 @@ trait EnumMappers {
 
   implicit val roomActivityTypeMapper = enumMappedColumn(RoomActivityType)
   implicit val userTypeMapper = enumMappedColumn(UserType)
+  implicit val userActivityTypeMapper = enumMappedColumn(UserActivityType)
 
 }
