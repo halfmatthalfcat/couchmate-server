@@ -35,9 +35,24 @@ object UserDAO {
     }
   }
 
-  def getUser(userId: UUID)(implicit db: Database): Future[Option[User]] = {
+  def getUser(userId: UUID)(
+    implicit
+    db: Database,
+  ): Future[Option[User]] = {
     db.run(
       userTable.filter(_.userId === userId).result.headOption
     )
+  }
+
+  def getUserByEmail(email: String)(
+    implicit
+    db: Database,
+  ): Future[Option[User]] = {
+    db.run((for {
+      u <- userTable
+      um <- UserMetaDAO.userMetaTable
+      if  u.userId === um.userId &&
+          um.email === email
+    } yield u).result.headOption)
   }
 }
