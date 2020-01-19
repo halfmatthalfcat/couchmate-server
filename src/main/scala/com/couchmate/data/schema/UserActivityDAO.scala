@@ -14,7 +14,7 @@ class UserActivityDAO(tag: Tag)
   with EnumMappers {
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def action: Rep[UserActivityType] = column[UserActivityType]("action")
-  def created: Rep[OffsetDateTime] = column[OffsetDateTime]("created")
+  def created: Rep[OffsetDateTime] = column[OffsetDateTime]("created", O.SqlType("timestampz"))
   def * = (
     userId,
     action,
