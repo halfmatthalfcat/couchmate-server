@@ -9,9 +9,7 @@ import slick.lifted.Tag
 
 import scala.concurrent.Future
 
-class UserActivityDAO(tag: Tag)
-  extends Table[UserActivity](tag, "user_activity")
-  with EnumMappers {
+class UserActivityDAO(tag: Tag) extends Table[UserActivity](tag, "user_activity") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def action: Rep[UserActivityType] = column[UserActivityType]("action")
   def created: Rep[OffsetDateTime] = column[OffsetDateTime]("created", O.SqlType("timestampz"))
@@ -32,7 +30,7 @@ class UserActivityDAO(tag: Tag)
   )
 }
 
-object UserActivityDAO extends EnumMappers {
+object UserActivityDAO {
   val userActivityTable = TableQuery[UserActivityDAO]
 
   def addUserActivity(userActivity: UserActivity)(

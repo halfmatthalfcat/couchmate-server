@@ -19,7 +19,8 @@ trait PgProfile
     extends super.API
     with ArrayImplicits
     with DateTimeImplicits
-    with JsonImplicits {
+    with JsonImplicits
+    with EnumMappers {
     implicit val playJsonArrayTypeMapper: DriverJdbcType[Seq[JsValue]] =
       new AdvancedArrayJdbcType[JsValue](pgjson,
         (s) => utils.SimpleArrayUtils.fromString[JsValue](Json.parse)(s).orNull,

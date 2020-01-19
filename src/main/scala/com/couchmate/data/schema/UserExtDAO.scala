@@ -8,9 +8,7 @@ import slick.lifted.Tag
 
 import scala.concurrent.Future
 
-class UserExtDAO(tag: Tag)
-  extends Table[UserExt](tag, "user_ext")
-  with EnumMappers {
+class UserExtDAO(tag: Tag) extends Table[UserExt](tag, "user_ext") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def extType: Rep[UserExtType] = column[UserExtType]("ext_type")
   def extId: Rep[String] = column[String]("ext_id")
@@ -31,7 +29,7 @@ class UserExtDAO(tag: Tag)
   )
 }
 
-object UserExtDAO extends EnumMappers {
+object UserExtDAO {
   val userExtTable = TableQuery[UserExtDAO]
 
   def getUserExt(userId: UUID)(

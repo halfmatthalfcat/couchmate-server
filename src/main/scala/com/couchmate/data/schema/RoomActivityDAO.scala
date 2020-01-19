@@ -9,9 +9,7 @@ import slick.lifted.Tag
 
 import scala.concurrent.Future
 
-class RoomActivityDAO(tag: Tag)
-  extends Table[RoomActivity](tag, "room_activity")
-  with EnumMappers {
+class RoomActivityDAO(tag: Tag) extends Table[RoomActivity](tag, "room_activity") {
 
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.SqlType("uuid"))
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
@@ -50,7 +48,7 @@ class RoomActivityDAO(tag: Tag)
   )
 }
 
-object RoomActivityDAO extends EnumMappers {
+object RoomActivityDAO {
   val roomActivityTable = TableQuery[RoomActivityDAO]
 
   private[this] val getLatestForUsers =
