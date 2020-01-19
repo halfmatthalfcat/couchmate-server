@@ -12,7 +12,7 @@ import scala.concurrent.Future
 class UserActivityDAO(tag: Tag)
   extends Table[UserActivity](tag, "user_activity")
   with EnumMappers {
-  def userId: Rep[UUID] = column[UUID]("user_id")
+  def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def action: Rep[UserActivityType] = column[UserActivityType]("action")
   def created: Rep[OffsetDateTime] = column[OffsetDateTime]("created")
   def * = (

@@ -9,7 +9,7 @@ import slick.lifted.Tag
 import scala.concurrent.{ExecutionContext, Future}
 
 class UserMetaDAO(tag: Tag) extends Table[UserMeta](tag, "user_meta") {
-  def userId: Rep[UUID] = column[UUID]("user_id")
+  def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def email: Rep[String] = column[String]("email")
   def * = (
     userId,
