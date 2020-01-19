@@ -25,6 +25,12 @@ class SportEventDAO(tag: Tag) extends Table[SportEvent](tag, "sport_event") {
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict,
   )
+
+  def sportEventUniqueIdx = index(
+    "sport_event_name_unique_idx",
+    (sportOrganizationId, sportEventTitle),
+    unique = true
+  )
 }
 
 object SportEventDAO {
