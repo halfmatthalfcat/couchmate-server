@@ -5,7 +5,6 @@ import java.util.UUID
 
 import PgProfile.api._
 import com.couchmate.data.models.{RoomActivity, RoomActivityType}
-import slick.jdbc.PostgresProfile
 import slick.lifted.Tag
 
 import scala.concurrent.Future
@@ -13,7 +12,6 @@ import scala.concurrent.Future
 class RoomActivityDAO(tag: Tag)
   extends Table[RoomActivity](tag, "room_activity")
   with EnumMappers {
-  val profile: PostgresProfile = this.profile
 
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.SqlType("uuid"))
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
@@ -52,7 +50,7 @@ class RoomActivityDAO(tag: Tag)
   )
 }
 
-object RoomActivityDAO {
+object RoomActivityDAO extends EnumMappers {
   val roomActivityTable = TableQuery[RoomActivityDAO]
 
   private[this] val getLatestForUsers =
@@ -65,7 +63,6 @@ object RoomActivityDAO {
   def getRoomCount(airingId: UUID)(
     implicit
     db: Database,
-    ratMapper: BaseColumnType[RoomActivityType]
   ): Future[Int] = {
     db.run((for {
       ra <- roomActivityTable
@@ -80,7 +77,6 @@ object RoomActivityDAO {
   def getTotalCount()(
     implicit
     db: Database,
-    ratMapper: BaseColumnType[RoomActivityType],
   ): Future[Int] = {
     db.run((for {
       ra <- roomActivityTable
@@ -95,9 +91,6 @@ object RoomActivityDAO {
     implicit
     db: Database,
   ): Future[RoomActivity] = {
-    db.run(
-      (roomActivityTable returning roomActivityTable) +=
-      activity.
-    )
+    db.run((roomActivityTable returning roomActivityTable) += activity)
   }
 }
