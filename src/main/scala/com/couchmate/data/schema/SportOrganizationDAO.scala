@@ -11,7 +11,7 @@ class SportOrganizationDAO(tag: Tag) extends Table[SportOrganization](tag, "spor
   def sportOrganizationId: Rep[Long] = column[Long]("sport_organization_id", O.PrimaryKey, O.AutoInc)
   def sourceId: Rep[Long] = column[Long]("source_id")
   def extSportId: Rep[Long] = column[Long]("ext_sport_id")
-  def extOrgId: Rep[Option[Int]] = column[Option[Int]]("ext_org_id", O.Default(-1))
+  def extOrgId: Rep[Option[Int]] = column[Option[Int]]("ext_org_id", O.Default(Some(-1)))
   def sportName: Rep[String] = column[String]("sport_name")
   def orgName: Rep[Option[String]] = column[Option[String]]("org_name")
   def * = (

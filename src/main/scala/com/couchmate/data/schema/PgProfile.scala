@@ -1,9 +1,12 @@
 package com.couchmate.data.schema
 
-import com.couchmate.data.models.Airing
+import com.couchmate.data.models.{Airing, RoomActivityType, UserActivityType, UserExtType, UserType}
 import com.github.tminglei.slickpg._
+import enumeratum.{Enum, EnumEntry}
 import play.api.libs.json.{JsValue, Json}
 import slick.migration.api.PostgresDialect
+
+import scala.reflect.ClassTag
 
 trait PgProfile
   extends ExPostgresProfile
@@ -20,10 +23,22 @@ trait PgProfile
     extends super.API
     with ArrayImplicits
     with DateTimeImplicits
-    with JsonImplicits
-    with EnumMappers {
+    with JsonImplicits {
     implicit val dialect: PostgresDialect =
       new PostgresDialect
+
+    private[this] def enumMappedColumn[E <: EnumEntry](enum: Enum[E])(
+      implicit classTag: ClassTag[E],
+    ): BaseColumnType[E] =
+      MappedColumnType.base[E, String](
+        { _.entryName.toLowerCase },
+        { enum.lowerCaseNamesToValuesMap },
+                                   )
+
+    implicit val roomActivityTypeMapper = enumMappedColumn(RoomActivityType)
+    implicit val userTypeMapper = enumMappedColumn(UserType)
+    implicit val userActivityTypeMapper = enumMappedColumn(UserActivityType)
+    implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
 
     implicit val playJsonArrayTypeMapper: DriverJdbcType[Seq[JsValue]] =
       new AdvancedArrayJdbcType[JsValue](pgjson,

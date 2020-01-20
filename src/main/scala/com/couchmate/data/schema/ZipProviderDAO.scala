@@ -2,7 +2,7 @@ package com.couchmate.data.schema
 
 import PgProfile.api._
 import com.couchmate.data.models.{Provider, ZipProvider}
-import slick.lifted.Tag
+import slick.lifted.{PrimaryKey, Tag}
 import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -15,7 +15,7 @@ class ZipProviderDAO(tag: Tag) extends Table[ZipProvider](tag, "zip_provider") {
     providerId,
   ) <> ((ZipProvider.apply _).tupled, ZipProvider.unapply)
 
-  def zipProviderPk = primaryKey(
+  def zipProviderPk: PrimaryKey = primaryKey(
     "zip_provider_pk",
     (zipCode, providerId)
   )

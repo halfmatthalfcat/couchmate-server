@@ -4,7 +4,7 @@ import java.util.UUID
 
 import PgProfile.api._
 import com.couchmate.data.models.Lineup
-import slick.lifted.Tag
+import slick.lifted.{PrimaryKey, Tag}
 import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -19,7 +19,7 @@ class LineupDAO(tag: Tag) extends Table[Lineup](tag, "lineup") {
     replacedBy
   ) <> ((Lineup.apply _).tupled, Lineup.unapply)
 
-  def primaryKey = primaryKey(
+  def primaryKey: PrimaryKey = primaryKey(
     "lineup_pk",
     (providerChannelId, airingId)
   )

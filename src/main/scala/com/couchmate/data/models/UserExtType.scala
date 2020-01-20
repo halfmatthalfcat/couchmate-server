@@ -2,7 +2,7 @@ package com.couchmate.data.models
 
 import enumeratum._
 
-trait UserExtType extends EnumEntry
+sealed trait UserExtType extends EnumEntry
 
 object UserExtType
   extends Enum[UserExtType]

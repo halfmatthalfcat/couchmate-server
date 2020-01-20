@@ -4,12 +4,16 @@ import com.couchmate.data.models.{RoomActivityType, UserActivityType, UserExtTyp
 import com.couchmate.data.schema.PgProfile.api._
 import enumeratum.{Enum, EnumEntry}
 
+import scala.reflect.ClassTag
+
 trait EnumMappers {
 
-  private[this] def enumMappedColumn[E <: EnumEntry](enum: Enum[E]): BaseColumnType[E] =
+  private[this] def enumMappedColumn[E <: EnumEntry](enum: Enum[E])(
+    implicit classTag: ClassTag[E],
+  ): BaseColumnType[E] =
     MappedColumnType.base[E, String](
-      t => t.entryName.toLowerCase,
-      enum.lowerCaseNamesToValuesMap,
+      { _.entryName.toLowerCase },
+      { enum.lowerCaseNamesToValuesMap },
     )
 
   implicit val roomActivityTypeMapper = enumMappedColumn(RoomActivityType)

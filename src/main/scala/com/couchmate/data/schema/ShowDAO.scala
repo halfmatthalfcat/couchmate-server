@@ -14,22 +14,22 @@ class ShowDAO(tag: Tag) extends Table[Show](tag, "show") {
   def sourceId: Rep[Long] = column[Long]("source_id")
   def extId: Rep[Long] = column[Long]("ext_id")
   def `type`: Rep[String] = column[String]("type")
-  def episodeId: Rep[Option[Long]] = column[Option[Long]]("episode_id")
-  def sportEventId: Rep[Option[Long]] = column[Option[Long]]("sport_event_id")
+  def episodeId: Rep[Long] = column[Long]("episode_id")
+  def sportEventId: Rep[Long] = column[Long]("sport_event_id")
   def title: Rep[String] = column[String]("title")
   def description: Rep[String] = column[String]("description")
-  def originalAirDate: Rep[Option[OffsetDateTime]] = column[Option[OffsetDateTime]]("original_air_date", O.SqlType("timestampz"))
+  def originalAirDate: Rep[OffsetDateTime] = column[OffsetDateTime]("original_air_date", O.SqlType("timestampz"))
   def * = (
     showId.?,
     sourceId,
     extId,
     `type`,
-    episodeId,
-    sportEventId,
+    episodeId.?,
+    sportEventId.?,
     title,
     description,
-    originalAirDate,
-  )<> ((Show.apply _).tupled, Show.unapply)
+    originalAirDate.?,
+  ) <> ((Show.apply _).tupled, Show.unapply)
 
   def sourceFk = foreignKey(
     "show_source_fk",

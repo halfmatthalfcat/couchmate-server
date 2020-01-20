@@ -105,6 +105,7 @@ object UserProviderDAO {
   def getUniqueInternalProviders()(
     implicit
     db: Database,
+    ec: ExecutionContext,
   ): Future[Seq[Long]] = {
     db.run(userProviderTable.distinct.result).map(_.map(_.providerId))
   }

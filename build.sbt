@@ -50,4 +50,5 @@ lazy val sever = project.in(file("."))
       // "-unchecked",
       "-language:postfixOps"
     ),
+    addCommandAlias("migrate", "runMain com.couchmate.data.Migrate")
   )
