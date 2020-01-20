@@ -1,24 +1,28 @@
 package com.couchmate.api
 
-import akka.actor.ActorSystem
-import akka.util.Timeout
-import com.couchmate.api.routes.{MainRoutes, RoomRoutes, UserRoutes}
+import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.util.Timeout
+import com.couchmate.api.routes.{MainRoutes, RoomRoutes, SourceRoutes, UserRoutes}
+import com.couchmate.services.data.source.SourceService
 
 import scala.concurrent.ExecutionContext
 
 object Routes {
-  def apply()(
+  def apply(
+    sourceServiceRouter: ActorRef[SourceService.Command],
+  )(
     implicit
-    actorSystem: ActorSystem,
+    actorSystem: ActorSystem[Nothing],
     executionContext: ExecutionContext,
     timeout: Timeout,
   ): Route = {
     MainRoutes() ~
     pathPrefix("api") {
       UserRoutes() ~
-      RoomRoutes()
+      RoomRoutes() ~
+      SourceRoutes(sourceServiceRouter)
     }
   }
 }

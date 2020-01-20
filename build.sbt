@@ -38,14 +38,15 @@ lazy val sever = project.in(file("."))
       "org.postgresql"              %   "postgresql"                % "42.2.9",
       "com.github.halfmatthalfcat"  %%  "scala-forklift-slick"      % "0.3.3",
       // "com.liyaos"                  %%  "scala-forklift-slick"      % "0.3.1",
-      "io.github.nafg"              %%  "slick-migration-api"       % "0.7.0"
+      "io.github.nafg"              %%  "slick-migration-api"       % "0.7.0",
+      "com.github.t3hnar"           %%  "scala-bcrypt"              % "4.1"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     mainClass in (Compile, run) := Some("com.couchmate.Server"),
     scalacOptions ++= Seq(
-      "-Xfatal-warnings",
+      // "-Xfatal-warnings",
       // "-Xlog-implicits",
-      "-deprecation",
+      // "-deprecation",
       // "-feature",
       // "-unchecked",
       "-language:postfixOps"

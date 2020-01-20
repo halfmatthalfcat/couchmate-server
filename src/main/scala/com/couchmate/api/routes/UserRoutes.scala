@@ -1,6 +1,6 @@
 package com.couchmate.api.routes
 
-import akka.actor.ActorSystem
+import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.Directives._
 import akka.util.Timeout
@@ -13,7 +13,7 @@ import scala.concurrent.{ExecutionContext, Future}
 object UserRoutes extends PlayJsonSupport {
   def apply()(
     implicit
-    actorSystem: ActorSystem,
+    actorSystem: ActorSystem[Nothing],
     executionContext: ExecutionContext,
     timeout: Timeout,
   ): Route = {
@@ -22,7 +22,7 @@ object UserRoutes extends PlayJsonSupport {
         pathEndOrSingleSlash {
           entity(as[User]) { user =>
             asyncWithBody[User] {
-              Future.successful(200 -> user)
+              Future.successful(Left(200 -> user))
             }
           }
         }

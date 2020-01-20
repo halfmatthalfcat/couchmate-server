@@ -68,3 +68,6 @@ Temporary Items
 ### Intellij ###
 
 .idea
+
+### scala-forklift ###
+src/main/resources/datamodel
