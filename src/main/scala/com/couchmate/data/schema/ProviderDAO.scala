@@ -12,15 +12,15 @@ class ProviderDAO(tag: Tag) extends Table[Provider](tag, "provider") {
   def sourceId: Rep[Long] = column[Long]("source_id")
   def extId: Rep[String] = column[String]("ext_id")
   def name: Rep[String] = column[String]("name")
-  def `type`: Rep[Option[String]] = column[Option[String]]("type")
-  def location: Rep[Option[String]] = column[Option[String]]("location")
+  def `type`: Rep[String] = column[String]("type")
+  def location: Rep[String] = column[String]("location")
   def * = (
     providerId.?,
     sourceId,
     extId,
     name,
-    `type`,
-    location,
+    `type`.?,
+    location.?,
   ) <> ((Provider.apply _).tupled, Provider.unapply)
 
   def sourceFK = foreignKey(

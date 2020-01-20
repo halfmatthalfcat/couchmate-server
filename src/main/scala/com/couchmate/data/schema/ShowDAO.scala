@@ -18,7 +18,7 @@ class ShowDAO(tag: Tag) extends Table[Show](tag, "show") {
   def sportEventId: Rep[Long] = column[Long]("sport_event_id")
   def title: Rep[String] = column[String]("title")
   def description: Rep[String] = column[String]("description")
-  def originalAirDate: Rep[OffsetDateTime] = column[OffsetDateTime]("original_air_date", O.SqlType("timestampz"))
+  def originalAirDate: Rep[OffsetDateTime] = column[OffsetDateTime]("original_air_date", O.SqlType("timestamptz"))
   def * = (
     showId.?,
     sourceId,
@@ -41,7 +41,7 @@ class ShowDAO(tag: Tag) extends Table[Show](tag, "show") {
     onDelete = ForeignKeyAction.Restrict,
   )
 
-  def showFk = foreignKey(
+  def episodeFk = foreignKey(
     "show_episode_fk",
     episodeId,
     EpisodeDAO.episodeTable,
@@ -56,7 +56,7 @@ class ShowDAO(tag: Tag) extends Table[Show](tag, "show") {
     sportEventId,
     SportEventDAO.sportEventTable,
   )(
-    _.sportOrganizationId,
+    _.sportEventId,
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict,
   )
@@ -85,7 +85,7 @@ object ShowDAO {
       _.originalAirDate,
     ).addForeignKeys(
       _.sourceFk,
-      _.showFk,
+      _.episodeFk,
       _.sportFk,
     ).addIndexes(
       _.sourceExtIdx,

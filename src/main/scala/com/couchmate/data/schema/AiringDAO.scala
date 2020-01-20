@@ -6,7 +6,6 @@ import java.util.UUID
 import PgProfile.api._
 import slick.migration.api._
 import com.couchmate.data.models.Airing
-import slick.jdbc.PostgresProfile
 import slick.lifted.Tag
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -14,8 +13,8 @@ import scala.concurrent.{ExecutionContext, Future}
 class AiringDAO(tag: Tag) extends Table[Airing](tag, "airing") {
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.PrimaryKey, O.SqlType("uuid"))
   def showId: Rep[Long] = column[Long]("show_id")
-  def startTime: Rep[OffsetDateTime] = column[OffsetDateTime]("start_time", O.SqlType("timestampz"))
-  def endTime: Rep[OffsetDateTime] = column[OffsetDateTime]("end_time", O.SqlType("timestampz"))
+  def startTime: Rep[OffsetDateTime] = column[OffsetDateTime]("start_time", O.SqlType("timestamptz"))
+  def endTime: Rep[OffsetDateTime] = column[OffsetDateTime]("end_time", O.SqlType("timestamptz"))
   def duration: Rep[Int] = column[Int]("duration")
   def * = (
     airingId.?,

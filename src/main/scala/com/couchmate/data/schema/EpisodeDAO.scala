@@ -10,13 +10,13 @@ import scala.concurrent.{ExecutionContext, Future}
 class EpisodeDAO(tag: Tag) extends Table[Episode](tag, "episode") {
   def episodeId: Rep[Long] = column[Long]("episode_id", O.PrimaryKey, O.AutoInc)
   def seriesId: Rep[Long] = column[Long]("series_id")
-  def season: Rep[Option[Int]] = column[Option[Int]]("season")
-  def episode: Rep[Option[Int]] = column[Option[Int]]("episode")
+  def season: Rep[Int] = column[Int]("season")
+  def episode: Rep[Int] = column[Int]("episode")
   def * = (
     episodeId.?,
     seriesId,
-    season,
-    episode,
+    season.?,
+    episode.?,
   ) <> ((Episode.apply _).tupled, Episode.unapply)
 
   def seriesFk = foreignKey(

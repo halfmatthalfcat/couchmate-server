@@ -12,7 +12,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class ListingCacheDAO(tag: Tag) extends Table[ListingCache](tag, "listing_cache") {
   def listingCacheId: Rep[Long] = column[Long]("listing_cache_id", O.PrimaryKey, O.AutoInc)
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
-  def startTime: Rep[OffsetDateTime] = column[OffsetDateTime]("start_time", O.SqlType("timestampz"))
+  def startTime: Rep[OffsetDateTime] = column[OffsetDateTime]("start_time", O.SqlType("timestamptz"))
   def airings: Rep[Seq[Airing]] = column[Seq[Airing]]("airings", O.SqlType("jsonb"))
   def * = (
     listingCacheId.?,

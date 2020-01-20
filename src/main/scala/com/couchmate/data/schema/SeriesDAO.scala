@@ -12,15 +12,15 @@ class SeriesDAO(tag: Tag) extends Table[Series](tag, "series") {
   def sourceId: Rep[Long] = column[Long]("source_id")
   def extId: Rep[Long] = column[Long]("ext_id")
   def seriesName: Rep[String] = column[String]("series_name")
-  def totalSeasons: Rep[Option[Long]] = column[Option[Long]]("total_seasons")
-  def totalEpisodes: Rep[Option[Long]] = column[Option[Long]]("total_episodes")
+  def totalSeasons: Rep[Long] = column[Long]("total_seasons")
+  def totalEpisodes: Rep[Long] = column[Long]("total_episodes")
   def * = (
     seriesId.?,
     sourceId,
     extId,
     seriesName,
-    totalSeasons,
-    totalEpisodes,
+    totalSeasons.?,
+    totalEpisodes.?,
   ) <> ((Series.apply _).tupled, Series.unapply)
 
   def sourceFk = foreignKey(

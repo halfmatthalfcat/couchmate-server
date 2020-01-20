@@ -12,11 +12,11 @@ import scala.concurrent.{ExecutionContext, Future}
 class LineupDAO(tag: Tag) extends Table[Lineup](tag, "lineup") {
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.SqlType("uuid"))
-  def replacedBy: Rep[Option[UUID]] = column[Option[UUID]]("replaced_by", O.SqlType("uuid"))
+  def replacedBy: Rep[UUID] = column[UUID]("replaced_by", O.SqlType("uuid"))
   def * = (
     providerChannelId,
     airingId,
-    replacedBy
+    replacedBy.?,
   ) <> ((Lineup.apply _).tupled, Lineup.unapply)
 
   def primaryKey: PrimaryKey = primaryKey(

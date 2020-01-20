@@ -15,7 +15,7 @@ class RoomActivityDAO(tag: Tag) extends Table[RoomActivity](tag, "room_activity"
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.SqlType("uuid"))
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def action: Rep[RoomActivityType] = column[RoomActivityType]("action")
-  def created: Rep[OffsetDateTime] = column[OffsetDateTime]("created", O.SqlType("timestampz"))
+  def created: Rep[OffsetDateTime] = column[OffsetDateTime]("created", O.SqlType("timestamptz"))
   def * = (
     airingId,
     userId,

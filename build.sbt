@@ -36,7 +36,7 @@ lazy val sever = project.in(file("."))
       "ch.qos.logback"              %   "logback-classic"           % "1.2.3",
       "com.typesafe.scala-logging"  %%  "scala-logging"             % "3.9.2",
       "org.postgresql"              %   "postgresql"                % "42.2.9",
-      // "com.github.halfmatthalfcat"  %%  "scala-forklift-slick"      % "0.3.3",
+      "com.github.halfmatthalfcat"  %%  "scala-forklift-slick"      % "0.3.3",
       // "com.liyaos"                  %%  "scala-forklift-slick"      % "0.3.1",
       "io.github.nafg"              %%  "slick-migration-api"       % "0.7.0"
     ),
@@ -50,5 +50,5 @@ lazy val sever = project.in(file("."))
       // "-unchecked",
       "-language:postfixOps"
     ),
-    addCommandAlias("migrate", "runMain com.couchmate.data.Migrate")
+    addCommandAlias("mg", "runMain com.couchmate.data.schema.Migrations")
   )

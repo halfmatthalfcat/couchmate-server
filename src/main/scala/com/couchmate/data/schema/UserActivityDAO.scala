@@ -13,7 +13,7 @@ import scala.concurrent.Future
 class UserActivityDAO(tag: Tag) extends Table[UserActivity](tag, "user_activity") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def action: Rep[UserActivityType] = column[UserActivityType]("action")
-  def created: Rep[OffsetDateTime] = column[OffsetDateTime]("created", O.SqlType("timestampz"))
+  def created: Rep[OffsetDateTime] = column[OffsetDateTime]("created", O.SqlType("timestamptz"))
   def * = (
     userId,
     action,
