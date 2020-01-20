@@ -5,6 +5,7 @@ import java.util.UUID
 import com.couchmate.data.models.{User, UserExtType}
 import PgProfile.api._
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -18,6 +19,15 @@ class UserDAO(tag: Tag) extends Table[User](tag, "user") {
 
 object UserDAO extends EnumMappers {
   val userTable = TableQuery[UserDAO]
+
+  val init = TableMigration(userTable)
+    .create
+    .addColumns(
+      _.userId,
+      _.username,
+      _.active,
+      _.verified,
+    )
 
   def upsertUser(user: User)(
     implicit

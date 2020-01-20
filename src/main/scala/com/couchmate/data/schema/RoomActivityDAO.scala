@@ -6,6 +6,7 @@ import java.util.UUID
 import PgProfile.api._
 import com.couchmate.data.models.{RoomActivity, RoomActivityType}
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.Future
 
@@ -50,6 +51,20 @@ class RoomActivityDAO(tag: Tag) extends Table[RoomActivity](tag, "room_activity"
 
 object RoomActivityDAO {
   val roomActivityTable = TableQuery[RoomActivityDAO]
+
+  val init = TableMigration(roomActivityTable)
+    .create
+    .addColumns(
+      _.airingId,
+      _.userId,
+      _.action,
+      _.created,
+    ).addForeignKeys(
+      _.airingFk,
+      _.userFk,
+    ).addIndexes(
+      _.roomActivityIdx,
+    )
 
   private[this] val getLatestForUsers =
     roomActivityTable

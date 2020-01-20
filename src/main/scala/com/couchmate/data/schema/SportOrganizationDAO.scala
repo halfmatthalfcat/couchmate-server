@@ -3,6 +3,7 @@ package com.couchmate.data.schema
 import PgProfile.api._
 import com.couchmate.data.models.SportOrganization
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -41,6 +42,21 @@ class SportOrganizationDAO(tag: Tag) extends Table[SportOrganization](tag, "spor
 
 object SportOrganizationDAO {
   val sportOrganizationTable = TableQuery[SportOrganizationDAO]
+
+  val init = TableMigration(sportOrganizationTable)
+    .create
+    .addColumns(
+      _.sportOrganizationId,
+      _.sourceId,
+      _.extSportId,
+      _.extOrgId,
+      _.sportName,
+      _.orgName,
+    ).addForeignKeys(
+      _.sourceFk,
+    ).addIndexes(
+      _.sourceExtSportOrgIdx,
+    )
 
   def getSportOrganization(sportOrgnizationId: Long)(
     implicit

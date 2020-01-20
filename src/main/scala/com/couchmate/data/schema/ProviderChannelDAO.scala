@@ -3,6 +3,7 @@ package com.couchmate.data.schema
 import com.couchmate.data.models.ProviderChannel
 import PgProfile.api._
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -46,6 +47,20 @@ class ProviderChannelDAO(tag: Tag) extends Table[ProviderChannel](tag, "provider
 
 object ProviderChannelDAO {
   val providerChannelTable = TableQuery[ProviderChannelDAO]
+
+  val init = TableMigration(providerChannelTable)
+    .create
+    .addColumns(
+      _.providerChannelId,
+      _.providerId,
+      _.channelId,
+      _.channel,
+    ).addForeignKeys(
+      _.providerFk,
+      _.channelFk,
+    ).addIndexes(
+      _.providerChannelIdx,
+    )
 
   def getProviderChannel(providerChannelId: Long)(
     implicit

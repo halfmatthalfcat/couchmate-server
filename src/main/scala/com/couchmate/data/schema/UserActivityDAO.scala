@@ -6,6 +6,7 @@ import java.util.UUID
 import PgProfile.api._
 import com.couchmate.data.models.{UserActivity, UserActivityType}
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.Future
 
@@ -32,6 +33,16 @@ class UserActivityDAO(tag: Tag) extends Table[UserActivity](tag, "user_activity"
 
 object UserActivityDAO {
   val userActivityTable = TableQuery[UserActivityDAO]
+
+  val init = TableMigration(userActivityTable)
+    .create
+    .addColumns(
+      _.userId,
+      _.action,
+      _.created,
+    ).addForeignKeys(
+      _.userFk,
+    )
 
   def addUserActivity(userActivity: UserActivity)(
     implicit

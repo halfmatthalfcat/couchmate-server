@@ -5,6 +5,7 @@ import java.time.OffsetDateTime
 import PgProfile.api._
 import com.couchmate.data.models.{Airing, ListingCache}
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -33,6 +34,17 @@ class ListingCacheDAO(tag: Tag) extends Table[ListingCache](tag, "listing_cache"
 
 object ListingCacheDAO {
   val listingCacheTable = TableQuery[ListingCacheDAO]
+
+  val init = TableMigration(listingCacheTable)
+    .create
+    .addColumns(
+      _.listingCacheId,
+      _.providerChannelId,
+      _.startTime,
+      _.airings,
+    ).addForeignKeys(
+      _.providerChannelFk,
+    )
 
   def getListingCache(
     providerChannelId: Long,

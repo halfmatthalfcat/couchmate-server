@@ -4,7 +4,9 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 import PgProfile.api._
+import slick.migration.api._
 import com.couchmate.data.models.Airing
+import slick.jdbc.PostgresProfile
 import slick.lifted.Tag
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -52,6 +54,22 @@ class AiringDAO(tag: Tag) extends Table[Airing](tag, "airing") {
 
 object AiringDAO {
   val airingTable = TableQuery[AiringDAO]
+
+  val init = TableMigration(airingTable)
+    .create
+    .addColumns(
+      _.airingId,
+      _.showId,
+      _.startTime,
+      _.endTime,
+      _.duration,
+    ).addForeignKeys(
+      _.showFk,
+    ).addIndexes(
+      _.showStartTimeIdx,
+      _.startTimeIdx,
+      _.endTimeIdx,
+    )
 
   def getAiring(airingId: UUID)(
     implicit

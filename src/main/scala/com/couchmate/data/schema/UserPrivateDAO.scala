@@ -5,6 +5,7 @@ import java.util.UUID
 import PgProfile.api._
 import com.couchmate.data.models.UserPrivate
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -29,6 +30,15 @@ class UserPrivateDAO(tag: Tag) extends Table[UserPrivate](tag, "user_private") {
 
 object UserPrivateDAO {
   val userPrivateTable = TableQuery[UserPrivateDAO]
+
+  val init = TableMigration(userPrivateTable)
+    .create
+    .addColumns(
+      _.userId,
+      _.password,
+    ).addForeignKeys(
+      _.userFk,
+    )
 
   def getUserPrivate(userId: UUID)(
     implicit

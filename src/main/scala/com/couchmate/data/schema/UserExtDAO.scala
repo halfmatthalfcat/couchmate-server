@@ -5,6 +5,7 @@ import java.util.UUID
 import PgProfile.api._
 import com.couchmate.data.models.{UserExt, UserExtType}
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.Future
 
@@ -31,6 +32,16 @@ class UserExtDAO(tag: Tag) extends Table[UserExt](tag, "user_ext") {
 
 object UserExtDAO {
   val userExtTable = TableQuery[UserExtDAO]
+
+  val init = TableMigration(userExtTable)
+    .create
+    .addColumns(
+      _.userId,
+      _.extType,
+      _.extId,
+    ).addForeignKeys(
+      _.userFk,
+    )
 
   def getUserExt(userId: UUID)(
     implicit

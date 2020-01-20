@@ -3,6 +3,7 @@ package com.couchmate.data.schema
 import com.couchmate.data.models.Source
 import PgProfile.api._
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -14,6 +15,13 @@ class SourceDAO(tag: Tag) extends Table[Source](tag, "source") {
 
 object SourceDAO {
   val sourceTable = TableQuery[SourceDAO]
+
+  val init = TableMigration(sourceTable)
+    .create
+    .addColumns(
+      _.sourceId,
+      _.name,
+    )
 
   def addSource(source: Source)(
     implicit

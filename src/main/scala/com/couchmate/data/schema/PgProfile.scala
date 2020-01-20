@@ -3,6 +3,7 @@ package com.couchmate.data.schema
 import com.couchmate.data.models.Airing
 import com.github.tminglei.slickpg._
 import play.api.libs.json.{JsValue, Json}
+import slick.migration.api.PostgresDialect
 
 trait PgProfile
   extends ExPostgresProfile
@@ -21,6 +22,9 @@ trait PgProfile
     with DateTimeImplicits
     with JsonImplicits
     with EnumMappers {
+    implicit val dialect: PostgresDialect =
+      new PostgresDialect
+
     implicit val playJsonArrayTypeMapper: DriverJdbcType[Seq[JsValue]] =
       new AdvancedArrayJdbcType[JsValue](pgjson,
         (s) => utils.SimpleArrayUtils.fromString[JsValue](Json.parse)(s).orNull,

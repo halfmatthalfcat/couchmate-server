@@ -10,6 +10,7 @@ lazy val sever = project.in(file("."))
     name := "server",
     version := "0.0.1",
     scalaVersion := "2.13.1",
+    resolvers += Resolver.jcenterRepo,
     libraryDependencies ++= Seq(
       akka("actor-typed"),
       akka("remote"),
@@ -34,7 +35,10 @@ lazy val sever = project.in(file("."))
       "com.wix"                     %%  "accord-core"               % "0.7.4",
       "ch.qos.logback"              %   "logback-classic"           % "1.2.3",
       "com.typesafe.scala-logging"  %%  "scala-logging"             % "3.9.2",
-      "org.postgresql"              %   "postgresql"                % "42.2.9"
+      "org.postgresql"              %   "postgresql"                % "42.2.9",
+      // "com.github.halfmatthalfcat"  %%  "scala-forklift-slick"      % "0.3.3",
+      // "com.liyaos"                  %%  "scala-forklift-slick"      % "0.3.1",
+      "io.github.nafg"              %%  "slick-migration-api"       % "0.7.0"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     mainClass in (Compile, run) := Some("com.couchmate.Server"),

@@ -3,6 +3,7 @@ package com.couchmate.data.schema
 import PgProfile.api._
 import com.couchmate.data.models.{Provider, ZipProvider}
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -32,6 +33,17 @@ class ZipProviderDAO(tag: Tag) extends Table[ZipProvider](tag, "zip_provider") {
 
 object ZipProviderDAO {
   val zipProviderTable = TableQuery[ZipProviderDAO]
+
+  val init = TableMigration(zipProviderTable)
+    .create
+    .addColumns(
+      _.zipCode,
+      _.providerId,
+    ).addPrimaryKeys(
+      _.zipProviderPk,
+    ).addForeignKeys(
+      _.providerFk,
+    )
 
   def getZipProvidersForZip(zipCode: String)(
     implicit

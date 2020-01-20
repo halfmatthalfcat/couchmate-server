@@ -3,6 +3,7 @@ package com.couchmate.data.schema
 import com.couchmate.data.models.Channel
 import PgProfile.api._
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -36,6 +37,19 @@ class ChannelDAO(tag: Tag) extends Table[Channel](tag, "channel") {
 
 object ChannelDAO {
   val channelTable = TableQuery[ChannelDAO]
+
+  val init = TableMigration(channelTable)
+    .create
+    .addColumns(
+      _.channelId,
+      _.sourceId,
+      _.extId,
+      _.callsign
+    ).addForeignKeys(
+      _.sourceFk,
+    ).addIndexes(
+      _.channelSourceIdx,
+    )
 
   def getChannel(channelId: Long)(
     implicit

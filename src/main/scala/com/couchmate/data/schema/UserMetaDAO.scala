@@ -5,6 +5,7 @@ import java.util.UUID
 import PgProfile.api._
 import com.couchmate.data.models.UserMeta
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -29,6 +30,15 @@ class UserMetaDAO(tag: Tag) extends Table[UserMeta](tag, "user_meta") {
 
 object UserMetaDAO {
   val userMetaTable = TableQuery[UserMetaDAO]
+
+  val init = TableMigration(userMetaTable)
+    .create
+    .addColumns(
+      _.userId,
+      _.email,
+    ).addForeignKeys(
+      _.userFk,
+    )
 
   def getUserMeta(userId: UUID)(
     implicit

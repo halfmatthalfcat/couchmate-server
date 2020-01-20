@@ -5,6 +5,7 @@ import java.util.UUID
 import PgProfile.api._
 import com.couchmate.data.models.Lineup
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -46,6 +47,19 @@ class LineupDAO(tag: Tag) extends Table[Lineup](tag, "lineup") {
 
 object LineupDAO {
   val lineupTable = TableQuery[LineupDAO]
+
+  val init = TableMigration(lineupTable)
+    .create
+    .addColumns(
+      _.providerChannelId,
+      _.airingId,
+      _.replacedBy,
+    ).addPrimaryKeys(
+      _.primaryKey,
+    ).addForeignKeys(
+      _.providerChannelFk,
+      _.airingFk,
+    )
 
   def getLineupForProviderChannelAndAiring(providerChannelId: Long, airingId: UUID)(
     implicit

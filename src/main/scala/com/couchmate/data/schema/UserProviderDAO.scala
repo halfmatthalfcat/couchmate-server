@@ -5,6 +5,7 @@ import java.util.UUID
 import com.couchmate.data.models.{Provider, UserProvider}
 import PgProfile.api._
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -14,7 +15,7 @@ class UserProviderDAO(tag: Tag) extends Table[UserProvider](tag, "user_provider"
   def providerId: Rep[Long] = column[Long]("provider_id")
   def * = (userId, zipCode, providerId) <> ((UserProvider.apply _).tupled, UserProvider.unapply)
 
-  def userFK = foreignKey(
+  def userFk = foreignKey(
     "user_provider_user_fk",
     userId,
     UserDAO.userTable,
@@ -24,7 +25,7 @@ class UserProviderDAO(tag: Tag) extends Table[UserProvider](tag, "user_provider"
     onDelete = ForeignKeyAction.Restrict,
   )
 
-  def providerFK = foreignKey(
+  def providerFk = foreignKey(
     "user_provider_provider_fk",
     providerId,
     ProviderDAO.providerTable,
@@ -37,6 +38,17 @@ class UserProviderDAO(tag: Tag) extends Table[UserProvider](tag, "user_provider"
 
 object UserProviderDAO {
   val userProviderTable = TableQuery[UserProviderDAO]
+
+  val init = TableMigration(userProviderTable)
+    .create
+    .addColumns(
+      _.userId,
+      _.zipCode,
+      _.providerId,
+    ).addForeignKeys(
+      _.userFk,
+      _.providerFk,
+    )
 
   def getUserProvider(userId: UUID)(
     implicit

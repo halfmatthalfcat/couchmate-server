@@ -3,6 +3,7 @@ package com.couchmate.data.schema
 import PgProfile.api._
 import com.couchmate.data.models.Episode
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -31,6 +32,17 @@ class EpisodeDAO(tag: Tag) extends Table[Episode](tag, "episode") {
 
 object EpisodeDAO {
   val episodeTable = TableQuery[EpisodeDAO]
+
+  val init = TableMigration(episodeTable)
+    .create
+    .addColumns(
+      _.episodeId,
+      _.seriesId,
+      _.season,
+      _.episode,
+    ).addForeignKeys(
+      _.seriesFk,
+    )
 
   def getEpisode(episodeId: Long)(
     implicit

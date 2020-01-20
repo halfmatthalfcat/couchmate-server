@@ -5,6 +5,7 @@ import java.time.OffsetDateTime
 import PgProfile.api._
 import com.couchmate.data.models.Show
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -69,6 +70,26 @@ class ShowDAO(tag: Tag) extends Table[Show](tag, "show") {
 
 object ShowDAO {
   val showTable = TableQuery[ShowDAO]
+
+  val init = TableMigration(showTable)
+    .create
+    .addColumns(
+      _.showId,
+      _.sourceId,
+      _.extId,
+      _.`type`,
+      _.episodeId,
+      _.sportEventId,
+      _.title,
+      _.description,
+      _.originalAirDate,
+    ).addForeignKeys(
+      _.sourceFk,
+      _.showFk,
+      _.sportFk,
+    ).addIndexes(
+      _.sourceExtIdx,
+    )
 
   def getShow(showId: Long)(
     implicit

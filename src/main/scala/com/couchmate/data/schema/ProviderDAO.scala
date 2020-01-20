@@ -3,6 +3,7 @@ package com.couchmate.data.schema
 import com.couchmate.data.models.Provider
 import PgProfile.api._
 import slick.lifted.Tag
+import slick.migration.api.TableMigration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -31,11 +32,30 @@ class ProviderDAO(tag: Tag) extends Table[Provider](tag, "provider") {
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict
   )
-  def sourceIdx = index("provider_source_idx", (sourceId, extId))
+
+  def sourceIdx = index(
+    "provider_source_idx",
+    (sourceId, extId),
+  )
 }
 
 object ProviderDAO {
   val providerTable = TableQuery[ProviderDAO]
+
+  val init = TableMigration(providerTable)
+    .create
+    .addColumns(
+      _.providerId,
+      _.sourceId,
+      _.extId,
+      _.name,
+      _.`type`,
+      _.location,
+    ).addForeignKeys(
+      _.sourceFK,
+    ).addIndexes(
+      _.sourceIdx,
+    )
 
   def getProvider(providerId: Long)(
     implicit
