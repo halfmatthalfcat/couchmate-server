@@ -10,7 +10,7 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import com.couchmate.api.Routes
 import com.couchmate.data.schema.PgProfile.api._
-import com.couchmate.services.data.ServiceRouter
+import com.couchmate.services.data.{ServiceRouter, ServiceRouters}
 import com.couchmate.services.data.source.SourceService
 import com.typesafe.config.{Config, ConfigFactory}
 
@@ -25,8 +25,7 @@ sealed trait ServerCommands {
   case object Stop extends Command
 }
 
-object Server
-  extends ServerCommands {
+object Server extends ServerCommands {
 
   private[this] def running(binding: ServerBinding, ctx: ActorContext[Command]): Behavior[Command] =
     Behaviors.receiveMessagePartial[Command] {
@@ -79,12 +78,8 @@ object Server
 
     implicit val timeout: Timeout = 30 seconds
 
-    lazy val sourceServiceRouter: ActorRef[SourceService.Command] =
-      ctx.spawn(ServiceRouter(
-        "source-service",
-        SourceService.SourceServiceKey,
-        SourceService(),
-      ), "source-service-router")
+    val routers: ServiceRouters = new ServiceRouters
+    import routers._
 
     val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
       Routes(

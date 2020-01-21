@@ -36,8 +36,8 @@ lazy val sever = project.in(file("."))
       "ch.qos.logback"              %   "logback-classic"           % "1.2.3",
       "com.typesafe.scala-logging"  %%  "scala-logging"             % "3.9.2",
       "org.postgresql"              %   "postgresql"                % "42.2.9",
-      "com.github.halfmatthalfcat"  %%  "scala-forklift-slick"      % "0.3.3",
-      // "com.liyaos"                  %%  "scala-forklift-slick"      % "0.3.1",
+      // "com.github.halfmatthalfcat"  %%  "scala-forklift-slick"      % "0.3.3",
+      "com.liyaos"                  %%  "scala-forklift-slick"      % "0.3.2-SNAPSHOT",
       "io.github.nafg"              %%  "slick-migration-api"       % "0.7.0",
       "com.github.t3hnar"           %%  "scala-bcrypt"              % "4.1"
     ),
