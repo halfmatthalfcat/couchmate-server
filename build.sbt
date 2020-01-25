@@ -28,6 +28,7 @@ lazy val sever = project.in(file("."))
       "com.beachape"                %%  "enumeratum-play-json"      % "1.5.17",
       "com.typesafe.akka"           %%  "akka-http"                 % "10.1.11",
       "com.typesafe.play"           %%  "play-json"                 % "2.8.1",
+      "com.lightbend.akka"          %%  "akka-stream-alpakka-slick" % "2.0.0-M2",
       "com.typesafe"                %   "config"                    % "1.4.0",
       "com.amazonaws"               %   "aws-java-sdk"              % "1.11.705",
       "com.nimbusds"                %   "nimbus-jose-jwt"           % "4.27",

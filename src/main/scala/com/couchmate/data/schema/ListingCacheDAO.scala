@@ -2,8 +2,11 @@ package com.couchmate.data.schema
 
 import java.time.OffsetDateTime
 
-import PgProfile.api._
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.{Airing, ListingCache}
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
@@ -61,25 +64,14 @@ object ListingCacheDAO {
 
   def upsertListingCache(listingCache: ListingCache)(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[ListingCache] = {
-    getListingCache(
-      listingCache.providerChannelId,
-      listingCache.startTime,
-    ) flatMap {
-      case None =>
-        db.run((listingCacheTable returning listingCacheTable) += listingCache)
-      case Some(_) => for {
-        _ <- db.run(listingCacheTable.filter { lc =>
-          lc.providerChannelId === listingCache.providerChannelId &&
-          lc.startTime === listingCache.startTime
-        }.update(listingCache))
-        newLc <- db.run(listingCacheTable.filter { lc =>
-          lc.providerChannelId === lc.providerChannelId &&
-          lc.startTime === lc.startTime
-        }.result.head)
-      } yield newLc
-    }
+  ): Flow[ListingCache, ListingCache, NotUsed] = Slick.flowWithPassThrough {
+    case listingCache @ ListingCache(None, _, _, _) =>
+      (listingCacheTable returning listingCacheTable) += listingCache
+    case listingCache @ ListingCache(Some(listingCacheId), _, _, _) => for {
+      _ <- listingCacheTable.filter(_.listingCacheId === listingCacheId).update(listingCache)
+      lc <- listingCacheTable.filter(_.listingCacheId === listingCacheId).result.head
+    } yield lc
   }
 }

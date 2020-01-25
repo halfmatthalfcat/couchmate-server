@@ -1,11 +1,14 @@
 package com.couchmate.data.schema
 
-import PgProfile.api._
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.Episode
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class EpisodeDAO(tag: Tag) extends Table[Episode](tag, "episode") {
   def episodeId: Rep[Long] = column[Long]("episode_id", O.PrimaryKey, O.AutoInc)
@@ -44,25 +47,23 @@ object EpisodeDAO {
       _.seriesFk,
     )
 
-  def getEpisode(episodeId: Long)(
+  def getEpisode()(
     implicit
-    db: Database,
-  ): Future[Option[Episode]] = {
-    db.run(episodeTable.filter(_.episodeId === episodeId).result.headOption)
+    session: SlickSession,
+  ): Flow[Long, Option[Episode], NotUsed] = Slick.flowWithPassThrough { episodeId =>
+    episodeTable.filter(_.episodeId === episodeId).result.headOption
   }
 
-  def upsertEpisode(episode: Episode)(
+  def upsertEpisode()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[Episode] = {
-    episode match {
-      case Episode(None, _, _, _) =>
-        db.run((episodeTable returning episodeTable) += episode)
-      case Episode(Some(episodeId), _, _, _) => for {
-        _ <- db.run(episodeTable.filter(_.episodeId === episodeId).update(episode))
-        e <- db.run(episodeTable.filter(_.episodeId === episodeId).result.head)
-      } yield e
-    }
+  ): Flow[Episode, Episode, NotUsed] = Slick.flowWithPassThrough {
+    case episode @ Episode(None, _, _, _) =>
+      (episodeTable returning episodeTable) += episode
+    case episode @ Episode(Some(episodeId), _, _, _) => for {
+      _ <- episodeTable.filter(_.episodeId === episodeId).update(episode)
+      e <- episodeTable.filter(_.episodeId === episodeId).result.head
+    } yield e
   }
 }

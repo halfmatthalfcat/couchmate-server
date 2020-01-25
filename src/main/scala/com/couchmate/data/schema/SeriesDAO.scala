@@ -1,11 +1,14 @@
 package com.couchmate.data.schema
 
-import PgProfile.api._
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.Series
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class SeriesDAO(tag: Tag) extends Table[Series](tag, "series") {
   def seriesId: Rep[Long] = column[Long]("series_id", O.PrimaryKey, O.AutoInc)
@@ -58,35 +61,33 @@ object SeriesDAO {
       _.sourceExtIdx,
     )
 
-  def getSeries(seriesId: Long)(
+  def getSeries()(
     implicit
-    db: Database,
-  ): Future[Option[Series]] = {
-    db.run(seriesTable.filter(_.seriesId === seriesId).result.headOption)
+    session: SlickSession,
+  ): Flow[Long, Option[Series], NotUsed] = Slick.flowWithPassThrough { seriesId =>
+    seriesTable.filter(_.seriesId === seriesId).result.headOption
   }
 
-  def getSeriesBySourceAndExt(sourceId: Long, extId: Long)(
+  def getSeriesBySourceAndExt()(
     implicit
-    db: Database,
-  ): Future[Option[Series]] = {
-    db.run(seriesTable.filter { series =>
+    session: SlickSession,
+  ): Flow[(Long, Long), Option[Series], NotUsed] = Slick.flowWithPassThrough {
+    case (sourceId, extId) => seriesTable.filter { series =>
       series.sourceId === sourceId &&
       series.extId === extId
-    }.result.headOption)
+    }.result.headOption
   }
 
   def upsertSeries(series: Series)(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[Series] = {
-    series match {
-      case Series(None, _, _, _, _, _) =>
-        db.run((seriesTable returning seriesTable) += series)
-      case Series(Some(seriesId), _, _, _, _, _) => for {
-        _ <- db.run(seriesTable.filter(_.seriesId === seriesId).update(series))
-        s <- db.run(seriesTable.filter(_.seriesId === seriesId).result.head)
-      } yield s
-    }
+  ): Flow[Series, Series, NotUsed] = Slick.flowWithPassThrough {
+    case series @ Series(None, _, _, _, _, _) =>
+      (seriesTable returning seriesTable) += series
+    case series @ Series(Some(seriesId), _, _, _, _, _) => for {
+      _ <- seriesTable.filter(_.seriesId === seriesId).update(series)
+      s <- seriesTable.filter(_.seriesId === seriesId).result.head
+    } yield s
   }
 }

@@ -1,11 +1,12 @@
 package com.couchmate.data.schema
 
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.Source
-import PgProfile.api._
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
-
-import scala.concurrent.{ExecutionContext, Future}
 
 class SourceDAO(tag: Tag) extends Table[Source](tag, "source") {
   def sourceId: Rep[Long] = column[Long]("source_id", O.PrimaryKey, O.AutoInc)
@@ -23,13 +24,10 @@ object SourceDAO {
       _.name,
     )
 
-  def addSource(source: Source)(
+  def addSource()(
     implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Future[Source] = {
-    db.run(
-      (sourceTable returning sourceTable) += source
-    )
+    session: SlickSession,
+  ): Flow[Source, Source, NotUsed] = Slick.flowWithPassThrough { source =>
+    (sourceTable returning sourceTable) += source
   }
 }

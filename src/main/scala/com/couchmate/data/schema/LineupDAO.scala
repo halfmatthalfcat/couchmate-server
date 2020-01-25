@@ -2,27 +2,27 @@ package com.couchmate.data.schema
 
 import java.util.UUID
 
-import PgProfile.api._
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.Lineup
-import slick.lifted.{PrimaryKey, Tag}
+import com.couchmate.data.schema.PgProfile.api._
+import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class LineupDAO(tag: Tag) extends Table[Lineup](tag, "lineup") {
+  def lineupId: Rep[Long] = column[Long]("lineup_id", O.PrimaryKey, O.AutoInc)
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.SqlType("uuid"))
   def replacedBy: Rep[UUID] = column[UUID]("replaced_by", O.SqlType("uuid"))
   def * = (
+    lineupId.?,
     providerChannelId,
     airingId,
     replacedBy.?,
   ) <> ((Lineup.apply _).tupled, Lineup.unapply)
-
-  def primaryKey: PrimaryKey = primaryKey(
-    "lineup_pk",
-    (providerChannelId, airingId)
-  )
 
   def providerChannelFk = foreignKey(
     "lineup_provider_channel_fk",
@@ -54,56 +54,50 @@ object LineupDAO {
       _.providerChannelId,
       _.airingId,
       _.replacedBy,
-    ).addPrimaryKeys(
-      _.primaryKey,
     ).addForeignKeys(
       _.providerChannelFk,
       _.airingFk,
     )
 
-  def getLineupForProviderChannelAndAiring(providerChannelId: Long, airingId: UUID)(
+  def getLineup(lineupId: Long)(
     implicit
-    db: Database,
-  ): Future[Option[Lineup]] = {
-    db.run(lineupTable.filter { lineup =>
+    session: SlickSession,
+  ): Flow[Long, Option[Lineup], NotUsed] = Slick.flowWithPassThrough { lineupId =>
+    lineupTable.filter(_.lineupId === lineupId).result.headOption
+  }
+
+  def getLineupForProviderChannelAndAiring()(
+    implicit
+    session: SlickSession,
+  ): Flow[(Long, UUID), Option[Lineup], NotUsed] = Slick.flowWithPassThrough {
+    case (providerChannelId, airingId) => lineupTable.filter { lineup =>
       lineup.providerChannelId === providerChannelId &&
       lineup.airingId === airingId
-    }.result.headOption)
+    }.result.headOption
   }
 
-  def lineupsExistForProvider(providerId: Long)(
+  def lineupsExistForProvider()(
     implicit
-    db: Database,
-  ): Future[Boolean] = {
-    db.run((for {
+    session: SlickSession,
+  ): Flow[Long, Boolean, NotUsed] = Slick.flowWithPassThrough { providerId =>
+    (for {
       l <- lineupTable
       pc <- ProviderChannelDAO.providerChannelTable
-        if  l.providerChannelId === pc.providerChannelId &&
-            pc.providerId === providerId
-    } yield pc.providerId).distinct.exists.result)
+      if  l.providerChannelId === pc.providerChannelId &&
+          pc.providerId === providerId
+    } yield pc.providerId).distinct.exists.result
   }
 
-  def upsertLineup(lineup: Lineup)(
+  def upsertLineup()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[Lineup] = {
-    getLineupForProviderChannelAndAiring(
-      lineup.providerChannelId,
-      lineup.airingId,
-    ) flatMap {
-      case None =>
-        db.run((lineupTable returning lineupTable) += lineup)
-      case Some(lineup) => for {
-        _ <- db.run(lineupTable.filter { l =>
-          l.providerChannelId === lineup.providerChannelId &&
-            l.airingId === lineup.airingId
-        }.update(lineup))
-        l <- db.run(lineupTable.filter { l =>
-          l.providerChannelId === lineup.providerChannelId &&
-            l.airingId === lineup.airingId
-        }.result.head)
-      } yield l
-    }
+  ): Flow[Lineup, Lineup, NotUsed] = Slick.flowWithPassThrough {
+    case lineup @ Lineup(None, _, _, _) =>
+      (lineupTable returning lineupTable) += lineup
+    case lineup @ Lineup(Some(lineupId), _, _, _) => for {
+      _ <- lineupTable.filter(_.lineupId === lineupId).update(lineup)
+      l <- lineupTable.filter(_.lineupId === lineupId).result.head
+    } yield l
   }
 }

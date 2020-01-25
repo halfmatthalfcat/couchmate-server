@@ -5,6 +5,7 @@ import java.util.UUID
 import play.api.libs.json.{Json, OFormat}
 
 case class Lineup(
+  lineupId: Option[Long],
   providerChannelId: Long,
   airingId: UUID,
   replacedBy: Option[UUID]

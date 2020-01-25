@@ -1,11 +1,14 @@
 package com.couchmate.data.schema
 
-import PgProfile.api._
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.{Provider, ZipProvider}
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.{PrimaryKey, Tag}
 import slick.migration.api.TableMigration
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class ZipProviderDAO(tag: Tag) extends Table[ZipProvider](tag, "zip_provider") {
   def zipCode: Rep[String] = column[String]("zip_code")
@@ -45,39 +48,39 @@ object ZipProviderDAO {
       _.providerFk,
     )
 
-  def getZipProvidersForZip(zipCode: String)(
+  def getZipProvidersForZip()(
     implicit
-    db: Database,
-  ): Future[Seq[ZipProvider]] = {
-    db.run(zipProviderTable.filter(_.zipCode === zipCode).result)
+    session: SlickSession,
+  ): Flow[String, Seq[ZipProvider], NotUsed] = Slick.flowWithPassThrough { zipCode =>
+    zipProviderTable.filter(_.zipCode === zipCode).result
   }
 
-  def getProvidersForZip(zipCode: String)(
+  def getProvidersForZip()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[Seq[Provider]] = {
-    db.run((for {
+  ): Flow[String, Seq[Provider], NotUsed] = Slick.flowWithPassThrough { zipCode =>
+    (for {
       zp <- zipProviderTable
       p <- ProviderDAO.providerTable
-        if zp.providerId === p.providerId
-    } yield p).result)
+      if zp.providerId === p.providerId
+    } yield p).result
   }
 
-  def providerExistsForProviderAndZip(providerId: Long, zipCode: String)(
+  def providerExistsForProviderAndZip()(
     implicit
-    db: Database,
-  ): Future[Boolean] = {
-    db.run(zipProviderTable.filter { zp =>
+    session: SlickSession,
+  ): Flow[(Long, String), Boolean, NotUsed] = Slick.flowWithPassThrough {
+    case (providerId, zipCode) => zipProviderTable.filter { zp =>
       zp.providerId === providerId &&
       zp.zipCode === zipCode
-    }.exists.result)
+    }.exists.result
   }
 
-  def insertZipProvider(zipProvider: ZipProvider)(
+  def insertZipProvider()(
     implicit
-    db: Database,
-  ): Future[ZipProvider] = {
-    db.run((zipProviderTable returning zipProviderTable) += zipProvider)
+    session: SlickSession,
+  ): Flow[ZipProvider, ZipProvider, NotUsed] = Slick.flowWithPassThrough { zipProvider =>
+    (zipProviderTable returning zipProviderTable) += zipProvider
   }
 }

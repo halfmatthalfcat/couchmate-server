@@ -1,11 +1,14 @@
 package com.couchmate.data.schema
 
-import PgProfile.api._
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.SportOrganization
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class SportOrganizationDAO(tag: Tag) extends Table[SportOrganization](tag, "sport_organization") {
   def sportOrganizationId: Rep[Long] = column[Long]("sport_organization_id", O.PrimaryKey, O.AutoInc)
@@ -58,40 +61,34 @@ object SportOrganizationDAO {
       _.sourceExtSportOrgIdx,
     )
 
-  def getSportOrganization(sportOrgnizationId: Long)(
+  def getSportOrganization()(
     implicit
-    db: Database,
-  ): Future[Option[SportOrganization]] = {
-    db.run(sportOrganizationTable.filter(_.sportOrganizationId === sportOrgnizationId).result.headOption)
+    session: SlickSession,
+  ): Flow[Long, Option[SportOrganization], NotUsed] = Slick.flowWithPassThrough { sportOrganizationId =>
+    sportOrganizationTable.filter(_.sportOrganizationId === sportOrganizationId).result.headOption
   }
 
-  def getSportOrganizationBySourceSportAndOrg(
-    sourceId: Long,
-    extSportId: Long,
-    extOrgId: Option[Int],
-  )(
+  def getSportOrganizationBySourceSportAndOrg()(
     implicit
-    db: Database,
-  ): Future[Option[SportOrganization]] = {
-    db.run(sportOrganizationTable.filter { sportOrg =>
+    session: SlickSession,
+  ): Flow[(Long, Long, Option[Int]), Option[SportOrganization], NotUsed] = Slick.flowWithPassThrough {
+    case (sourceId, extSportId, extOrgId) => sportOrganizationTable.filter { sportOrg =>
       sportOrg.sourceId === sourceId &&
       sportOrg.extSportId === extSportId &&
       sportOrg.extOrgId === extOrgId
-    }.result.headOption)
+    }.result.headOption
   }
 
-  def upsertSportOrganization(sportOrganization: SportOrganization)(
+  def upsertSportOrganization()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[SportOrganization] = {
-    sportOrganization match {
-      case SportOrganization(None, _, _, _, _, _) =>
-        db.run((sportOrganizationTable returning sportOrganizationTable) += sportOrganization)
-      case SportOrganization(Some(sportOrganizationId), _, _, _, _, _) => for {
-        _ <- db.run(sportOrganizationTable.filter(_.sportOrganizationId === sportOrganizationId).update(sportOrganization))
-        so <- db.run(sportOrganizationTable.filter(_.sportOrganizationId === sportOrganizationId).result.head)
-      } yield so
-    }
+  ): Flow[SportOrganization, SportOrganization, NotUsed] = Slick.flowWithPassThrough {
+    case sportOrganization @ SportOrganization(None, _, _, _, _, _) =>
+      (sportOrganizationTable returning sportOrganizationTable) += sportOrganization
+    case sportOrganization @ SportOrganization(Some(sportOrganizationId), _, _, _, _, _) => for {
+      _ <- sportOrganizationTable.filter(_.sportOrganizationId === sportOrganizationId).update(sportOrganization)
+      so <- sportOrganizationTable.filter(_.sportOrganizationId === sportOrganizationId).result.head
+    } yield so
   }
 }

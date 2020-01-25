@@ -1,11 +1,14 @@
 package com.couchmate.data.schema
 
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.Provider
-import PgProfile.api._
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class ProviderDAO(tag: Tag) extends Table[Provider](tag, "provider") {
   def providerId: Rep[Long] = column[Long]("provider_id", O.PrimaryKey, O.AutoInc)
@@ -57,40 +60,34 @@ object ProviderDAO {
       _.sourceIdx,
     )
 
-  def getProvider(providerId: Long)(
+  def getProvider()(
     implicit
-    db: Database,
-  ): Future[Option[Provider]] = {
-    db.run(
-      providerTable.filter(_.providerId === providerId).result.headOption
-    )
+    session: SlickSession,
+  ): Flow[Long, Option[Provider], NotUsed] = Slick.flowWithPassThrough { providerId =>
+    providerTable.filter(_.providerId === providerId).result.headOption
   }
 
-  def getProviderForSourceAndExt(sourceId: Long, extId: String)(
+  def getProviderForSourceAndExt()(
     implicit
-    db: Database,
-  ): Future[Option[Provider]] = {
-    db.run(
-      providerTable.filter { provider =>
-        provider.sourceId === sourceId &&
-        provider.extId === extId
-      }.result.headOption
-    )
+    session: SlickSession,
+  ): Flow[(Long, String), Option[Provider], NotUsed] = Slick.flowWithPassThrough {
+    case (sourceId, extId) => providerTable.filter { provider =>
+      provider.sourceId === sourceId &&
+      provider.extId === extId
+    }.result.headOption
   }
 
-  def upsertProvider(provider: Provider)(
+  def upsertProvider()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[Provider] = {
-    provider match {
-      case Provider(None, _, _, _, _, _) =>
-        db.run((providerTable returning providerTable) += provider)
-      case Provider(Some(providerId), _, _, _, _, _) =>
-        for {
-          _ <- db.run(providerTable.filter(_.providerId === providerId).update(provider))
-          provider <- db.run(providerTable.filter(_.providerId === providerId).result.head)
-        } yield provider
-    }
+  ): Flow[Provider, Provider, NotUsed] = Slick.flowWithPassThrough {
+    case provider @ Provider(None, _, _, _, _, _) =>
+      (providerTable returning providerTable) += provider
+    case provider @ Provider(Some(providerId), _, _, _, _, _) =>
+      for {
+        _ <- providerTable.filter(_.providerId === providerId).update(provider)
+        p <- providerTable.filter(_.providerId === providerId).result.head
+      } yield p
   }
 }

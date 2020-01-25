@@ -1,9 +1,11 @@
 package com.couchmate.data.schema
 
-import com.couchmate.data.models.{Airing, RoomActivityType, UserActivityType, UserExtType, UserType}
+import com.couchmate.data.models._
 import com.github.tminglei.slickpg._
 import enumeratum.{Enum, EnumEntry}
 import play.api.libs.json.{JsValue, Json}
+import slick.basic.Capability
+import slick.jdbc.JdbcCapabilities
 import slick.migration.api.PostgresDialect
 
 import scala.reflect.ClassTag
@@ -15,6 +17,9 @@ trait PgProfile
   with PgPlayJsonSupport
   with array.PgArrayJdbcTypes {
   override val pgjson: String = "jsonb"
+
+  override protected def computeCapabilities: Set[Capability] =
+    super.computeCapabilities + JdbcCapabilities.insertOrUpdate
 
   override val api: API = new API {}
   val plainAPI: API = new API with PlayJsonPlainImplicits

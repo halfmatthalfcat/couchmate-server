@@ -1,11 +1,14 @@
 package com.couchmate.data.schema
 
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.Channel
-import PgProfile.api._
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class ChannelDAO(tag: Tag) extends Table[Channel](tag, "channel") {
   def channelId: Rep[Long] = column[Long]("channel_id", O.PrimaryKey, O.AutoInc)
@@ -51,35 +54,33 @@ object ChannelDAO {
       _.channelSourceIdx,
     )
 
-  def getChannel(channelId: Long)(
+  def getChannel()(
     implicit
-    db: Database,
-  ): Future[Option[Channel]] = {
-    db.run(channelTable.filter(_.channelId === channelId).result.headOption)
+    session: SlickSession,
+  ): Flow[Long, Option[Channel], NotUsed] = Slick.flowWithPassThrough { channelId =>
+    channelTable.filter(_.channelId === channelId).result.headOption
   }
 
-  def getChannelForSourceAndExt(sourceId: Long, extId: Long)(
+  def getChannelForSourceAndExt()(
     implicit
-    db: Database,
-  ): Future[Option[Channel]] = {
-    db.run(channelTable.filter { channel =>
+    session: SlickSession,
+  ): Flow[(Long, Long), Option[Channel], NotUsed] = Slick.flowWithPassThrough {
+    case (sourceId, extId) => channelTable.filter { channel =>
       channel.sourceId === sourceId &&
-      channel.extId === channel.extId
-    }.result.headOption)
+      channel.extId === extId
+    }.result.headOption
   }
 
-  def upsertChannel(channel: Channel)(
+  def upsertChannel()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[Channel] = {
-    channel match {
-      case Channel(None, _, _, _) =>
-        db.run((channelTable returning channelTable) += channel)
-      case Channel(Some(channelId), _, _, _) => for {
-        _ <- db.run(channelTable.filter(_.channelId === channelId).update(channel))
-        c <- db.run(channelTable.filter(_.channelId === channelId).result.head)
-      } yield c
-    }
+  ): Flow[Channel, Channel, NotUsed] = Slick.flowWithPassThrough {
+    case channel @ Channel(None, _, _, _) =>
+     (channelTable returning channelTable) += channel
+    case channel @ Channel(Some(channelId), _, _, _) => for {
+      _ <- channelTable.filter(_.channelId === channelId).update(channel)
+      c <- channelTable.filter(_.channelId === channelId).result.head
+    } yield c
   }
 }

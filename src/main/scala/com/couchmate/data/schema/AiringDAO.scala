@@ -3,12 +3,15 @@ package com.couchmate.data.schema
 import java.time.OffsetDateTime
 import java.util.UUID
 
-import PgProfile.api._
-import slick.migration.api._
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.Airing
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
+import slick.migration.api._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class AiringDAO(tag: Tag) extends Table[Airing](tag, "airing") {
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.PrimaryKey, O.SqlType("uuid"))
@@ -70,64 +73,63 @@ object AiringDAO {
       _.endTimeIdx,
     )
 
-  def getAiring(airingId: UUID)(
+  def getAiring()(
     implicit
-    db: Database,
-  ): Future[Option[Airing]] = {
-    db.run(airingTable.filter(_.airingId === airingId).result.headOption)
+    session: SlickSession,
+  ): Flow[UUID, Option[Airing], NotUsed] = Slick.flowWithPassThrough { airingId =>
+    airingTable.filter(_.airingId === airingId).result.headOption
   }
 
-  def getAiringByShowAndStart(showId: Long, startTime: OffsetDateTime)(
+  def getAiringByShowAndStart()(
     implicit
-    db: Database,
-  ): Future[Option[Airing]] = {
-    db.run(airingTable.filter { airing =>
-      airing.showId === showId &&
-      airing.startTime === startTime
-    }.result.headOption)
+    session: SlickSession,
+  ): Flow[(Long, OffsetDateTime), Option[Airing], NotUsed] = Slick.flowWithPassThrough { case (airingId, startDate) =>
+    airingTable.filter { airing =>
+      airing.showId === airingId &&
+      airing.startTime === startDate
+    }.result.headOption
   }
 
-  def getAiringsByStart(startTime: OffsetDateTime)(
+  def getAiringsByStart()(
     implicit
-    db: Database,
-  ): Future[Seq[Airing]] = {
-    db.run(airingTable.filter(_.startTime === startTime).result)
+    session: SlickSession,
+  ): Flow[OffsetDateTime, Seq[Airing], NotUsed] = Slick.flowWithPassThrough { startTime =>
+    airingTable.filter(_.startTime === startTime).result
   }
 
-  def getAiringsByEnd(endTime: OffsetDateTime)(
+  def getAiringsByEnd()(
     implicit
-    db: Database,
-  ): Future[Seq[Airing]] = {
-    db.run(airingTable.filter(_.endTime === endTime).result)
+    session: SlickSession,
+  ): Flow[OffsetDateTime, Seq[Airing], NotUsed] = Slick.flowWithPassThrough { endTime =>
+    airingTable.filter(_.endTime === endTime).result
   }
 
-  def getAiringsForStartAndDuration(startTime: OffsetDateTime, duration: Int)(
+  def getAiringsForStartAndDuration()(
     implicit
-    db: Database,
-  ): Future[Seq[Airing]] = {
-    val endTime: OffsetDateTime = startTime.plusMinutes(duration);
-    db.run(airingTable.filter { airing =>
-      (airing.startTime between (startTime, endTime)) ||
-      (airing.endTime between (startTime, endTime)) ||
-      (
-        airing.startTime <= startTime &&
-        airing.endTime >= endTime
-      )
-    }.result)
+    session: SlickSession,
+  ): Flow[(OffsetDateTime, Int), Seq[Airing], NotUsed] = Slick.flowWithPassThrough {
+    case (startTime, duration) =>
+      val endTime: OffsetDateTime = startTime.plusMinutes(duration)
+      airingTable.filter { airing =>
+        (airing.startTime between (startTime, endTime)) ||
+        (airing.endTime between (startTime, endTime)) ||
+        (
+          airing.startTime <= startTime &&
+          airing.endTime >= endTime
+        )
+    }.result
   }
 
-  def upsertAiring(airing: Airing)(
+  def upsertAiring()(
     implicit
-    db: Database,
+    db: SlickSession,
     ec: ExecutionContext,
-  ): Future[Airing] = {
-    airing match {
-      case Airing(None, _, _, _, _) =>
-        db.run((airingTable returning airingTable) += airing)
-      case Airing(Some(airingId), _, _, _, _) => for {
-        _ <- db.run(airingTable.filter(_.airingId === airingId).update(airing))
-        a <- db.run(airingTable.filter(_.airingId === airingId).result.head)
-      } yield a
-    }
+  ): Flow[Airing, Airing, NotUsed] = Slick.flowWithPassThrough {
+    case airing @ Airing(None, _, _, _, _) =>
+      (airingTable returning airingTable) += airing.copy(airingId = Some(UUID.randomUUID()))
+    case airing @ Airing(Some(airingId), _, _, _, _) => for {
+      _ <- airingTable.filter(_.airingId === airingId).update(airing)
+      a <- airingTable.filter(_.airingId === airingId).result.head
+    } yield a
   }
 }

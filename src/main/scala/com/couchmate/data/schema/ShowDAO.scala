@@ -2,12 +2,15 @@ package com.couchmate.data.schema
 
 import java.time.OffsetDateTime
 
-import PgProfile.api._
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.Show
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class ShowDAO(tag: Tag) extends Table[Show](tag, "show") {
   def showId: Rep[Long] = column[Long]("show_id", O.PrimaryKey, O.AutoInc)
@@ -91,35 +94,33 @@ object ShowDAO {
       _.sourceExtIdx,
     )
 
-  def getShow(showId: Long)(
+  def getShow()(
     implicit
-    db: Database
-  ): Future[Option[Show]] = {
-    db.run(showTable.filter(_.showId === showId).result.headOption)
+    session: SlickSession,
+  ): Flow[Long, Option[Show], NotUsed] = Slick.flowWithPassThrough { showId =>
+    showTable.filter(_.showId === showId).result.headOption
   }
 
-  def getShowFromSourceAndExt(sourceId: Long, extId: Long)(
+  def getShowFromSourceAndExt()(
     implicit
-    db: Database,
-  ): Future[Option[Show]] = {
-    db.run(showTable.filter { show =>
+    session: SlickSession,
+  ): Flow[(Long, Long), Option[Show], NotUsed] = Slick.flowWithPassThrough {
+    case (sourceId, extId) => showTable.filter { show =>
       show.sourceId === sourceId &&
       show.extId === extId
-    }.result.headOption)
+    }.result.headOption
   }
 
-  def upsertShow(show: Show)(
+  def upsertShow()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[Show] = {
-    show match {
-      case Show(None, _, _, _, _, _, _, _, _) =>
-        db.run((showTable returning showTable) += show)
-      case Show(Some(showId), _, _, _, _, _, _, _, _) => for {
-        _ <- db.run(showTable.filter(_.showId === showId).update(show))
-        s <- db.run(showTable.filter(_.showId === showId).result.head)
-      } yield s
-    }
+  ): Flow[Show, Show, NotUsed] = Slick.flowWithPassThrough {
+    case show @ Show(None, _, _, _, _, _, _, _, _) =>
+      (showTable returning showTable) += show
+    case show @ Show(Some(showId), _, _, _, _, _, _, _, _) => for {
+      _ <- showTable.filter(_.showId === showId).update(show)
+      s <- showTable.filter(_.showId === showId).result.head
+    } yield s
   }
 }

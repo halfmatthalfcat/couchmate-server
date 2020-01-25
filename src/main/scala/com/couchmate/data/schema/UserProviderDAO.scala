@@ -2,12 +2,15 @@ package com.couchmate.data.schema
 
 import java.util.UUID
 
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.{Flow, Source}
 import com.couchmate.data.models.{Provider, UserProvider}
-import PgProfile.api._
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class UserProviderDAO(tag: Tag) extends Table[UserProvider](tag, "user_provider") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey)
@@ -50,74 +53,68 @@ object UserProviderDAO {
       _.providerFk,
     )
 
-  def getUserProvider(userId: UUID)(
+  def getUserProvider()(
     implicit
-    db: Database
-  ): Future[Option[UserProvider]] = {
-    db.run(userProviderTable.filter(_.userId === userId).result.headOption)
+    session: SlickSession,
+  ): Flow[UUID, Option[UserProvider], NotUsed] = Slick.flowWithPassThrough { userId =>
+    userProviderTable.filter(_.userId === userId).result.headOption
   }
 
-  def getProviders(userId: UUID)(
+  def getProviders()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[Seq[Provider]] = {
-    db.run((for {
+  ): Flow[UUID, Seq[Provider], NotUsed] = Slick.flowWithPassThrough { userId =>
+    (for {
       up <- userProviderTable
       p <- ProviderDAO.providerTable if up.userId === userId
-    } yield p).result)
+    } yield p).result
   }
 
-  def userProviderExists(providerId: Long, zipCode: String)(
+  def userProviderExists()(
     implicit
-    db: Database
-  ): Future[Boolean] = {
-    db.run(userProviderTable.filter { up =>
+    session: SlickSession,
+  ): Flow[(Long, String), Boolean, NotUsed] = Slick.flowWithPassThrough {
+    case (providerId, zipCode) => userProviderTable.filter { up =>
       up.providerId === providerId &&
       up.zipCode === zipCode
-    }.exists.result)
+    }.exists.result
   }
 
-  def upsertUserProvider(userProvider: UserProvider)(
+  def upsertUserProvider()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[UserProvider] = {
-    db.run(
-      userProviderTable.filter { up =>
-        up.userId === userProvider.userId
-      }.exists.result
-    ) flatMap {
-      case true => for {
-        _ <- db.run(
-          userProviderTable.filter(_.userId === userProvider.userId).update(userProvider)
-        )
-        updatedUp <- db.run(
-          userProviderTable.filter(_.userId === userProvider.userId).result.head
-        )
-      } yield updatedUp
-      case false => db.run(
-        (userProviderTable returning userProviderTable) += userProvider
-      )
-    }
+  ): Flow[UserProvider, UserProvider, NotUsed] = Flow[UserProvider].flatMapConcat {
+    case userProvider @ UserProvider(userId, _, _) => Source
+      .single(userId)
+      .via(getUserProvider())
+      .via(Slick.flowWithPassThrough {
+        case None =>
+          (userProviderTable returning userProviderTable) += userProvider
+        case Some(_) => for {
+          _ <- userProviderTable.filter(_.userId === userProvider.userId).update(userProvider)
+          updatedUp <- userProviderTable.filter(_.userId === userProvider.userId).result.head
+        } yield updatedUp
+      })
   }
 
   def getUniqueInternalProviders()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ): Future[Seq[Long]] = {
-    db.run(userProviderTable.distinct.result).map(_.map(_.providerId))
-  }
+  ): Source[Seq[Long], NotUsed] = Slick
+    .source(userProviderTable.distinct.result)
+    .map(_.providerId)
+    .fold(Seq[Long]())(_ :+ _)
 
   def getUniqueProviders()(
     implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Future[Seq[String]] = {
-    db.run((for {
+    session: SlickSession,
+  ): Source[Seq[String], NotUsed] = Slick
+    .source((for {
       p <- ProviderDAO.providerTable
       up <- userProviderTable if p.providerId === up.providerId
     } yield p.extId).distinct.result)
-  }
+    .fold(Seq[String]())(_ :+ _)
 }

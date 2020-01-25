@@ -2,15 +2,16 @@ package com.couchmate.data.schema
 
 import java.util.UUID
 
-import PgProfile.api._
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.{UserExt, UserExtType}
+import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.Future
-
 class UserExtDAO(tag: Tag) extends Table[UserExt](tag, "user_ext") {
-  def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
+  def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
   def extType: Rep[UserExtType] = column[UserExtType]("ext_type")
   def extId: Rep[String] = column[String]("ext_id")
   def * = (
@@ -43,17 +44,17 @@ object UserExtDAO {
       _.userFk,
     )
 
-  def getUserExt(userId: UUID)(
+  def getUserExt()(
     implicit
-    db: Database,
-  ): Future[Option[UserExt]] = {
-    db.run(userExtTable.filter(_.userId === userId).result.headOption)
+    session: SlickSession,
+  ): Flow[UUID, Option[UserExt], NotUsed] = Slick.flowWithPassThrough { userId =>
+    userExtTable.filter(_.userId === userId).result.headOption
   }
 
-  def addUserExt(userExt: UserExt)(
+  def addUserExt()(
     implicit
-    db: Database,
-  ): Future[UserExt] = {
-    db.run((userExtTable returning userExtTable) += userExt)
+    session: SlickSession,
+  ): Flow[UserExt, UserExt, NotUsed] = Slick.flowWithPassThrough { userExt =>
+    (userExtTable returning userExtTable) += userExt
   }
 }

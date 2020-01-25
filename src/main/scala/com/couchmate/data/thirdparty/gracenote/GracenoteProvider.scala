@@ -3,7 +3,7 @@ package com.couchmate.data.thirdparty.gracenote
 import play.api.libs.json.{Json, OFormat}
 
 case class GracenoteProvider(
-  lineupId: Long,
+  lineupId: String,
   name: String,
   location: String,
   `type`: String,
