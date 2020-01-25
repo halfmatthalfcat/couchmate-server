@@ -1,36 +1,32 @@
 package com.couchmate.api.routes
 
-import akka.actor.typed.{ActorRef, ActorSystem}
-import akka.actor.typed.scaladsl.AskPattern._
+import akka.actor.typed.ActorSystem
+import akka.http.scaladsl.common.{EntityStreamingSupport, JsonEntityStreamingSupport}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.stream.alpakka.slick.scaladsl.SlickSession
 import akka.util.Timeout
-import com.couchmate.api._
 import com.couchmate.data.models.Source
-import com.couchmate.services.data.source.SourceService
-import com.couchmate.services.data.source.SourceService.AddSource
+import com.couchmate.data.schema.SourceDAO
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
-import scala.concurrent.ExecutionContext
-
 object SourceRoutes extends PlayJsonSupport {
-  def apply(
-    sourceServiceRouter: ActorRef[SourceService.Command],
-  )(
+  implicit val jsonStreamingSupport: JsonEntityStreamingSupport = EntityStreamingSupport.json()
+
+  def apply()(
     implicit
     actorSystem: ActorSystem[Nothing],
     timeout: Timeout,
-    ec: ExecutionContext,
+    session: SlickSession,
   ): Route = {
     pathPrefix("source") {
       pathEndOrSingleSlash {
         post {
-          entity(as[Source]) { source =>
-            asyncWithBody[Source] {
-              sourceServiceRouter ask { ref =>
-                AddSource(source, ref)
-              }
-            }
+          entity(asSourceOf[Source]) { source =>
+            val entity = source
+              .via(SourceDAO.addSource())
+
+            complete(entity)
           }
         }
       }

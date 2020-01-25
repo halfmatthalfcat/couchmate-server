@@ -2,16 +2,15 @@ package com.couchmate
 
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, PostStop}
+import akka.actor.typed.{ActorSystem, Behavior, PostStop}
 import akka.actor.{ActorSystem => ClassicActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.stream.ActorMaterializer
+import akka.stream.alpakka.slick.scaladsl.SlickSession
 import akka.util.Timeout
 import com.couchmate.api.Routes
-import com.couchmate.data.schema.PgProfile.api._
-import com.couchmate.services.data.{ServiceRouter, ServiceRouters}
-import com.couchmate.services.data.source.SourceService
+import com.couchmate.services.data.ServiceRouters
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.duration._
@@ -60,8 +59,8 @@ object Server extends ServerCommands {
 
   def apply(host: String, port: Int, config: Config): Behavior[Command] = Behaviors.setup { implicit ctx =>
 
-    implicit val db: Database =
-      Database.forConfig("db")
+    implicit val db: SlickSession =
+      SlickSession.forConfig("slick")
 
     implicit val ec: ExecutionContext =
       ctx.executionContext
@@ -82,9 +81,7 @@ object Server extends ServerCommands {
     import routers._
 
     val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
-      Routes(
-        sourceServiceRouter,
-      ),
+      Routes(),
       interface = host,
       port = port,
     )

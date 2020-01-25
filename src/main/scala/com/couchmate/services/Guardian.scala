@@ -4,7 +4,6 @@ import akka.actor.typed.Behavior
 import akka.actor.typed.receptionist._
 import akka.actor.typed.scaladsl.Behaviors
 import com.couchmate.data.schema.PgProfile.api._
-import com.couchmate.services.data.source.SourceService
 
 import scala.concurrent.ExecutionContext
 

@@ -6,6 +6,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl._
+import com.couchmate.data.thirdparty.gracenote.GracenoteProvider
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
@@ -42,7 +43,7 @@ class GracenoteService()(
       method = HttpMethods.GET,
       uri = s"http://$gnHost/${path.mkString("/")}$queryString",
       headers = Seq(
-        "Accept-encoding" -> "gzip",
+        HttpHeader.parse("Accept-encoding", "gzip"),
       ),
     )
   }
@@ -50,7 +51,7 @@ class GracenoteService()(
   def getProviders(
     zipCode: String,
     country: Option[String] = None,
-  ): Source[Seq[GracenoteService], NotUsed] = {
+  ): Source[Seq[GracenoteProvider], NotUsed] = {
     Source
       .single[(HttpRequest, String)](getGracenoteRequest(
         Seq("listing"),
@@ -63,7 +64,7 @@ class GracenoteService()(
       .mapAsync(1) {
         case (Success(response: HttpResponse), zipCode) =>
           logger.debug(s"Successfully got Gracenote providers for $zipCode")
-          Unmarshal(response.entity).to[Seq[GracenoteService]]
+          Unmarshal(response.entity).to[Seq[GracenoteProvider]]
       }
   }
 }

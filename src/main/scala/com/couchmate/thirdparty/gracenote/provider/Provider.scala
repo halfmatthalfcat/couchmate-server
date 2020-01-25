@@ -1,8 +1,9 @@
 package com.couchmate.thirdparty.gracenote.provider
 
 import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.SlickSession
 import akka.stream.{ClosedShape, FlowShape}
-import akka.stream.scaladsl.{Flow, GraphDSL, RunnableGraph, Sink, Source}
+import akka.stream.scaladsl.{Flow, GraphDSL, Merge, Partition, RunnableGraph, Sink, Source}
 import com.couchmate.data.models.Provider
 import com.couchmate.data.schema.PgProfile.api._
 import com.couchmate.data.schema.ProviderDAO
@@ -12,42 +13,31 @@ import com.couchmate.services.thirdparty.gracenote.GracenoteService
 import scala.concurrent.ExecutionContext
 
 object ProviderIngestor {
-  private[this] def getProvider(
-    gracenoteProvider: GracenoteProvider,
-  )(
+
+  private[this] def ingestProvider()(
     implicit
-    db: Database,
+    session: SlickSession,
     ec: ExecutionContext,
-  ) =
-    Source
-      .future(ProviderDAO.getProviderForSourceAndExt(1L, gracenoteProvider.lineupId))
+  ): Flow[GracenoteProvider, Provider, NotUsed] = Flow[GracenoteProvider].flatMapConcat {
+    case GracenoteProvider(lineupId, name, location, t) => Source
+      .single((1L, lineupId))
+      .via(ProviderDAO.getProviderForSourceAndExt())
       .flatMapConcat {
-        case Some(provider) => Source.single(provider)
-        case None => Source.future(ProviderDAO.upsertProvider(Provider(
-          providerId = None,
+        case None => Source.single(Provider(
           sourceId = 1L,
-          extId = gracenoteProvider.lineupId,
-          `type` = Some(gracenoteProvider.`type`),
-          location = Some(gracenoteProvider.location),
-          name = gracenoteProvider.name,
-        )))
+          extId = lineupId,
+          name = name,
+          `type` = Some(t),
+          location = Some(location),
+        )).via(ProviderDAO.upsertProvider())
+        case Some(provider) => Source.single(provider)
       }
+  }
 
-  def providerGraph(zipCode: String)(
+  def ingestProviders()(
     implicit
-    gnService: GracenoteService,
-    db: Database,
-  ) =
-    RunnableGraph.fromGraph(
-      GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
-        import GraphDSL.Implicits._
-
-        val in = builder.add(Source[Seq[GracenoteProvider]])
-        val out = Sink.ignore
-
-        in ~>
-
-        FlowShape(???, ???)
-      }
-    )
+    session: SlickSession,
+    ec: ExecutionContext,
+  ): Flow[String, Provider, NotUsed] = Flow[String]
+    .
 }

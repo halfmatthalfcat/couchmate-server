@@ -3,7 +3,7 @@ package com.couchmate.data.models
 import play.api.libs.json.{Json, OFormat}
 
 case class Provider(
-  providerId: Option[Long],
+  providerId: Option[Long] = None,
   sourceId: Long,
   extId: String,
   name: String,
