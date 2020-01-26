@@ -2,18 +2,15 @@ package com.couchmate.data.schema
 
 import java.util.UUID
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.{Flow, Source}
+import PgProfile.api._
 import com.couchmate.data.models.UserMeta
-import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class UserMetaDAO(tag: Tag) extends Table[UserMeta](tag, "user_meta") {
-  def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
+  def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def email: Rep[String] = column[String]("email")
   def * = (
     userId,
@@ -43,28 +40,25 @@ object UserMetaDAO {
       _.userFk,
     )
 
-  def getUserMeta()(
+  def getUserMeta(userId: UUID)(
     implicit
-    session: SlickSession,
-  ): Flow[UUID, Option[UserMeta], NotUsed] = Slick.flowWithPassThrough { userId =>
-    userMetaTable.filter(_.userId === userId).result.headOption
+    db: Database,
+  ): Future[Option[UserMeta]] = {
+    db.run(userMetaTable.filter(_.userId === userId).result.headOption)
   }
 
-  def upsertUserMeta()(
+  def upsertUserMeta(userMeta: UserMeta)(
     implicit
-    session: SlickSession,
+    db: Database,
     ec: ExecutionContext,
-  ): Flow[UserMeta, UserMeta, NotUsed] = Flow[UserMeta].flatMapConcat {
-    case userMeta @ UserMeta(userId, _) => Source
-      .single(userId)
-      .via(getUserMeta())
-      .via(Slick.flowWithPassThrough {
-        case None =>
-          (userMetaTable returning userMetaTable) += userMeta
-        case Some(_) => for {
-          _ <- userMetaTable.filter(_.userId === userMeta.userId).update(userMeta)
-          um <- userMetaTable.filter(_.userId === userMeta.userId).result.head
-        } yield um
-      })
+  ): Future[UserMeta] = {
+    getUserMeta(userMeta.userId) flatMap {
+      case None =>
+        db.run((userMetaTable returning userMetaTable) += userMeta)
+      case Some(userMeta) => for {
+        _ <- db.run(userMetaTable.filter(_.userId === userMeta.userId).update(userMeta))
+        um <- db.run(userMetaTable.filter(_.userId === userMeta.userId).result.head)
+      } yield um
+    }
   }
 }

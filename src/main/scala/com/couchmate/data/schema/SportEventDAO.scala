@@ -1,14 +1,11 @@
 package com.couchmate.data.schema
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.Flow
+import PgProfile.api._
 import com.couchmate.data.models.SportEvent
-import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class SportEventDAO(tag: Tag) extends Table[SportEvent](tag, "sport_event") {
   def sportEventId: Rep[Long] = column[Long]("sport_event_id", O.PrimaryKey, O.AutoInc)
@@ -52,23 +49,25 @@ object SportEventDAO {
       _.sportEventUniqueIdx,
     )
 
-  def getSportEvent()(
+  def getSportEvent(sportEventId: Long)(
     implicit
-    session: SlickSession,
-  ): Flow[Long, Option[SportEvent], NotUsed] = Slick.flowWithPassThrough { sportEventId =>
-    sportEventTable.filter(_.sportEventId === sportEventId).result.headOption
+    db: Database,
+  ): Future[Option[SportEvent]] = {
+    db.run(sportEventTable.filter(_.sportEventId === sportEventId).result.headOption)
   }
 
-  def upsertSportEvent()(
+  def upsertSportEvent(sportEvent: SportEvent)(
     implicit
-    session: SlickSession,
+    db: Database,
     ec: ExecutionContext,
-  ): Flow[SportEvent, SportEvent, NotUsed] = Slick.flowWithPassThrough {
-    case sportEvent @ SportEvent(None, _, _) =>
-      (sportEventTable returning sportEventTable) += sportEvent
-    case sportEvent @ SportEvent(Some(sportEventId), _, _) => for {
-      _ <- sportEventTable.filter(_.sportEventId === sportEventId).update(sportEvent)
-      se <- sportEventTable.filter(_.sportEventId === sportEventId).result.head
-    } yield se
+  ): Future[SportEvent] = {
+    sportEvent match {
+      case SportEvent(None, _, _) =>
+        db.run((sportEventTable returning sportEventTable) += sportEvent)
+      case SportEvent(Some(sportEventId), _, _) => for {
+        _ <- db.run(sportEventTable.filter(_.sportEventId === sportEventId).update(sportEvent))
+        se <- db.run(sportEventTable.filter(_.sportEventId === sportEventId).result.head)
+      } yield se
+    }
   }
 }

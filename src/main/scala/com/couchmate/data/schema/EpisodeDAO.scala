@@ -1,25 +1,22 @@
 package com.couchmate.data.schema
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.Flow
+import PgProfile.api._
 import com.couchmate.data.models.Episode
-import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class EpisodeDAO(tag: Tag) extends Table[Episode](tag, "episode") {
   def episodeId: Rep[Long] = column[Long]("episode_id", O.PrimaryKey, O.AutoInc)
   def seriesId: Rep[Long] = column[Long]("series_id")
-  def season: Rep[Int] = column[Int]("season")
-  def episode: Rep[Int] = column[Int]("episode")
+  def season: Rep[Option[Int]] = column[Option[Int]]("season")
+  def episode: Rep[Option[Int]] = column[Option[Int]]("episode")
   def * = (
     episodeId.?,
     seriesId,
-    season.?,
-    episode.?,
+    season,
+    episode,
   ) <> ((Episode.apply _).tupled, Episode.unapply)
 
   def seriesFk = foreignKey(
@@ -47,23 +44,25 @@ object EpisodeDAO {
       _.seriesFk,
     )
 
-  def getEpisode()(
+  def getEpisode(episodeId: Long)(
     implicit
-    session: SlickSession,
-  ): Flow[Long, Option[Episode], NotUsed] = Slick.flowWithPassThrough { episodeId =>
-    episodeTable.filter(_.episodeId === episodeId).result.headOption
+    db: Database,
+  ): Future[Option[Episode]] = {
+    db.run(episodeTable.filter(_.episodeId === episodeId).result.headOption)
   }
 
-  def upsertEpisode()(
+  def upsertEpisode(episode: Episode)(
     implicit
-    session: SlickSession,
+    db: Database,
     ec: ExecutionContext,
-  ): Flow[Episode, Episode, NotUsed] = Slick.flowWithPassThrough {
-    case episode @ Episode(None, _, _, _) =>
-      (episodeTable returning episodeTable) += episode
-    case episode @ Episode(Some(episodeId), _, _, _) => for {
-      _ <- episodeTable.filter(_.episodeId === episodeId).update(episode)
-      e <- episodeTable.filter(_.episodeId === episodeId).result.head
-    } yield e
+  ): Future[Episode] = {
+    episode match {
+      case Episode(None, _, _, _) =>
+        db.run((episodeTable returning episodeTable) += episode)
+      case Episode(Some(episodeId), _, _, _) => for {
+        _ <- db.run(episodeTable.filter(_.episodeId === episodeId).update(episode))
+        e <- db.run(episodeTable.filter(_.episodeId === episodeId).result.head)
+      } yield e
+    }
   }
 }

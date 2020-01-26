@@ -5,8 +5,10 @@ import play.api.libs.json.{Json, OFormat}
 case class GracenoteProvider(
   lineupId: String,
   name: String,
-  location: String,
   `type`: String,
+  device: Option[String],
+  location: Option[String],
+  mso: Option[GracenoteProviderOwner],
 ) extends Product with Serializable
 
 object GracenoteProvider {

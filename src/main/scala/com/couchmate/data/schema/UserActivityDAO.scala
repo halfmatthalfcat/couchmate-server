@@ -3,13 +3,12 @@ package com.couchmate.data.schema
 import java.time.OffsetDateTime
 import java.util.UUID
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.Flow
+import PgProfile.api._
 import com.couchmate.data.models.{UserActivity, UserActivityType}
-import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
+
+import scala.concurrent.Future
 
 class UserActivityDAO(tag: Tag) extends Table[UserActivity](tag, "user_activity") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
@@ -45,10 +44,10 @@ object UserActivityDAO {
       _.userFk,
     )
 
-  def addUserActivity()(
+  def addUserActivity(userActivity: UserActivity)(
     implicit
-    session: SlickSession,
-  ): Flow[UserActivity, UserActivity, NotUsed] = Slick.flowWithPassThrough { userActivity =>
-    (userActivityTable returning userActivityTable) += userActivity
+    db: Database,
+  ): Future[UserActivity] = {
+    db.run((userActivityTable returning userActivityTable) += userActivity)
   }
 }

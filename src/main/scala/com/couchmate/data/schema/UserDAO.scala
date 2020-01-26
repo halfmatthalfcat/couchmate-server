@@ -2,22 +2,24 @@ package com.couchmate.data.schema
 
 import java.util.UUID
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.{User, UserExtType}
-import com.couchmate.data.schema.PgProfile.api._
+import PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class UserDAO(tag: Tag) extends Table[User](tag, "user") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
   def username: Rep[String] = column[String]("username")
   def active: Rep[Boolean] = column[Boolean]("active", O.Default(true))
   def verified: Rep[Boolean] = column[Boolean]("verified", O.Default(false))
-  def * = (userId.?, username, active, verified) <> ((User.apply _).tupled, User.unapply)
+  def * = (
+    userId.?,
+    username,
+    active,
+    verified,
+  ) <> ((User.apply _).tupled, User.unapply)
 }
 
 object UserDAO extends EnumMappers {
@@ -32,49 +34,53 @@ object UserDAO extends EnumMappers {
       _.verified,
     )
 
-  def getUser()(
+  def upsertUser(user: User)(
     implicit
-    session: SlickSession,
-  ): Flow[UUID, Option[User], NotUsed] = Slick.flowWithPassThrough { userId =>
-    userTable.filter(_.userId === userId).result.headOption
+    db: Database,
+    ec: ExecutionContext,
+  ): Future[User] = {
+    user match {
+      case User(None, _, _, _) =>
+        db.run((userTable returning userTable) += user.copy(userId = Some(UUID.randomUUID())))
+      case User(Some(userId), _, _, _) =>
+        for {
+          _ <- db.run(userTable.filter(_.userId === userId).update(user))
+          user <- db.run(userTable.filter(_.userId === userId).result.head)
+        } yield user
+    }
   }
 
-  def getUserByEmail()(
+  def getUser(userId: UUID)(
     implicit
-    session: SlickSession,
-  ): Flow[String, Option[User], NotUsed] = Slick.flowWithPassThrough { email =>
-    (for {
+    db: Database,
+  ): Future[Option[User]] = {
+    db.run(
+      userTable.filter(_.userId === userId).result.headOption
+    )
+  }
+
+  def getUserByEmail(email: String)(
+    implicit
+    db: Database,
+  ): Future[Option[User]] = {
+    db.run((for {
       u <- userTable
       um <- UserMetaDAO.userMetaTable
       if  u.userId === um.userId &&
-        um.email === email
-    } yield u).result.headOption
+          um.email === email
+    } yield u).result.headOption)
   }
 
-  def getUserByExt()(
+  def getUserByExt(extType: UserExtType, extId: String)(
     implicit
-    session: SlickSession,
+    db: Database,
     ec: ExecutionContext,
-  ): Flow[(UserExtType, String), Option[User], NotUsed] = Slick.flowWithPassThrough {
-    case (extType, extId) => (for {
+  ): Future[Option[User]] = {
+    db.run((for {
       u <- userTable
       ue <- UserExtDAO.userExtTable
       if  ue.extType === extType &&
           ue.extId === extId
-    } yield u).result.headOption
-  }
-
-  def upsertUser()(
-    implicit
-    session: SlickSession,
-    ec: ExecutionContext,
-  ): Flow[User, User, NotUsed] = Slick.flowWithPassThrough {
-    case user @ User(None, _, _, _) =>
-      (userTable returning userTable) += user.copy(userId = Some(UUID.randomUUID()))
-    case user @ User(Some(userId), _, _, _) =>
-      for {
-        _ <- userTable.filter(_.userId === userId).update(user)
-        user <- userTable.filter(_.userId === userId).result.head
-      } yield user
+    } yield u).result.headOption)
   }
 }

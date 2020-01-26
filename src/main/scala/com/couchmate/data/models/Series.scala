@@ -4,7 +4,6 @@ import play.api.libs.json.{Json, OFormat}
 
 case class Series(
   seriesId: Option[Long],
-  sourceId: Long,
   extId: Long,
   seriesName: String,
   totalSeasons: Option[Long],

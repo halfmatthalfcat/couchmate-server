@@ -7,11 +7,12 @@ import akka.actor.{ActorSystem => ClassicActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.stream.ActorMaterializer
-import akka.stream.alpakka.slick.scaladsl.SlickSession
 import akka.util.Timeout
 import com.couchmate.api.Routes
-import com.couchmate.services.data.ServiceRouters
+import com.couchmate.data.schema.PgProfile.api._
+import com.couchmate.services.thirdparty.gracenote.GracenoteService
 import com.typesafe.config.{Config, ConfigFactory}
+import slick.basic.DatabaseConfig
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -59,8 +60,8 @@ object Server extends ServerCommands {
 
   def apply(host: String, port: Int, config: Config): Behavior[Command] = Behaviors.setup { implicit ctx =>
 
-    implicit val db: SlickSession =
-      SlickSession.forConfig("slick")
+    implicit val db: Database =
+      Database.forConfig("postgres")
 
     implicit val ec: ExecutionContext =
       ctx.executionContext
@@ -77,11 +78,11 @@ object Server extends ServerCommands {
 
     implicit val timeout: Timeout = 30 seconds
 
-    val routers: ServiceRouters = new ServiceRouters
-    import routers._
+    val gracenoteService: GracenoteService =
+      new GracenoteService(config);
 
     val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
-      Routes(),
+      Routes(gracenoteService),
       interface = host,
       port = port,
     )

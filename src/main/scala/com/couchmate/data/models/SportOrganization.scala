@@ -4,7 +4,6 @@ import play.api.libs.json.{Json, OFormat}
 
 case class SportOrganization(
   sportOrganizationId: Option[Long],
-  sourceId: Long,
   extSportId: Long,
   extOrgId: Option[Int],
   sportName: String,

@@ -2,15 +2,12 @@ package com.couchmate.data.schema
 
 import java.util.UUID
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.{Flow, Source}
+import PgProfile.api._
 import com.couchmate.data.models.UserPrivate
-import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class UserPrivateDAO(tag: Tag) extends Table[UserPrivate](tag, "user_private") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
@@ -43,28 +40,25 @@ object UserPrivateDAO {
       _.userFk,
     )
 
-  def getUserPrivate()(
+  def getUserPrivate(userId: UUID)(
     implicit
-    session: SlickSession,
-  ): Flow[UUID, Option[UserPrivate], NotUsed] = Slick.flowWithPassThrough { userId =>
-    userPrivateTable.filter(_.userId === userId).result.headOption
+    db: Database,
+  ): Future[Option[UserPrivate]] = {
+    db.run(userPrivateTable.filter(_.userId === userId).result.headOption)
   }
 
-  def upsertUserPrivate()(
+  def upsertUserPrivate(userPrivate: UserPrivate)(
     implicit
-    session: SlickSession,
+    db: Database,
     ec: ExecutionContext,
-  ): Flow[UserPrivate, UserPrivate, NotUsed] = Flow[UserPrivate].flatMapConcat {
-    case userPrivate @ UserPrivate(userId, _) => Source
-      .single(userId)
-      .via(getUserPrivate())
-      .via(Slick.flowWithPassThrough {
-        case None =>
-          (userPrivateTable returning userPrivateTable) += userPrivate
-        case Some(_) => for {
-          _ <- userPrivateTable.filter(_.userId === userPrivate.userId).update(userPrivate)
-          up <- userPrivateTable.filter(_.userId === userPrivate.userId).result.head
-        } yield up
-      })
+  ): Future[UserPrivate] = {
+    getUserPrivate(userPrivate.userId) flatMap {
+      case None =>
+        db.run((userPrivateTable returning userPrivateTable) += userPrivate)
+      case Some(_) => for {
+        _ <- db.run(userPrivateTable.filter(_.userId === userPrivate.userId).update(userPrivate))
+        up <- db.run(userPrivateTable.filter(_.userId === userPrivate.userId).result.head)
+      } yield up
+    }
   }
 }

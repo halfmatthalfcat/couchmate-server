@@ -3,9 +3,8 @@ package com.couchmate.data.models
 import play.api.libs.json.{Json, OFormat}
 
 case class ProviderOwner(
-  providerOwnerId: Option[Long],
-  sourceId: Long,
-  extProviderOwnerId: Long,
+  providerOwnerId: Option[Long] = None,
+  extProviderOwnerId: Option[String] = None,
   name: String,
 ) extends Product with Serializable
 

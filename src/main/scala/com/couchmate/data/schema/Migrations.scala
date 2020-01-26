@@ -4,8 +4,8 @@ import com.liyaos.forklift.slick._
 
 trait MigrationManager extends SlickMigrationManager {
   this.migrations = this.migrations ++ Seq(
-    SourceDAO.init,
     UserDAO.init,
+    ProviderOwnerDAO.init,
     ProviderDAO.init,
     UserProviderDAO.init,
     ChannelDAO.init,
@@ -23,8 +23,8 @@ trait MigrationManager extends SlickMigrationManager {
     UserExtDAO.init,
     UserPrivateDAO.init,
     ListingCacheDAO.init,
-    ProviderOwnerDAO.init,
   ).zipWithIndex.map { case (migration, i) =>
+    System.out.println(s"$i ${migration.table.tableName}")
     APIMigration(i)(migration)
   }
 }

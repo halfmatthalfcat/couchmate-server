@@ -3,18 +3,14 @@ package com.couchmate.data.schema
 import java.time.OffsetDateTime
 import java.util.UUID
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.Flow
+import PgProfile.api._
 import com.couchmate.data.models.{RoomActivity, RoomActivityType}
-import com.couchmate.data.schema.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
 
 class RoomActivityDAO(tag: Tag) extends Table[RoomActivity](tag, "room_activity") {
-
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.SqlType("uuid"))
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def action: Rep[RoomActivityType] = column[RoomActivityType]("action")
@@ -76,39 +72,37 @@ object RoomActivityDAO {
         userId -> query.map(_.created).max
       }
 
-  def getRoomCount()(
+  def getRoomCount(airingId: UUID)(
     implicit
-    session: SlickSession,
-    ec: ExecutionContext,
-  ): Flow[UUID, Int, NotUsed] = Slick.flowWithPassThrough { airingId =>
-    (for {
+    db: Database,
+  ): Future[Int] = {
+    db.run((for {
       ra <- roomActivityTable
       if  ra.airingId === airingId &&
           ra.action === (RoomActivityType.Joined: RoomActivityType)
       counts <- getLatestForUsers
       if  ra.userId === counts._1 &&
           ra.created === counts._2
-    } yield ra).length.result
+    } yield ra).length.result)
   }
 
   def getTotalCount()(
     implicit
-    session: SlickSession,
-    ec: ExecutionContext,
-  ): Flow[Unit, Int, NotUsed] = Slick.flowWithPassThrough { _ =>
-    (for {
+    db: Database,
+  ): Future[Int] = {
+    db.run((for {
       ra <- roomActivityTable
       if ra.action === (RoomActivityType.Joined: RoomActivityType)
       counts <- getLatestForUsers
       if  ra.userId === counts._1 &&
-          ra.created === counts._2
-    } yield ra).length.result
+        ra.created === counts._2
+    } yield ra).length.result)
   }
 
-  def addRoomActivity()(
+  def addRoomActivity(activity: RoomActivity)(
     implicit
-    session: SlickSession,
-  ): Flow[RoomActivity, RoomActivity, NotUsed] = Slick.flowWithPassThrough { activity =>
-    (roomActivityTable returning roomActivityTable) += activity
+    db: Database,
+  ): Future[RoomActivity] = {
+    db.run((roomActivityTable returning roomActivityTable) += activity)
   }
 }

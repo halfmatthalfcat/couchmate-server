@@ -1,14 +1,11 @@
 package com.couchmate.data.schema
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.Flow
 import com.couchmate.data.models.ProviderChannel
-import com.couchmate.data.schema.PgProfile.api._
+import PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class ProviderChannelDAO(tag: Tag) extends Table[ProviderChannel](tag, "provider_channel") {
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id", O.PrimaryKey, O.AutoInc)
@@ -65,34 +62,38 @@ object ProviderChannelDAO {
       _.providerChannelIdx,
     )
 
-  def getProviderChannel()(
+  def getProviderChannel(providerChannelId: Long)(
     implicit
-    session: SlickSession,
-  ): Flow[Long, Option[ProviderChannel], NotUsed] = Slick.flowWithPassThrough { providerChannelId =>
-    providerChannelTable.filter(_.providerChannelId === providerChannelId).result.headOption
+    db: Database,
+  ): Future[Option[ProviderChannel]] = {
+    db.run(providerChannelTable.filter(_.providerChannelId === providerChannelId).result.headOption)
   }
 
-  def getProviderChannelForProviderAndChannel()(
+  def getProviderChannelForProviderAndChannel(
+    providerId: Long,
+    channelId: Long,
+  )(
     implicit
-    session: SlickSession,
-  ): Flow[(Long, Long), Option[ProviderChannel], NotUsed] = Slick.flowWithPassThrough {
-    case (providerId, channelId) => providerChannelTable.filter { providerChannel =>
+    db: Database,
+  ): Future[Option[ProviderChannel]] = {
+    db.run(providerChannelTable.filter { providerChannel =>
       providerChannel.providerId === providerId &&
       providerChannel.channelId === channelId
-    }.result.headOption
-
+    }.result.headOption)
   }
 
-  def upsertProviderChannel()(
+  def upsertProviderChannel(providerChannel: ProviderChannel)(
     implicit
-    session: SlickSession,
+    db: Database,
     ec: ExecutionContext,
-  ): Flow[ProviderChannel, ProviderChannel, NotUsed] = Slick.flowWithPassThrough {
-    case providerChannel @ ProviderChannel(None, _, _, _) =>
-      (providerChannelTable returning providerChannelTable) += providerChannel
-    case providerChannel @ ProviderChannel(Some(providerChannelId), _, _, _) => for {
-      _ <- providerChannelTable.filter(_.providerChannelId === providerChannelId).update(providerChannel)
-      pc <- providerChannelTable.filter(_.providerChannelId === providerChannelId).result.head
-    } yield pc
+  ): Future[ProviderChannel] = {
+    providerChannel match {
+      case ProviderChannel(None, _, _, _) =>
+        db.run((providerChannelTable returning providerChannelTable) += providerChannel)
+      case ProviderChannel(Some(providerChannelId), _, _, _) => for {
+        _ <- db.run(providerChannelTable.filter(_.providerChannelId === providerChannelId).update(providerChannel))
+        pc <- db.run(providerChannelTable.filter(_.providerChannelId === providerChannelId).result.head)
+      } yield pc
+    }
   }
 }

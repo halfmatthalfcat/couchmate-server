@@ -4,10 +4,10 @@ import play.api.libs.json.{Json, OFormat}
 
 case class Provider(
   providerId: Option[Long] = None,
-  sourceId: Long,
+  providerOwnerId: Option[Long],
   extId: String,
   name: String,
-  `type`: Option[String],
+  `type`: String,
   location: Option[String],
 ) extends Product with Serializable
 

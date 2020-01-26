@@ -6,7 +6,6 @@ import play.api.libs.json.{Json, OFormat}
 
 case class Show(
   showId: Option[Long],
-  sourceId: Long,
   extId: Long,
   `type`: String,
   episodeId: Option[Long],
