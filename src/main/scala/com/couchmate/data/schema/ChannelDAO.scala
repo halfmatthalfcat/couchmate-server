@@ -36,7 +36,7 @@ object ChannelDAO {
     db.run(channelTable.filter(_.channelId === channelId).result.headOption)
   }
 
-  def getChannelForSourceAndExt(extId: Long)(
+  def getChannelForExt(extId: Long)(
     implicit
     db: Database,
   ): Future[Option[Channel]] = {

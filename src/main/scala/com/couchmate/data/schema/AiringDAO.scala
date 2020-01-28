@@ -1,20 +1,20 @@
 package com.couchmate.data.schema
 
-import java.time.OffsetDateTime
+import java.time.LocalDateTime
 import java.util.UUID
 
-import PgProfile.api._
-import slick.migration.api._
 import com.couchmate.data.models.Airing
-import slick.lifted.Tag
+import com.couchmate.data.schema.PgProfile.api._
+import slick.lifted.{AppliedCompiledFunction, CompiledExecutable, Tag}
+import slick.migration.api._
 
 import scala.concurrent.{ExecutionContext, Future}
 
 class AiringDAO(tag: Tag) extends Table[Airing](tag, "airing") {
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.PrimaryKey, O.SqlType("uuid"))
   def showId: Rep[Long] = column[Long]("show_id")
-  def startTime: Rep[OffsetDateTime] = column[OffsetDateTime]("start_time", O.SqlType("timestamptz"))
-  def endTime: Rep[OffsetDateTime] = column[OffsetDateTime]("end_time", O.SqlType("timestamptz"))
+  def startTime: Rep[LocalDateTime] = column[LocalDateTime]("start_time", O.SqlType("timestamp"))
+  def endTime: Rep[LocalDateTime] = column[LocalDateTime]("end_time", O.SqlType("timestamp"))
   def duration: Rep[Int] = column[Int]("duration")
   def * = (
     airingId.?,
@@ -53,6 +53,8 @@ class AiringDAO(tag: Tag) extends Table[Airing](tag, "airing") {
 
 object AiringDAO {
   val airingTable = TableQuery[AiringDAO]
+  private[this] val airingTableCompiled: CompiledExecutable[TableQuery[AiringDAO], Seq[Airing]] =
+    Compiled(airingTable)
 
   val init = TableMigration(airingTable)
     .create
@@ -70,50 +72,50 @@ object AiringDAO {
       _.endTimeIdx,
     )
 
-  def getAiring(airingId: UUID)(
-    implicit
-    db: Database,
-  ): Future[Option[Airing]] = {
-    db.run(airingTable.filter(_.airingId === airingId).result.headOption)
+  private[this] lazy val getAiringCompiled = Compiled { (airingId: Rep[UUID]) =>
+    airingTable.filter(_.airingId === airingId)
   }
 
-  def getAiringByShowAndStart(showId: Long, startTime: OffsetDateTime)(
-    implicit
-    db: Database,
-  ): Future[Option[Airing]] = {
-    db.run(airingTable.filter { airing =>
+  def getAiring(airingId: UUID): AppliedCompiledFunction[UUID, Query[AiringDAO, Airing, Seq], Seq[Airing]] =
+    getAiringCompiled(airingId)
+
+  private[this] lazy val getAiringByShowAndStartCompiled = Compiled { (showId: Rep[Long], startTime: Rep[LocalDateTime]) =>
+    airingTable.filter { airing =>
       airing.showId === showId &&
       airing.startTime === startTime
-    }.result.headOption)
+    }
   }
 
-  def getAiringsByStart(startTime: OffsetDateTime)(
-    implicit
-    db: Database,
-  ): Future[Seq[Airing]] = {
-    db.run(airingTable.filter(_.startTime === startTime).result)
+  def getAiringByShowAndStart(showId: Long, startTime: LocalDateTime): AppliedCompiledFunction[(Long, LocalDateTime), Query[AiringDAO, Airing, Seq], Seq[Airing]] = {
+    getAiringByShowAndStartCompiled(showId, startTime)
   }
 
-  def getAiringsByEnd(endTime: OffsetDateTime)(
-    implicit
-    db: Database,
-  ): Future[Seq[Airing]] = {
-    db.run(airingTable.filter(_.endTime === endTime).result)
+  private[this] lazy val getAiringsByStartCompiled = Compiled { (startTime: Rep[LocalDateTime]) =>
+    airingTable.filter(_.startTime === startTime)
   }
 
-  def getAiringsForStartAndDuration(startTime: OffsetDateTime, duration: Int)(
-    implicit
-    db: Database,
-  ): Future[Seq[Airing]] = {
-    val endTime: OffsetDateTime = startTime.plusMinutes(duration);
-    db.run(airingTable.filter { airing =>
+  def getAiringsByStart(startTime: LocalDateTime): AppliedCompiledFunction[LocalDateTime, Query[AiringDAO, Airing, Seq], Seq[Airing]] = {
+    getAiringsByStartCompiled(startTime)
+  }
+
+  private[this] lazy val getAiringsByEndCompiled = Compiled { (endTime: Rep[LocalDateTime]) =>
+    airingTable.filter(_.endTime === endTime)
+  }
+
+  def getAiringsByEnd(endTime: LocalDateTime): AppliedCompiledFunction[LocalDateTime, Query[AiringDAO, Airing, Seq], Seq[Airing]] = {
+    getAiringsByEndCompiled(endTime)
+  }
+
+  def getAiringsForStartAndDuration(startTime: LocalDateTime, duration: Int): Query[AiringDAO, Airing, Seq] = {
+    val endTime: LocalDateTime = startTime.plusMinutes(duration);
+    airingTable.filter { airing =>
       (airing.startTime between (startTime, endTime)) ||
       (airing.endTime between (startTime, endTime)) ||
       (
         airing.startTime <= startTime &&
         airing.endTime >= endTime
       )
-    }.result)
+    }
   }
 
   def upsertAiring(airing: Airing)(
@@ -123,7 +125,7 @@ object AiringDAO {
   ): Future[Airing] = {
     airing match {
       case Airing(None, _, _, _, _) =>
-        db.run((airingTable returning airingTable) += airing)
+        (airingTable returning airingTable) += airing
       case Airing(Some(airingId), _, _, _, _) => for {
         _ <- db.run(airingTable.filter(_.airingId === airingId).update(airing))
         a <- db.run(airingTable.filter(_.airingId === airingId).result.head)

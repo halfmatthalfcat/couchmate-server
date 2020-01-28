@@ -1,6 +1,6 @@
 package com.couchmate.data.models
 
-import java.time.OffsetDateTime
+import java.time.LocalDateTime
 import java.util.UUID
 
 import play.api.libs.json.{Json, OFormat}
@@ -8,8 +8,8 @@ import play.api.libs.json.{Json, OFormat}
 case class Airing(
   airingId: Option[UUID],
   showId: Long,
-  startTime: OffsetDateTime,
-  endTime: OffsetDateTime,
+  startTime: LocalDateTime,
+  endTime: LocalDateTime,
   duration: Int,
 ) extends Product with Serializable
 

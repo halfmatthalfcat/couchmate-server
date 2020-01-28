@@ -11,20 +11,20 @@ import com.couchmate.services.thirdparty.gracenote.GracenoteService
 import scala.concurrent.ExecutionContext
 
 object Routes {
-  def apply(
-    gracenoteService: GracenoteService,
-  )(
+  def apply()(
     implicit
     actorSystem: ActorSystem[Nothing],
     executionContext: ExecutionContext,
     timeout: Timeout,
     db: Database,
+    gracenoteService: GracenoteService,
   ): Route = {
     MainRoutes() ~
     pathPrefix("api") {
       UserRoutes() ~
       RoomRoutes() ~
-      ProviderRoutes(gracenoteService)
+      ProviderRoutes() ~
+      ListingRoutes()
     }
   }
 }

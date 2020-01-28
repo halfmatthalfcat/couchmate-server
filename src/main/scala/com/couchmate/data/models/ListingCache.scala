@@ -1,13 +1,13 @@
 package com.couchmate.data.models
 
-import java.time.OffsetDateTime
+import java.time.LocalDateTime
 
 import play.api.libs.json.{Json, OFormat}
 
 case class ListingCache(
   listingCacheId: Option[Long],
   providerChannelId: Long,
-  startTime: OffsetDateTime,
+  startTime: LocalDateTime,
   airings: Seq[Airing],
 ) extends Product with Serializable
 

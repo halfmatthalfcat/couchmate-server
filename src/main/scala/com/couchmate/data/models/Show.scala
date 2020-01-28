@@ -1,6 +1,6 @@
 package com.couchmate.data.models
 
-import java.time.OffsetDateTime
+import java.time.LocalDateTime
 
 import play.api.libs.json.{Json, OFormat}
 
@@ -12,7 +12,7 @@ case class Show(
   sportEventId: Option[Long],
   title: String,
   description: String,
-  originalAirDate: Option[OffsetDateTime]
+  originalAirDate: Option[LocalDateTime]
 ) extends Product with Serializable
 
 object Show extends JsonConfig {

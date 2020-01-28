@@ -78,11 +78,11 @@ object Server extends ServerCommands {
 
     implicit val timeout: Timeout = 30 seconds
 
-    val gracenoteService: GracenoteService =
+    implicit val gracenoteService: GracenoteService =
       new GracenoteService(config);
 
     val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
-      Routes(gracenoteService),
+      Routes(),
       interface = host,
       port = port,
     )

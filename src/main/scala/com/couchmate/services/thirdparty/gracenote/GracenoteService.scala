@@ -1,5 +1,8 @@
 package com.couchmate.services.thirdparty.gracenote
 
+import java.time.{OffsetDateTime, ZoneId, ZoneOffset}
+import java.time.format.DateTimeFormatter
+
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -10,7 +13,8 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl._
 import com.couchmate.data.models.Provider
 import com.couchmate.data.schema.PgProfile.api._
-import com.couchmate.data.thirdparty.gracenote.GracenoteProvider
+import com.couchmate.data.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProvider}
+import com.couchmate.util.DateUtils
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
@@ -56,7 +60,7 @@ class GracenoteService(
     )
   }
 
-  private[this] def getProviders(
+  def getProviders(
     zipCode: String,
     country: String,
   ): Source[GracenoteProvider, NotUsed] =
@@ -80,20 +84,32 @@ class GracenoteService(
           ).mapConcat(identity)
       }
 
-  def ingestProviders(
-    zipCode: String,
-    country: String,
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Source[Provider, NotUsed] =
-    getProviders(zipCode, country)
-      .filter(gnp => (
-        !gnp.name.toLowerCase.contains("c-band")
-      ))
-      .mapAsync[Provider](1)(ProviderIngestor.ingestProvider(
-        zipCode,
-        country,
-      ))
+  def getListing(
+    extListingId: String,
+    startDate: OffsetDateTime = DateUtils.roundNearestHour(OffsetDateTime.now(ZoneId.of("UTC"))),
+    duration: Int = 6,
+  ): Source[GracenoteChannelAiring, NotUsed] =
+    Source.single(
+      getGracenoteRequest(
+        Seq("lineups", extListingId, "grid"),
+        Map(
+          "startDateTime" -> Some(
+            startDate.format(DateTimeFormatter.ISO_DATE_TIME)
+          ),
+          "endDateTime" -> Some(
+            startDate.plusHours(duration).format(DateTimeFormatter.ISO_DATE_TIME)
+          )
+        )
+      ) -> extListingId,
+    )
+    .via(httpPool)
+    .flatMapConcat {
+      case (Success(response: HttpResponse), listingId) =>
+        logger.debug(s"Successfully got Gracenote listing for $listingId")
+        val decodedResponse: HttpResponse =
+          Gzip.decodeMessage(response)
+        Source.future(
+          Unmarshal(decodedResponse.entity).to[Seq[GracenoteChannelAiring]]
+        )
+    }
 }

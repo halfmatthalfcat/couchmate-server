@@ -1,5 +1,7 @@
 package com.couchmate.services.thirdparty.gracenote
 
+import akka.NotUsed
+import akka.stream.scaladsl.Source
 import com.couchmate.data.models.{Provider, ProviderOwner, ZipProvider}
 import com.couchmate.data.schema.PgProfile.api._
 import com.couchmate.data.schema.{ProviderDAO, ProviderOwnerDAO, ZipProviderDAO}
@@ -147,4 +149,22 @@ object ProviderIngestor {
     provider <- ingestProvider(gracenoteProvider, owner, country)
     _ <- linkProvider(zipCode, provider)
   } yield provider
+
+  def ingestProviders(
+    zipCode: String,
+    country: String,
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    gs: GracenoteService,
+  ): Source[Provider, NotUsed] =
+    gs.getProviders(zipCode, country)
+      .filter(gnp => (
+        !gnp.name.toLowerCase.contains("c-band")
+      ))
+      .mapAsync[Provider](1)(ProviderIngestor.ingestProvider(
+        zipCode,
+        country,
+      ))
 }
