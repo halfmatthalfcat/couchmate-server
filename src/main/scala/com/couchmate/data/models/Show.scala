@@ -2,7 +2,9 @@ package com.couchmate.data.models
 
 import java.time.LocalDateTime
 
+import com.couchmate.data.schema.GenGetResult
 import play.api.libs.json.{Json, OFormat}
+import slick.jdbc.GetResult
 
 case class Show(
   showId: Option[Long],
@@ -17,4 +19,5 @@ case class Show(
 
 object Show extends JsonConfig {
   implicit val format: OFormat[Show] = Json.format[Show]
+  implicit val getResult: GetResult[Show] = GenGetResult[Show]
 }

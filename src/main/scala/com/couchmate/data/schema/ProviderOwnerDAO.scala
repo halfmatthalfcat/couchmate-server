@@ -2,8 +2,9 @@ package com.couchmate.data.schema
 
 import com.couchmate.data.models.ProviderOwner
 import com.couchmate.data.schema.PgProfile.api._
-import slick.lifted.Tag
+import slick.lifted.{AppliedCompiledFunction, Tag}
 import slick.migration.api.TableMigration
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -29,43 +30,43 @@ object ProviderOwnerDAO {
       _.name,
     )
 
+  private[this] lazy val getProviderOwnerCompiled = Compiled { (providerOwnerId: Rep[Long]) =>
+    providerOwnerTable.filter(_.providerOwnerId === providerOwnerId)
+  }
+
   def getProviderOwner(
     providerOwnerId: Long,
-  )(
-    implicit
-    db: Database,
-  ): Future[Option[ProviderOwner]] = {
-    db.run(providerOwnerTable.filter(_.providerOwnerId === providerOwnerId).result.headOption)
+  ): AppliedCompiledFunction[Long, Query[ProviderOwnerDAO, ProviderOwner, Seq], Seq[ProviderOwner]] = {
+    getProviderOwnerCompiled(providerOwnerId)
   }
 
-  def getProviderOwnerForName(name: String)(
-    implicit
-    db: Database,
-  ): Future[Option[ProviderOwner]] = {
-    db.run(providerOwnerTable.filter(_.name === name).result.headOption)
+  private[this] lazy val getProviderOwnerForNameCompiled = Compiled { (name: Rep[String]) =>
+    providerOwnerTable.filter(_.name === name)
   }
 
-  def getProviderOwnerForExt(extProviderOwnerId: String)(
-    implicit
-    db: Database,
-  ): Future[Option[ProviderOwner]] = {
-    db.run(providerOwnerTable.filter(_.extProviderOwnerId === extProviderOwnerId).result.headOption)
+  def getProviderOwnerForName(name: String): AppliedCompiledFunction[String, Query[ProviderOwnerDAO, ProviderOwner, Seq], Seq[ProviderOwner]] = {
+    getProviderOwnerForNameCompiled(name)
   }
 
-  def upsertProviderOwner(
-    providerOwner: ProviderOwner,
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Future[ProviderOwner] = {
-    providerOwner match {
-      case ProviderOwner(None, _, _) =>
-        db.run(providerOwnerTable returning providerOwnerTable += providerOwner)
-      case ProviderOwner(Some(providerOwnerId), _, _) => for {
-        _ <- db.run(providerOwnerTable.filter(_.providerOwnerId === providerOwnerId).update(providerOwner))
-        po <- db.run(providerOwnerTable.filter(_.providerOwnerId === providerOwnerId).result.head)
-      } yield po
-    }
+  private[this] lazy val getProviderOwnerForExtCompiled = Compiled { (extProviderOwnerId: Rep[String]) =>
+    providerOwnerTable.filter(_.extProviderOwnerId === extProviderOwnerId)
+  }
+
+  def getProviderOwnerForExt(extProviderOwnerId: String): AppliedCompiledFunction[String, Query[ProviderOwnerDAO, ProviderOwner, Seq], Seq[ProviderOwner]] = {
+    getProviderOwnerForExtCompiled(extProviderOwnerId)
+  }
+
+  def upsertProviderOwner(po: ProviderOwner): SqlStreamingAction[Vector[ProviderOwner], ProviderOwner, Effect] = {
+    sql"""
+         INSERT INTO provider_owner
+         (provider_owner_id, ext_provider_owner_id, name)
+         VALUES
+         (${po.providerOwnerId}, ${po.extProviderOwnerId}, ${po.name})
+         ON CONFLICT (provider_owner_id)
+         DO UPDATE SET
+            ext_provider_owner_id = ${po.extProviderOwnerId},
+            name = ${po.name}
+         RETURNING *
+       """.as[ProviderOwner]
   }
 }

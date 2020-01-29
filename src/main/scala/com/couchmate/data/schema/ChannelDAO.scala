@@ -1,11 +1,10 @@
 package com.couchmate.data.schema
 
 import com.couchmate.data.models.Channel
-import PgProfile.api._
-import slick.lifted.Tag
+import com.couchmate.data.schema.PgProfile.api._
+import slick.lifted.{AppliedCompiledFunction, Tag}
 import slick.migration.api.TableMigration
-
-import scala.concurrent.{ExecutionContext, Future}
+import slick.sql.SqlStreamingAction
 
 class ChannelDAO(tag: Tag) extends Table[Channel](tag, "channel") {
   def channelId: Rep[Long] = column[Long]("channel_id", O.PrimaryKey, O.AutoInc)
@@ -29,34 +28,33 @@ object ChannelDAO {
       _.callsign
     )
 
-  def getChannel(channelId: Long)(
-    implicit
-    db: Database,
-  ): Future[Option[Channel]] = {
-    db.run(channelTable.filter(_.channelId === channelId).result.headOption)
+  private[this] lazy val getChannelCompiled = Compiled { (channelId: Rep[Long]) =>
+    channelTable.filter(_.channelId === channelId)
   }
 
-  def getChannelForExt(extId: Long)(
-    implicit
-    db: Database,
-  ): Future[Option[Channel]] = {
-    db.run(channelTable.filter { channel =>
-      channel.extId === channel.extId
-    }.result.headOption)
+  def getChannel(channelId: Long): AppliedCompiledFunction[Long, Query[ChannelDAO, Channel, Seq], Seq[Channel]] = {
+    getChannelCompiled(channelId)
   }
 
-  def upsertChannel(channel: Channel)(
-    implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Future[Channel] = {
-    channel match {
-      case Channel(None, _, _) =>
-        db.run((channelTable returning channelTable) += channel)
-      case Channel(Some(channelId), _, _) => for {
-        _ <- db.run(channelTable.filter(_.channelId === channelId).update(channel))
-        c <- db.run(channelTable.filter(_.channelId === channelId).result.head)
-      } yield c
-    }
+  private[this] lazy val getChannelForExtCompiled = Compiled { (extId: Rep[Long]) =>
+    channelTable.filter(_.extId === extId)
+  }
+
+  def getChannelForExt(extId: Long): AppliedCompiledFunction[Long, Query[ChannelDAO, Channel, Seq], Seq[Channel]] = {
+    getChannelForExtCompiled(extId)
+  }
+
+  def upsertChannel(c: Channel): SqlStreamingAction[Vector[Channel], Channel, Effect] = {
+    sql"""
+         INSERT INTO channel
+         (channel_id, source_id, ext_id, callsign)
+         VALUES
+         (${c.channelId}, ${c.extId}, ${c.callsign})
+         ON CONFLICT (channel_id)
+         DO UPDATE SET
+            ext_id =    ${c.extId},
+            callsign =  ${c.callsign}
+         RETURNING *
+       """.as[Channel]
   }
 }

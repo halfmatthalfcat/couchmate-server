@@ -35,11 +35,12 @@ object SeriesDAO {
       _.totalEpisodes,
     )
 
-  def getSeries(seriesId: Long)(
-    implicit
-    db: Database,
-  ): Future[Option[Series]] = {
-    db.run(seriesTable.filter(_.seriesId === seriesId).result.headOption)
+  private[this] lazy val getSeriesComplied = Compiled { (seriesId: Rep[Long]) =>
+    seriesTable.filter(_.seriesId === seriesId)
+  }
+
+  def getSeries(seriesId: Long) = {
+    getSeriesComplied(seriesId)
   }
 
   def getSeriesByExt(extId: Long)(

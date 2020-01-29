@@ -1,18 +1,19 @@
 package com.couchmate.data.schema
 
-import java.time.OffsetDateTime
+import java.time.{LocalDateTime, OffsetDateTime}
 
 import PgProfile.api._
 import com.couchmate.data.models.{Airing, ListingCache}
-import slick.lifted.Tag
+import slick.lifted.{AppliedCompiledFunction, Tag}
 import slick.migration.api.TableMigration
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
 class ListingCacheDAO(tag: Tag) extends Table[ListingCache](tag, "listing_cache") {
   def listingCacheId: Rep[Long] = column[Long]("listing_cache_id", O.PrimaryKey, O.AutoInc)
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
-  def startTime: Rep[OffsetDateTime] = column[OffsetDateTime]("start_time", O.SqlType("timestamptz"))
+  def startTime: Rep[LocalDateTime] = column[LocalDateTime]("start_time", O.SqlType("timestamptz"))
   def airings: Rep[Seq[Airing]] = column[Seq[Airing]]("airings", O.SqlType("jsonb"))
   def * = (
     listingCacheId.?,
@@ -46,40 +47,32 @@ object ListingCacheDAO {
       _.providerChannelFk,
     )
 
-  def getListingCache(
-    providerChannelId: Long,
-    startTime: OffsetDateTime,
-  )(
-    implicit
-    db: Database
-  ): Future[Option[ListingCache]] = {
-    db.run(listingCacheTable.filter { lc =>
+  private[this] lazy val getListingCacheCompiled = Compiled { (providerChannelId: Rep[Long], startTime: Rep[LocalDateTime]) =>
+    listingCacheTable.filter { lc =>
       lc.providerChannelId === providerChannelId &&
       lc.startTime === startTime
-    }.result.headOption)
+    }
   }
 
-  def upsertListingCache(listingCache: ListingCache)(
-    implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Future[ListingCache] = {
-    getListingCache(
-      listingCache.providerChannelId,
-      listingCache.startTime,
-    ) flatMap {
-      case None =>
-        db.run((listingCacheTable returning listingCacheTable) += listingCache)
-      case Some(_) => for {
-        _ <- db.run(listingCacheTable.filter { lc =>
-          lc.providerChannelId === listingCache.providerChannelId &&
-          lc.startTime === listingCache.startTime
-        }.update(listingCache))
-        newLc <- db.run(listingCacheTable.filter { lc =>
-          lc.providerChannelId === lc.providerChannelId &&
-          lc.startTime === lc.startTime
-        }.result.head)
-      } yield newLc
-    }
+  def getListingCache(
+    providerChannelId: Long,
+    startTime: LocalDateTime,
+  ): AppliedCompiledFunction[(Long, LocalDateTime), Query[ListingCacheDAO, ListingCache, Seq], Seq[ListingCache]] = {
+    getListingCacheCompiled(providerChannelId, startTime)
+  }
+
+  def upsertListingCache(lc: ListingCache): SqlStreamingAction[Vector[ListingCache], ListingCache, Effect] = {
+    sql"""
+         INSERT INTO listing_cache
+         (listing_cache_id, provider_channel_id, start_time, airings)
+         VALUES
+         (${lc.listingCacheId}, ${lc.providerChannelId}, ${lc.startTime}, ${lc.airings})
+         ON CONFLICT (listing_cache_id)
+         DO UPDATE SET
+            provider_channel_id = ${lc.providerChannelId},
+            start_time = ${lc.startTime},
+            airings = ${lc.airings}
+         RETURNING *
+       """.as[ListingCache]
   }
 }

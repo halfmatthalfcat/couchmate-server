@@ -2,8 +2,9 @@ package com.couchmate.data.schema
 
 import com.couchmate.data.models.ProviderChannel
 import PgProfile.api._
-import slick.lifted.Tag
+import slick.lifted.{AppliedCompiledFunction, Tag}
 import slick.migration.api.TableMigration
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -62,38 +63,41 @@ object ProviderChannelDAO {
       _.providerChannelIdx,
     )
 
-  def getProviderChannel(providerChannelId: Long)(
-    implicit
-    db: Database,
-  ): Future[Option[ProviderChannel]] = {
-    db.run(providerChannelTable.filter(_.providerChannelId === providerChannelId).result.headOption)
+  private[this] lazy val getProviderCompiled = Compiled { (providerChannelId: Rep[Long]) =>
+    providerChannelTable.filter(_.providerChannelId === providerChannelId)
+  }
+
+  def getProviderChannel(providerChannelId: Long): AppliedCompiledFunction[Long, Query[ProviderChannelDAO, ProviderChannel, Seq], Seq[ProviderChannel]] = {
+    getProviderCompiled(providerChannelId)
+  }
+
+  private[this] lazy val getProviderChannelForProviderAndChannelCompiled = Compiled {
+    (providerId: Rep[Long], channelId: Rep[Long]) =>
+      providerChannelTable.filter { providerChannel =>
+        providerChannel.providerId === providerId &&
+        providerChannel.channelId === channelId
+      }
   }
 
   def getProviderChannelForProviderAndChannel(
     providerId: Long,
     channelId: Long,
-  )(
-    implicit
-    db: Database,
-  ): Future[Option[ProviderChannel]] = {
-    db.run(providerChannelTable.filter { providerChannel =>
-      providerChannel.providerId === providerId &&
-      providerChannel.channelId === channelId
-    }.result.headOption)
+  ): AppliedCompiledFunction[(Long, Long), Query[ProviderChannelDAO, ProviderChannel, Seq], Seq[ProviderChannel]] = {
+    getProviderChannelForProviderAndChannelCompiled(providerId, channelId)
   }
 
-  def upsertProviderChannel(providerChannel: ProviderChannel)(
-    implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Future[ProviderChannel] = {
-    providerChannel match {
-      case ProviderChannel(None, _, _, _) =>
-        db.run((providerChannelTable returning providerChannelTable) += providerChannel)
-      case ProviderChannel(Some(providerChannelId), _, _, _) => for {
-        _ <- db.run(providerChannelTable.filter(_.providerChannelId === providerChannelId).update(providerChannel))
-        pc <- db.run(providerChannelTable.filter(_.providerChannelId === providerChannelId).result.head)
-      } yield pc
-    }
+  def upsertProviderChannel(pc: ProviderChannel): SqlStreamingAction[Vector[ProviderChannel], ProviderChannel, Effect] = {
+    sql"""
+         INSERT INTO provider_channel
+         (provider_channel_id, provider_id, channel_id, channel)
+         VALUES
+         (${pc.providerChannelId}, ${pc.providerId}, ${pc.channelId}, ${pc.channel})
+         ON CONFLICT (provider_channel_id)
+         DO UPDATE SET
+            provider_id = ${pc.providerId},
+            channel_id = ${pc.channelId},
+            channel = ${pc.channel}
+         RETURNING *
+       """.as[ProviderChannel]
   }
 }

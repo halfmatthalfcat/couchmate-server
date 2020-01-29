@@ -2,7 +2,9 @@ package com.couchmate.data.models
 
 import java.util.UUID
 
+import com.couchmate.data.schema.GenGetResult
 import play.api.libs.json.{Json, OFormat}
+import slick.jdbc.GetResult
 
 case class Lineup(
   lineupId: Option[Long],
@@ -13,4 +15,5 @@ case class Lineup(
 
 object Lineup extends JsonConfig {
   implicit val format: OFormat[Lineup] = Json.format[Lineup]
+  implicit val getResult: GetResult[Lineup] = GenGetResult[Lineup]
 }

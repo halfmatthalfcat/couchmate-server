@@ -2,8 +2,9 @@ package com.couchmate.data.schema
 
 import PgProfile.api._
 import com.couchmate.data.models.Episode
-import slick.lifted.Tag
+import slick.lifted.{AppliedCompiledFunction, Tag}
 import slick.migration.api.TableMigration
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -44,25 +45,26 @@ object EpisodeDAO {
       _.seriesFk,
     )
 
-  def getEpisode(episodeId: Long)(
-    implicit
-    db: Database,
-  ): Future[Option[Episode]] = {
-    db.run(episodeTable.filter(_.episodeId === episodeId).result.headOption)
+  private[this] lazy val getEpisodeCompiled = Compiled { (episodeId: Rep[Long]) =>
+    episodeTable.filter(_.episodeId === episodeId)
   }
 
-  def upsertEpisode(episode: Episode)(
-    implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Future[Episode] = {
-    episode match {
-      case Episode(None, _, _, _) =>
-        db.run((episodeTable returning episodeTable) += episode)
-      case Episode(Some(episodeId), _, _, _) => for {
-        _ <- db.run(episodeTable.filter(_.episodeId === episodeId).update(episode))
-        e <- db.run(episodeTable.filter(_.episodeId === episodeId).result.head)
-      } yield e
-    }
+  def getEpisode(episodeId: Long): AppliedCompiledFunction[Long, Query[EpisodeDAO, Episode, Seq], Seq[Episode]] = {
+    getEpisodeCompiled(episodeId)
+  }
+
+  def upsertEpisode(e: Episode): SqlStreamingAction[Vector[Episode], Episode, Effect] = {
+    sql"""
+         INSERT INTO episode
+         (episode_id, series_id, season, episode)
+         VALUES
+         (${e.episodeId}, ${e.seriesId}, ${e.season}, ${e.episode})
+         ON CONFLICT (episode_id)
+         DO UPDATE SET
+            series_id = ${e.seriesId},
+            season = ${e.season},
+            episode = ${e.episode}
+         RETURNING *
+       """.as[Episode]
   }
 }

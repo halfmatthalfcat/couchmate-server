@@ -20,6 +20,7 @@ lazy val sever = project.in(file("."))
       akka("cluster-metrics"),
       akka("cluster-tools"),
       akka("slf4j"),
+      "io.getquill"                 %%  "quill-jdbc"                % "3.5.0",
       slick("slick"),
       slick("slick-hikaricp"),
       slickPg(),
@@ -37,10 +38,10 @@ lazy val sever = project.in(file("."))
       "ch.qos.logback"              %   "logback-classic"           % "1.2.3",
       "com.typesafe.scala-logging"  %%  "scala-logging"             % "3.9.2",
       "org.postgresql"              %   "postgresql"                % "42.2.9",
-      // "com.github.halfmatthalfcat"  %%  "scala-forklift-slick"      % "0.3.3",
       "com.liyaos"                  %%  "scala-forklift-slick"      % "0.3.2-SNAPSHOT",
       "io.github.nafg"              %%  "slick-migration-api"       % "0.7.0",
-      "com.github.t3hnar"           %%  "scala-bcrypt"              % "4.1"
+      "com.github.t3hnar"           %%  "scala-bcrypt"              % "4.1",
+      "com.chuusai"                 %%  "shapeless"                 % "2.3.3"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     mainClass in (Compile, run) := Some("com.couchmate.Server"),

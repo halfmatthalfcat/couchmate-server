@@ -4,8 +4,9 @@ import java.util.UUID
 
 import PgProfile.api._
 import com.couchmate.data.models.Lineup
-import slick.lifted.{PrimaryKey, Tag}
+import slick.lifted.{AppliedCompiledFunction, PrimaryKey, Tag}
 import slick.migration.api.TableMigration
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -57,47 +58,50 @@ object LineupDAO {
       _.airingFk,
     )
 
-  def getLineup(lineupId: Long)(
-    implicit
-    db: Database,
-  ): Future[Option[Lineup]] = {
-    db.run(lineupTable.filter(_.lineupId === lineupId).result.headOption)
+  private[this] lazy val getLineupCompiled = Compiled { (lineupId: Rep[Long]) =>
+    lineupTable.filter(_.lineupId === lineupId)
   }
 
-  def getLineupForProviderChannelAndAiring(providerChannelId: Long, airingId: UUID)(
-    implicit
-    db: Database,
-  ): Future[Option[Lineup]] = {
-    db.run(lineupTable.filter { lineup =>
+  def getLineup(lineupId: Long): AppliedCompiledFunction[Long, Query[LineupDAO, Lineup, Seq], Seq[Lineup]] = {
+    getLineupCompiled(lineupId)
+  }
+
+  def getLineupForProviderChannelAndAiringCompiled = Compiled { (providerChannelId: Rep[Long], airingId: Rep[UUID]) =>
+    lineupTable.filter { lineup =>
       lineup.providerChannelId === providerChannelId &&
       lineup.airingId === airingId
-    }.result.headOption)
+    }
   }
 
-  def lineupsExistForProvider(providerId: Long)(
-    implicit
-    db: Database,
-  ): Future[Boolean] = {
-    db.run((for {
+  def getLineupForProviderChannelAndAiring(providerChannelId: Long, airingId: UUID): AppliedCompiledFunction[(Long, UUID), Query[LineupDAO, Lineup, Seq], Seq[Lineup]] = {
+    getLineupForProviderChannelAndAiringCompiled(providerChannelId, airingId)
+  }
+
+  private[this] lazy val lineupsExistForProviderCompiled = Compiled { (providerId: Rep[Long]) =>
+    for {
       l <- lineupTable
       pc <- ProviderChannelDAO.providerChannelTable
-        if  l.providerChannelId === pc.providerChannelId &&
-            pc.providerId === providerId
-    } yield pc.providerId).distinct.exists.result)
+      if  l.providerChannelId === pc.providerChannelId &&
+        pc.providerId === providerId
+    } yield pc.providerId
   }
 
-  def upsertLineup(lineup: Lineup)(
-    implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Future[Lineup] = {
-    lineup match {
-      case Lineup(None, _, _, _) =>
-        db.run((lineupTable returning lineupTable) += lineup)
-      case Lineup(Some(lineupId), _, _, _) => for {
-        _ <- db.run(lineupTable.filter(_.lineupId === lineupId).update(lineup))
-        l <- db.run(lineupTable.filter(_.lineupId === lineupId).result.head)
-      } yield l
-    }
+  def lineupsExistForProvider(providerId: Long): AppliedCompiledFunction[Long, Query[Rep[Long], Long, Seq], Seq[Long]] = {
+    lineupsExistForProviderCompiled(providerId)
+  }
+
+  def upsertLineup(l: Lineup): SqlStreamingAction[Vector[Lineup], Lineup, Effect] = {
+    sql"""
+         INSERT INTO lineup
+         (lineup_id, provider_channel_id, airing_id, replaced_by)
+         VALUES
+         (${l.lineupId}, ${l.providerChannelId}, ${l.airingId}, ${l.replacedBy})
+         ON CONFLICT (lineup_id)
+         DO UPDATE SET
+            provider_channel_id = ${l.providerChannelId},
+            airing_id = ${l.airingId},
+            replaced_by = ${l.replacedBy}
+         RETURNING *
+       """.as[Lineup]
   }
 }

@@ -2,8 +2,9 @@ package com.couchmate.data.schema
 
 import com.couchmate.data.models.Provider
 import PgProfile.api._
-import slick.lifted.Tag
+import slick.lifted.{AppliedCompiledFunction, Tag}
 import slick.migration.api.TableMigration
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -55,40 +56,42 @@ object ProviderDAO {
       _.sourceFK,
     )
 
-  def getProvider(providerId: Long)(
-    implicit
-    db: Database,
-  ): Future[Option[Provider]] = {
-    db.run(
-      providerTable.filter(_.providerId === providerId).result.headOption
-    )
+  private[this] lazy val getProviderCompiled = Compiled { (providerId: Rep[Long]) =>
+    providerTable.filter(_.providerId === providerId)
   }
 
-  def getProviderForExtAndOwner(extId: String, providerOwnerId: Option[Long])(
-    implicit
-    db: Database,
-  ): Future[Option[Provider]] = {
-    db.run(
+  def getProvider(providerId: Long): AppliedCompiledFunction[Long, Query[ProviderDAO, Provider, Seq], Seq[Provider]] = {
+    getProviderCompiled(providerId)
+  }
+
+  private[this] lazy val getProviderForExtAndOwnerCompiled = Compiled {
+    (extId: Rep[String], providerOwnerId: Rep[Option[Long]]) =>
       providerTable.filter { provider =>
         provider.providerOwnerId === providerOwnerId &&
         provider.extId === extId
-      }.result.headOption
-    )
+      }
   }
 
-  def upsertProvider(provider: Provider)(
-    implicit
-    db: Database,
-    ec: ExecutionContext,
-  ): Future[Provider] = {
-    provider match {
-      case Provider(None, _, _, _, _, _) =>
-        db.run((providerTable returning providerTable) += provider)
-      case Provider(Some(providerId), _, _, _, _, _) =>
-        for {
-          _ <- db.run(providerTable.filter(_.providerId === providerId).update(provider))
-          provider <- db.run(providerTable.filter(_.providerId === providerId).result.head)
-        } yield provider
-    }
+  def getProviderForExtAndOwner(
+    extId: String,
+    providerOwnerId: Option[Long],
+  ): AppliedCompiledFunction[(String, Option[Long]), Query[ProviderDAO, Provider, Seq], Seq[Provider]] = {
+    getProviderForExtAndOwnerCompiled(extId, providerOwnerId)
+  }
+
+  def upsertProvider(p: Provider): SqlStreamingAction[Vector[Provider], Provider, Effect] = {
+    sql"""
+         INSERT INTO provider
+         (provider_id, ext_id, name, type, location)
+         VALUES
+         (${p.providerId}, ${p.extId}, ${p.name}, ${p.`type`}, ${p.location})
+         ON CONFLICT (provider_id)
+         DO UPDATE SET
+            ext_id = ${p.extId},
+            name = ${p.name},
+            type = ${p.`type`},
+            location = ${p.location}
+         RETURNING *
+       """.as[Provider]
   }
 }

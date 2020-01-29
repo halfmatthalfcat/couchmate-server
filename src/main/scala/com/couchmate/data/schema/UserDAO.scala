@@ -4,8 +4,10 @@ import java.util.UUID
 
 import com.couchmate.data.models.{User, UserExtType}
 import PgProfile.api._
+import slick.dbio.Effect
 import slick.lifted.Tag
 import slick.migration.api.TableMigration
+import slick.sql.FixedSqlAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
