@@ -70,5 +70,5 @@ Temporary Items
 .idea
 
 ### scala-forklift ###
-src/main/resources/datamodel
-src/main/scala/com/couchmate/data/schema/Summary.scala
+server/src/main/resources/datamodel
+server/src/main/scala/com/couchmate/data/schema/Summary.scala
