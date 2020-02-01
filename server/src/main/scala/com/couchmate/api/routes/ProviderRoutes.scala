@@ -5,8 +5,8 @@ import akka.http.scaladsl.common.{EntityStreamingSupport, JsonEntityStreamingSup
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
-import com.couchmate.data.schema.PgProfile.api._
-import com.couchmate.services.thirdparty.gracenote.{GracenoteService, ProviderIngestor}
+import com.couchmate.common.models.{Provider, ProviderOwner}
+import com.couchmate.data.db.{ProviderDAO, ProviderOwnerDAO}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
 import scala.concurrent.ExecutionContext
@@ -14,27 +14,32 @@ import scala.concurrent.ExecutionContext
 object ProviderRoutes extends PlayJsonSupport {
   implicit val jsonStreamingSupport: JsonEntityStreamingSupport = EntityStreamingSupport.json()
 
-  def apply()(
+  def apply(
+    providerDAO: ProviderDAO,
+    providerOwnerDAO: ProviderOwnerDAO,
+  )(
     implicit
     actorSystem: ActorSystem[Nothing],
     timeout: Timeout,
-    db: Database,
     ec: ExecutionContext,
-    gracenoteService: GracenoteService,
   ): Route = {
     pathPrefix("provider") {
       pathEndOrSingleSlash {
-        parameters(Symbol("zipCode").as[String], Symbol("country").as[String].?) {
-          (zipCode: String, country: Option[String]) =>
-            val providers = ProviderIngestor.ingestProviders(
-              zipCode,
-              country.getOrElse("USA"),
-            )
-
-            complete(providers)
+        post {
+          entity(as[Provider]) { provider =>
+            complete(providerDAO.upsertProvider(provider))
+          }
+        }
+      } ~
+      pathPrefix("owner") {
+        pathEndOrSingleSlash {
+          post {
+            entity(as[ProviderOwner]) { providerOwner =>
+              complete(providerOwnerDAO.upsertProviderOwner(providerOwner))
+            }
+          }
         }
       }
     }
   }
-
 }

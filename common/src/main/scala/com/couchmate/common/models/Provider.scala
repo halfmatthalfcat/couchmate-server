@@ -9,8 +9,8 @@ case class Provider(
   name: String,
   `type`: String,
   location: Option[String],
-) extends Product with Serializable
+)
 
-object Provider extends JsonConfig {
+object Provider {
   implicit val format: OFormat[Provider] = Json.format[Provider]
 }

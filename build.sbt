@@ -51,6 +51,7 @@ lazy val sever = project.in(file("server"))
       akka("cluster-tools"),
       akka("slf4j"),
       "io.getquill"                 %%  "quill-jdbc"                % "3.5.0",
+      // "io.getquill"                 %%  "quill-async-postgres"      % "3.5.0",
       "com.typesafe.akka"           %%  "akka-http"                 % "10.1.11",
       "com.typesafe.play"           %%  "play-json"                 % "2.8.1",
       "com.typesafe"                %   "config"                    % "1.4.0",

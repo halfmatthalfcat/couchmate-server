@@ -1,5 +1,7 @@
 package com.couchmate
 
+import java.time.LocalDateTime
+
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorSystem, Behavior, PostStop}
@@ -9,10 +11,10 @@ import akka.http.scaladsl.Http.ServerBinding
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import com.couchmate.api.Routes
-import com.couchmate.data.schema.PgProfile.api._
-import com.couchmate.services.thirdparty.gracenote.GracenoteService
+import com.couchmate.common.models.Airing
+import com.couchmate.data.db.{AiringDAO, ProviderDAO, ProviderOwnerDAO}
 import com.typesafe.config.{Config, ConfigFactory}
-import slick.basic.DatabaseConfig
+import io.getquill.{PostgresJdbcContext, SnakeCase}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -60,8 +62,11 @@ object Server extends ServerCommands {
 
   def apply(host: String, port: Int, config: Config): Behavior[Command] = Behaviors.setup { implicit ctx =>
 
-    implicit val db: Database =
-      Database.forConfig("postgres")
+    implicit val db: PostgresJdbcContext[SnakeCase.type] =
+      new PostgresJdbcContext(
+        SnakeCase,
+        "ctx"
+      )
 
     implicit val ec: ExecutionContext =
       ctx.executionContext
@@ -78,11 +83,20 @@ object Server extends ServerCommands {
 
     implicit val timeout: Timeout = 30 seconds
 
-    implicit val gracenoteService: GracenoteService =
-      new GracenoteService(config);
+    val providerOwnerDAO: ProviderOwnerDAO =
+      new ProviderOwnerDAO
+
+    val providerDAO: ProviderDAO =
+      new ProviderDAO
+
+//    implicit val gracenoteService: GracenoteService =
+//      new GracenoteService(config);
 
     val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
-      Routes(),
+      Routes(
+        providerDAO,
+        providerOwnerDAO,
+      ),
       interface = host,
       port = port,
     )

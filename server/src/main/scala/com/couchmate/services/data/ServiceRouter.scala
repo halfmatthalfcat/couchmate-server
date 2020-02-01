@@ -5,8 +5,6 @@ import akka.actor.typed.receptionist.ServiceKey
 import akka.actor.typed.scaladsl.{Behaviors, Routers}
 import akka.cluster.typed.Cluster
 
-import com.couchmate.data.schema.PgProfile.api._
-
 import scala.concurrent.ExecutionContext
 
 object ServiceRouter {
@@ -16,9 +14,6 @@ object ServiceRouter {
     service: Behavior[T],
     instances: Int = 3,
     withRoles: Seq[String] = Seq(),
-  )(
-    implicit
-    db: Database,
   ): Behavior[T] = Behaviors.setup { ctx =>
     implicit val ec: ExecutionContext =
       ctx.executionContext
