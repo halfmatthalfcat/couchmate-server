@@ -8,6 +8,9 @@ class SeriesDAO()(
 ) {
   import ctx._
 
+  private[this] implicit val seriesInsertMeta =
+    insertMeta[Series](_.seriesId)
+
   def getSeries(seriesId: Long) = quote {
     query[Series]
       .filter(_.seriesId.contains(seriesId))
