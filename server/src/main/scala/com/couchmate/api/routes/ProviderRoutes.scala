@@ -6,17 +6,19 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
 import com.couchmate.common.models.{Provider, ProviderOwner}
-import com.couchmate.data.db.{ProviderDAO, ProviderOwnerDAO}
+import com.couchmate.data.db.{CMContext, CMDatabase, ProviderDAO, ProviderOwnerDAO}
+import com.couchmate.services.thirdparty.gracenote.ProviderIngestor
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
 import scala.concurrent.ExecutionContext
 
-object ProviderRoutes extends PlayJsonSupport {
+object ProviderRoutes
+  extends PlayJsonSupport {
   implicit val jsonStreamingSupport: JsonEntityStreamingSupport = EntityStreamingSupport.json()
 
   def apply(
-    providerDAO: ProviderDAO,
-    providerOwnerDAO: ProviderOwnerDAO,
+    database: CMDatabase,
+    ingestor: ProviderIngestor,
   )(
     implicit
     actorSystem: ActorSystem[Nothing],
@@ -27,7 +29,12 @@ object ProviderRoutes extends PlayJsonSupport {
       pathEndOrSingleSlash {
         post {
           entity(as[Provider]) { provider =>
-            complete(providerDAO.upsertProvider(provider))
+            complete(database.provider.upsertProvider(provider))
+          }
+        } ~
+        get {
+          parameters('zipCode, 'country.?) {
+            
           }
         }
       } ~
@@ -35,7 +42,7 @@ object ProviderRoutes extends PlayJsonSupport {
         pathEndOrSingleSlash {
           post {
             entity(as[ProviderOwner]) { providerOwner =>
-              complete(providerOwnerDAO.upsertProviderOwner(providerOwner))
+              complete(database.providerOwner.upsertProviderOwner(providerOwner))
             }
           }
         }

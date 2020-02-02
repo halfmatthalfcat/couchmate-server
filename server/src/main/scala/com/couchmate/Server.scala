@@ -12,7 +12,8 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import com.couchmate.api.Routes
 import com.couchmate.common.models.Airing
-import com.couchmate.data.db.{AiringDAO, CMContext, ProviderDAO, ProviderOwnerDAO}
+import com.couchmate.data.db.{AiringDAO, CMContext, CMDatabase, ProviderDAO, ProviderOwnerDAO}
+import com.couchmate.services.thirdparty.gracenote.GracenoteService
 import com.typesafe.config.{Config, ConfigFactory}
 import io.getquill.{PostgresJdbcContext, SnakeCase}
 
@@ -65,6 +66,9 @@ object Server extends ServerCommands {
     implicit val db: CMContext =
       new CMContext("ctx")
 
+    val database: CMDatabase =
+      new CMDatabase()
+
     implicit val ec: ExecutionContext =
       ctx.executionContext
 
@@ -80,20 +84,11 @@ object Server extends ServerCommands {
 
     implicit val timeout: Timeout = 30 seconds
 
-    val providerOwnerDAO: ProviderOwnerDAO =
-      new ProviderOwnerDAO
-
-    val providerDAO: ProviderDAO =
-      new ProviderDAO
-
-//    implicit val gracenoteService: GracenoteService =
-//      new GracenoteService(config);
+    implicit val gracenoteService: GracenoteService =
+      new GracenoteService(config);
 
     val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
-      Routes(
-        providerDAO,
-        providerOwnerDAO,
-      ),
+      Routes(database),
       interface = host,
       port = port,
     )

@@ -5,14 +5,13 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
 import com.couchmate.api.routes._
-import com.couchmate.data.db.{ProviderDAO, ProviderOwnerDAO}
+import com.couchmate.data.db.{CMContext, CMDatabase, ProviderDAO, ProviderOwnerDAO}
 
 import scala.concurrent.ExecutionContext
 
 object Routes {
   def apply(
-    providerDAO: ProviderDAO,
-    providerOwnerDAO: ProviderOwnerDAO,
+    database: CMDatabase,
   )(
     implicit
     actorSystem: ActorSystem[Nothing],
@@ -23,10 +22,7 @@ object Routes {
     pathPrefix("api") {
       UserRoutes() ~
       RoomRoutes() ~
-      ProviderRoutes(
-        providerDAO,
-        providerOwnerDAO,
-      ) ~
+      ProviderRoutes(database) ~
       ListingRoutes()
     }
   }

@@ -5,8 +5,7 @@ import java.util.UUID
 import com.couchmate.common.models.UserPrivate
 
 class UserPrivateDAO()(
-  implicit
-  val ctx: CMContext,
+  implicit val ctx: CMContext
 ) {
   import ctx._
 

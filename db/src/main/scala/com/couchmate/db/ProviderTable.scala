@@ -54,43 +54,4 @@ object ProviderTable extends Slickable[ProviderTable] {
     ).addForeignKeys(
       _.sourceFK,
     )
-
-//  private[this] lazy val getProviderCompiled = Compiled { (providerId: Rep[Long]) =>
-//    providerTable.filter(_.providerId === providerId)
-//  }
-//
-//  def getProvider(providerId: Long): AppliedCompiledFunction[Long, Query[ProviderTable, ProviderTable, Seq], Seq[ProviderTable]] = {
-//    getProviderCompiled(providerId)
-//  }
-//
-//  private[this] lazy val getProviderForExtAndOwnerCompiled = Compiled {
-//    (extId: Rep[String], providerOwnerId: Rep[Option[Long]]) =>
-//      providerTable.filter { provider =>
-//        provider.providerOwnerId === providerOwnerId &&
-//        provider.extId === extId
-//      }
-//  }
-//
-//  def getProviderForExtAndOwner(
-//    extId: String,
-//    providerOwnerId: Option[Long],
-//  ): AppliedCompiledFunction[(String, Option[Long]), Query[ProviderTable, ProviderTable, Seq], Seq[ProviderTable]] = {
-//    getProviderForExtAndOwnerCompiled(extId, providerOwnerId)
-//  }
-//
-//  def upsertProvider(p: ProviderTable): SqlStreamingAction[Vector[ProviderTable], ProviderTable, Effect] = {
-//    sql"""
-//         INSERT INTO provider
-//         (provider_id, ext_id, name, type, location)
-//         VALUES
-//         (${p.providerId}, ${p.extId}, ${p.name}, ${p.`type`}, ${p.location})
-//         ON CONFLICT (provider_id)
-//         DO UPDATE SET
-//            ext_id = ${p.extId},
-//            name = ${p.name},
-//            type = ${p.`type`},
-//            location = ${p.location}
-//         RETURNING *
-//       """.as[ProviderTable]
-//  }
 }

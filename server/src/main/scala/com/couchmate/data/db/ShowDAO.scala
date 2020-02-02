@@ -3,8 +3,7 @@ package com.couchmate.data.db
 import com.couchmate.common.models.Show
 
 class ShowDAO()(
-  implicit
-  val ctx: CMContext,
+  implicit val ctx: CMContext
 ) {
   import ctx._
 

@@ -13,12 +13,12 @@ class ChannelDAO()(
 
   def getChannel(channelId: Long) = quote {
     query[Channel]
-      .filter(_.channelId.contains(channelId))
+      .filter(_.channelId.contains(lift(channelId)))
   }
 
   def getChannelForExt(extId: Long) = quote {
     query[Channel]
-      .filter(_.extId == extId)
+      .filter(_.extId == lift(extId))
   }
 
   def upsertChannel(channel: Channel) = quote {

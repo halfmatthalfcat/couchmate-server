@@ -5,8 +5,7 @@ import java.time.LocalDateTime
 import com.couchmate.common.models.ListingCache
 
 class LineupCacheDAO()(
-  implicit
-  val ctx: CMContext,
+  implicit val ctx: CMContext
 ) extends QuillPlayJson {
   import ctx._
 

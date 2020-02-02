@@ -3,8 +3,7 @@ package com.couchmate.data.db
 import com.couchmate.common.models.SportOrganization
 
 class SportOrganizationDAO()(
-  implicit
-  val ctx: CMContext,
+  implicit val ctx: CMContext
 ) {
   import ctx._
 
@@ -23,7 +22,7 @@ class SportOrganizationDAO()(
     query[SportOrganization]
       .filter { so =>
         so.extSportId == extSportId &&
-        so.extOrgId.orNull == extOrgId.orNull
+        so.extOrgId == extOrgId
       }
   }
 
