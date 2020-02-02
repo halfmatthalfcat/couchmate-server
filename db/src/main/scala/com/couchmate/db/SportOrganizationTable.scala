@@ -42,42 +42,4 @@ object SportOrganizationTable extends Slickable[SportOrganizationTable] {
     ).addIndexes(
       _.sourceExtSportOrgIdx,
     )
-
-//  private[this] lazy val getSportOrganizationCompiled = Compiled { (sportOrganizationId: Rep[Long]) =>
-//    sportOrganizationTable.filter(_.sportOrganizationId === sportOrganizationId)
-//  }
-//
-//  def getSportOrganization(sportOrganizationId: Long): AppliedCompiledFunction[Long, Query[SportOrganizationTable, SportOrganization, Seq], Seq[SportOrganization]] = {
-//    getSportOrganizationCompiled(sportOrganizationId)
-//  }
-//
-//  private[this] lazy val getSportOrganizationBySportAndOrgCompiled = Compiled { (extSportId: Rep[Long], extOrgId: Rep[Option[Int]]) =>
-//    sportOrganizationTable.filter { sportOrg =>
-//      sportOrg.extSportId === extSportId &&
-//      sportOrg.extOrgId === extOrgId
-//    }
-//  }
-//
-//  def getSportOrganizationBySportAndOrg(
-//    extSportId: Long,
-//    extOrgId: Option[Int],
-//  ): AppliedCompiledFunction[(Long, Option[Int]), Query[SportOrganizationTable, SportOrganization, Seq], Seq[SportOrganization]] = {
-//    getSportOrganizationBySportAndOrgCompiled(extSportId, extOrgId)
-//  }
-//
-//  def upsertSportOrganization(so: SportOrganization): SqlStreamingAction[Vector[SportOrganization], SportOrganization, Effect] = {
-//    sql"""
-//         INSERT INTO sport_organization
-//         (sport_organization_id, ext_sport_id, ext_org_id, sport_name, org_name)
-//         VALUES
-//         (${so.sportOrganizationId}, ${so.extSportId}, ${so.extOrgId}, ${so.sportName}, ${so.orgName})
-//         ON CONFLICT (sport_organization_id)
-//         DO UPDATE SET
-//            ext_sport_id = ${so.extSportId},
-//            ext_org_id = ${so.extOrgId},
-//            sport_name = ${so.sportName},
-//            org_name = ${so.orgName}
-//         RETURNING *
-//       """.as[SportOrganization]
-//  }
 }

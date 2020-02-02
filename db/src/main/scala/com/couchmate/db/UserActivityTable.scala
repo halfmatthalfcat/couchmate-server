@@ -43,14 +43,4 @@ object UserActivityTable extends Slickable[UserActivityTable] {
     ).addForeignKeys(
       _.userFk,
     )
-
-//  def addUserActivity(ua: UserActivityTable): SqlStreamingAction[Vector[UserActivityTable], UserActivityTable, Effect] = {
-//    sql"""
-//         INSERT INTO user_activity
-//         (user_id, action, created)
-//         VALUES
-//         (${ua.userId}, ${ua.action}, ${ua.created})
-//         RETURNING *
-//       """.as[UserActivityTable]
-//  }
 }
