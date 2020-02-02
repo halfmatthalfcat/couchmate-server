@@ -61,42 +61,4 @@ object ProviderChannelTable extends Slickable[ProviderChannelTable] {
     ).addIndexes(
       _.providerChannelIdx,
     )
-
-//  private[this] lazy val getProviderCompiled = Compiled { (providerChannelId: Rep[Long]) =>
-//    providerChannelTable.filter(_.providerChannelId === providerChannelId)
-//  }
-//
-//  def getProviderChannel(providerChannelId: Long): AppliedCompiledFunction[Long, Query[ProviderChannelTable, ProviderChannelTable, Seq], Seq[ProviderChannelTable]] = {
-//    getProviderCompiled(providerChannelId)
-//  }
-//
-//  private[this] lazy val getProviderChannelForProviderAndChannelCompiled = Compiled {
-//    (providerId: Rep[Long], channelId: Rep[Long]) =>
-//      providerChannelTable.filter { providerChannel =>
-//        providerChannel.providerId === providerId &&
-//        providerChannel.channelId === channelId
-//      }
-//  }
-//
-//  def getProviderChannelForProviderAndChannel(
-//    providerId: Long,
-//    channelId: Long,
-//  ): AppliedCompiledFunction[(Long, Long), Query[ProviderChannelTable, ProviderChannelTable, Seq], Seq[ProviderChannelTable]] = {
-//    getProviderChannelForProviderAndChannelCompiled(providerId, channelId)
-//  }
-//
-//  def upsertProviderChannel(pc: ProviderChannelTable): SqlStreamingAction[Vector[ProviderChannelTable], ProviderChannelTable, Effect] = {
-//    sql"""
-//         INSERT INTO provider_channel
-//         (provider_channel_id, provider_id, channel_id, channel)
-//         VALUES
-//         (${pc.providerChannelId}, ${pc.providerId}, ${pc.channelId}, ${pc.channel})
-//         ON CONFLICT (provider_channel_id)
-//         DO UPDATE SET
-//            provider_id = ${pc.providerId},
-//            channel_id = ${pc.channelId},
-//            channel = ${pc.channel}
-//         RETURNING *
-//       """.as[ProviderChannelTable]
-//  }
 }

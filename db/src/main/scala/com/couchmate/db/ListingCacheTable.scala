@@ -45,33 +45,4 @@ object ListingCacheTable extends Slickable[ListingCacheTable] {
     ).addForeignKeys(
       _.providerChannelFk,
     )
-
-//  private[this] lazy val getListingCacheCompiled = Compiled { (providerChannelId: Rep[Long], startTime: Rep[LocalDateTime]) =>
-//    listingCacheTable.filter { lc =>
-//      lc.providerChannelId === providerChannelId &&
-//      lc.startTime === startTime
-//    }
-//  }
-//
-//  def getListingCache(
-//    providerChannelId: Long,
-//    startTime: LocalDateTime,
-//  ): AppliedCompiledFunction[(Long, LocalDateTime), Query[ListingCacheTable, ListingCacheTable, Seq], Seq[ListingCacheTable]] = {
-//    getListingCacheCompiled(providerChannelId, startTime)
-//  }
-//
-//  def upsertListingCache(lc: ListingCacheTable): SqlStreamingAction[Vector[ListingCacheTable], ListingCacheTable, Effect] = {
-//    sql"""
-//         INSERT INTO listing_cache
-//         (listing_cache_id, provider_channel_id, start_time, airings)
-//         VALUES
-//         (${lc.listingCacheId}, ${lc.providerChannelId}, ${lc.startTime}, ${lc.airings})
-//         ON CONFLICT (listing_cache_id)
-//         DO UPDATE SET
-//            provider_channel_id = ${lc.providerChannelId},
-//            start_time = ${lc.startTime},
-//            airings = ${lc.airings}
-//         RETURNING *
-//       """.as[ListingCacheTable]
-//  }
 }
