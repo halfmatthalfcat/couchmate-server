@@ -13,14 +13,14 @@ class LineupDAO()(
 
   def getLineup(lineupId: Long) = quote {
     query[Lineup]
-      .filter(_.lineupId.orNull == lineupId)
+      .filter(_.lineupId.contains(lineupId))
   }
 
   def lineupsExistForProvider(providerId: Long) = quote {
     for {
       l <- query[Lineup]
       pc <- query[ProviderChannel] if (
-        l.providerChannelId == pc.providerChannelId.orNull &&
+        pc.providerChannelId.contains(l.providerChannelId) &&
         pc.providerId == providerId
       )
     } yield pc.providerId

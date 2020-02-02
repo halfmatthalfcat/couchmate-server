@@ -17,5 +17,4 @@ class CMContext(context: String)
     def <>(right: (T, T)) =
       quote(infix"$left BETWEEN ${right._1} AND ${right._2}".as[Boolean])
   }
-
 }

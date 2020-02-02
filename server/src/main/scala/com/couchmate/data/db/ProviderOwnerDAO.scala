@@ -13,7 +13,7 @@ class ProviderOwnerDAO()(
 
   def getProviderOwner(providerOwnerId: Long) = quote {
     query[ProviderOwner]
-      .filter(_.providerOwnerId.orNull == providerOwnerId)
+      .filter(_.providerOwnerId.contains(providerOwnerId))
   }
 
   def getProviderOwnerForName(name: String) = quote {

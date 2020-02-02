@@ -13,7 +13,7 @@ class EpisodeDAO()(
 
   def getEpisode(episodeId: Long) = quote {
     query[Episode]
-      .filter(_.episodeId.orNull == episodeId)
+      .filter(_.episodeId.contains(episodeId))
   }
 
   def upsertEpisode(episode: Episode) = quote {

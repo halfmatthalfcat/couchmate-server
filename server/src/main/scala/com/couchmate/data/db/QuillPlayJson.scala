@@ -2,9 +2,9 @@ package com.couchmate.data.db
 
 import play.api.libs.json.{Json, OWrites, Reads}
 
-trait QuillPlayJson[T, N] {
-  val context: CMContext
-  import context._
+trait QuillPlayJson {
+  implicit val ctx: CMContext
+  import ctx._
 
   implicit def jsonDecoder[R: Reads]: Decoder[R] =
     decoder((index, row) =>

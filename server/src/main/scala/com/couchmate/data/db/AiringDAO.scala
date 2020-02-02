@@ -16,7 +16,7 @@ class AiringDAO()(
 
   def getAiring(airingId: UUID) = quote {
     query[Airing]
-      .filter(_.airingId.orNull == airingId)
+      .filter(_.airingId.contains(airingId))
   }
 
   def getAiringByShowAndStart(showId: Long, startTime: LocalDateTime) = quote {
@@ -37,19 +37,21 @@ class AiringDAO()(
       .filter(_.endTime == endTime)
   }
 
-  def getAiringsForStartAndDuration(startTime: LocalDateTime, duration: Int) = quote {
-    val endTime: LocalDateTime = startTime.plusMinutes(duration)
-    query[Airing]
-      .filter { airing =>
-        (airing.startTime <> (startTime, endTime)) &&
-        (airing.endTime <> (startTime, endTime)) && (
-          airing.startTime <= startTime &&
-          airing.endTime >= endTime
-        )
-      }
+  def getAiringsForStartAndDuration(startTime: LocalDateTime, duration: Int) = {
+    val endTime = startTime.plusMinutes(duration)
+    quote {
+      query[Airing]
+        .filter { airing =>
+          (airing.startTime <> (startTime, endTime)) &&
+            (airing.endTime <> (startTime, endTime)) && (
+            airing.startTime <= startTime &&
+              airing.endTime >= endTime
+            )
+        }
+    }
   }
 
-  def upsertAiring(airing: Airing) = ctx.run(quote {
+  def upsertAiring(airing: Airing) = quote {
     query[Airing]
       .insert(lift(airing))
       .onConflictUpdate(_.airingId)(
@@ -58,6 +60,6 @@ class AiringDAO()(
         (from, to) => from.endTime -> to.endTime,
         (from, to) => from.duration -> to.duration,
       ).returningGenerated(a => a)
-  })
+  }
 
 }

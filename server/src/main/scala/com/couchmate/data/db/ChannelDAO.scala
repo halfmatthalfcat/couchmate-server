@@ -13,7 +13,7 @@ class ChannelDAO()(
 
   def getChannel(channelId: Long) = quote {
     query[Channel]
-      .filter(_.channelId.orNull == channelId)
+      .filter(_.channelId.contains(channelId))
   }
 
   def getChannelForExt(extId: Long) = quote {

@@ -7,8 +7,11 @@ import com.couchmate.common.models.ListingCache
 class LineupCacheDAO()(
   implicit
   val ctx: CMContext,
-) {
+) extends QuillPlayJson {
   import ctx._
+
+  private[this] implicit val listingCacheInsertMeta =
+    insertMeta[ListingCache](_.listingCacheId)
 
   def getListingCache(
     providerChannelId: Long,
