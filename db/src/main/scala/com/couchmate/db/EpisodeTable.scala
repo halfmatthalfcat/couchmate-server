@@ -43,27 +43,4 @@ object EpisodeTable extends Slickable[EpisodeTable] {
     ).addForeignKeys(
       _.seriesFk,
     )
-
-//  private[this] lazy val getEpisodeCompiled = Compiled { (episodeId: Rep[Long]) =>
-//    episodeTable.filter(_.episodeId === episodeId)
-//  }
-//
-//  def getEpisode(episodeId: Long): AppliedCompiledFunction[Long, Query[EpisodeTable, EpisodeTable, Seq], Seq[EpisodeTable]] = {
-//    getEpisodeCompiled(episodeId)
-//  }
-//
-//  def upsertEpisode(e: EpisodeTable): SqlStreamingAction[Vector[EpisodeTable], EpisodeTable, Effect] = {
-//    sql"""
-//         INSERT INTO episode
-//         (episode_id, series_id, season, episode)
-//         VALUES
-//         (${e.episodeId}, ${e.seriesId}, ${e.season}, ${e.episode})
-//         ON CONFLICT (episode_id)
-//         DO UPDATE SET
-//            series_id = ${e.seriesId},
-//            season = ${e.season},
-//            episode = ${e.episode}
-//         RETURNING *
-//       """.as[EpisodeTable]
-//  }
 }
