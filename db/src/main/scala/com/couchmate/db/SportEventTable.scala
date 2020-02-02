@@ -48,26 +48,4 @@ object SportEventTable extends Slickable[SportEventTable] {
     ).addIndexes(
       _.sportEventUniqueIdx,
     )
-
-//  private[this] lazy val getSportEventCompiled = Compiled { (sportEventId: Rep[Long]) =>
-//    sportEventTable.filter(_.sportEventId === sportEventId)
-//  }
-//
-//  def getSportEvent(sportEventId: Long): AppliedCompiledFunction[Long, Query[SportEventTable, SportEventTable, Seq], Seq[SportEventTable]] = {
-//    getSportEventCompiled(sportEventId)
-//  }
-//
-//  def upsertSportEvent(se: SportEventTable): SqlStreamingAction[Vector[SportEventTable], SportEventTable, Effect] = {
-//    sql"""
-//         INSERT INTO sport_event
-//         (sport_event_id, sport_organization_id, sport_event_title)
-//         VALUES
-//         (${se.sportEventId}, ${se.sportOrganizationId}, ${se.sportEventTitle})
-//         ON CONFLICT (sport_event_id)
-//         DO UPDATE SET
-//            sport_organization_id = ${se.sportOrganizationId},
-//            sport_event_title = ${se.sportEventTitle}
-//         RETURNING *
-//       """.as[SportEventTable]
-//  }
 }

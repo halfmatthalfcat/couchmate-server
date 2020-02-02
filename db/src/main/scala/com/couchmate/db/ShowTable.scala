@@ -68,39 +68,4 @@ object ShowTable extends Slickable[ShowTable] {
       _.episodeFk,
       _.sportFk,
     )
-
-//  private[this] lazy val getShowCompiled = Compiled { (showId: Rep[Long]) =>
-//    showTable.filter(_.showId === showId)
-//  }
-//
-//  def getShow(showId: Long): AppliedCompiledFunction[Long, Query[ShowTable, ShowTable, Seq], Seq[ShowTable]] = {
-//    getShowCompiled(showId)
-//  }
-//
-//  private[this] lazy val getShowFromExtCompiled = Compiled { (extId: Rep[Long]) =>
-//    showTable.filter(_.extId === extId)
-//  }
-//
-//  def getShowFromExt(extId: Long): AppliedCompiledFunction[Long, Query[ShowTable, ShowTable, Seq], Seq[ShowTable]] = {
-//    getShowFromExtCompiled(extId)
-//  }
-//
-//  def upsertShow(s: ShowTable): SqlStreamingAction[Vector[ShowTable], ShowTable, Effect] = {
-//    sql"""
-//         INSERT INTO show
-//         (show_id, ext_id, type, episode_id, sport_event_id, title, description, original_air_date)
-//         VALUES
-//         (${s.showId}, ${s.extId}, ${s.`type`}, ${s.episodeId}, ${s.sportEventId}, ${s.title}, ${s.description}, ${s.originalAirDate})
-//         ON CONFLICT (show_id)
-//         DO UPDATE SET
-//            ext_id = ${s.extId},
-//            type = ${s.`type`},
-//            episode_id = ${s.episodeId},
-//            sport_event_id = ${s.sportEventId},
-//            title = ${s.title},
-//            description = ${s.description},
-//            original_air_date = ${s.originalAirDate}
-//         RETURNING *
-//       """.as[ShowTable]
-//  }
 }
