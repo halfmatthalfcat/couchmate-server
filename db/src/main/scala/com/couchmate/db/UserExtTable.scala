@@ -42,18 +42,4 @@ object UserExtTable extends Slickable[UserExtTable] {
     ).addForeignKeys(
       _.userFk,
     )
-
-//  def getUserExt(userId: UUID)(
-//    implicit
-//    db: Database,
-//  ): Future[Option[UserExt]] = {
-//    db.run(userExtTable.filter(_.userId === userId).result.headOption)
-//  }
-//
-//  def addUserExt(userExt: UserExt)(
-//    implicit
-//    db: Database,
-//  ): Future[UserExt] = {
-//    db.run((userExtTable returning userExtTable) += userExt)
-//  }
 }
