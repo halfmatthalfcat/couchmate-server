@@ -14,6 +14,7 @@ lazy val common = project.in(file("common"))
       "com.typesafe.play" %% "play-json"            % "2.8.1",
       "com.beachape"      %% "enumeratum"           % "1.5.15",
       "com.beachape"      %% "enumeratum-play-json" % "1.5.17",
+      "com.beachape"      %% "enumeratum-quill"     % "1.5.15",
       "com.wix"           %% "accord-core"          % "0.7.4",
     )
   )

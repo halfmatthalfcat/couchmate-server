@@ -4,7 +4,10 @@ import enumeratum._
 
 sealed trait UserType extends EnumEntry
 
-object UserType extends Enum[UserType] with PlayJsonEnum[UserType] {
+object UserType
+  extends Enum[UserType]
+  with PlayJsonEnum[UserType]
+  with QuillEnum[UserType] {
 
   val values: IndexedSeq[UserType] = findValues
 

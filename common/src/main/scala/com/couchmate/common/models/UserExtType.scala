@@ -6,7 +6,8 @@ sealed trait UserExtType extends EnumEntry
 
 object UserExtType
   extends Enum[UserExtType]
-  with PlayJsonEnum[UserExtType] {
+  with PlayJsonEnum[UserExtType]
+  with QuillEnum[UserExtType] {
 
   val values = findValues
 

@@ -6,7 +6,8 @@ sealed trait RoomActivityType extends EnumEntry
 
 object RoomActivityType
   extends Enum[RoomActivityType]
-  with PlayJsonEnum[RoomActivityType]  {
+  with PlayJsonEnum[RoomActivityType]
+  with QuillEnum[RoomActivityType] {
 
   val values: IndexedSeq[RoomActivityType] = findValues
 
