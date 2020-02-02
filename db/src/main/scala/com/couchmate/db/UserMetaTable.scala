@@ -39,26 +39,4 @@ object UserMetaTable extends Slickable[UserMetaTable] {
     ).addForeignKeys(
       _.userFk,
     )
-
-//  def getUserMeta(userId: UUID)(
-//    implicit
-//    db: Database,
-//  ): Future[Option[UserMeta]] = {
-//    db.run(userMetaTable.filter(_.userId === userId).result.headOption)
-//  }
-//
-//  def upsertUserMeta(userMeta: UserMeta)(
-//    implicit
-//    db: Database,
-//    ec: ExecutionContext,
-//  ): Future[UserMeta] = {
-//    getUserMeta(userMeta.userId) flatMap {
-//      case None =>
-//        db.run((userMetaTable returning userMetaTable) += userMeta)
-//      case Some(userMeta) => for {
-//        _ <- db.run(userMetaTable.filter(_.userId === userMeta.userId).update(userMeta))
-//        um <- db.run(userMetaTable.filter(_.userId === userMeta.userId).result.head)
-//      } yield um
-//    }
-//  }
 }
