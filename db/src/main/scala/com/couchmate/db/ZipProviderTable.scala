@@ -44,40 +44,4 @@ object ZipProviderTable extends Slickable[ZipProviderTable] {
     ).addForeignKeys(
       _.providerFk,
     )
-
-//  def getZipProvidersForZip(zipCode: String)(
-//    implicit
-//    db: Database,
-//  ): Future[Seq[ZipProvider]] = {
-//    db.run(zipProviderTable.filter(_.zipCode === zipCode).result)
-//  }
-//
-//  def getProvidersForZip(zipCode: String)(
-//    implicit
-//    db: Database,
-//    ec: ExecutionContext,
-//  ): Future[Seq[Provider]] = {
-//    db.run((for {
-//      zp <- zipProviderTable
-//      p <- Provider.providerTable
-//        if zp.providerId === p.providerId
-//    } yield p).result)
-//  }
-//
-//  def providerExistsForProviderAndZip(providerId: Long, zipCode: String)(
-//    implicit
-//    db: Database,
-//  ): Future[Boolean] = {
-//    db.run(zipProviderTable.filter { zp =>
-//      zp.providerId === providerId &&
-//      zp.zipCode === zipCode
-//    }.exists.result)
-//  }
-//
-//  def insertZipProvider(zipProvider: ZipProvider)(
-//    implicit
-//    db: Database,
-//  ): Future[ZipProvider] = {
-//    db.run((zipProviderTable returning zipProviderTable) += zipProvider)
-//  }
 }
