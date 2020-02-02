@@ -1,15 +1,53 @@
 package com.couchmate.data.db
 
+import java.time.LocalDateTime
 import java.util.UUID
 
 import com.couchmate.common.models.Airing
-import io.getquill.{PostgresJdbcContext, SnakeCase}
 
 class AiringDAO()(
   implicit
-  val ctx: PostgresJdbcContext[SnakeCase.type],
+  val ctx: CMContext,
 ) {
   import ctx._
+
+  private[this] implicit val airingInsertMeta =
+    insertMeta[Airing](_.airingId)
+
+  def getAiring(airingId: UUID) = quote {
+    query[Airing]
+      .filter(_.airingId.orNull == airingId)
+  }
+
+  def getAiringByShowAndStart(showId: Long, startTime: LocalDateTime) = quote {
+    query[Airing]
+      .filter { airing =>
+        airing.showId == showId &&
+        airing.startTime == startTime
+      }
+  }
+
+  def getAiringsByStart(startTime: LocalDateTime) = quote {
+    query[Airing]
+      .filter(_.startTime == startTime)
+  }
+
+  def getAiringsByEnd(endTime: LocalDateTime) = quote {
+    query[Airing]
+      .filter(_.endTime == endTime)
+  }
+
+  def getAiringsForStartAndDuration(startTime: LocalDateTime, duration: Int) = quote {
+    val endTime: LocalDateTime = startTime.plusMinutes(duration)
+    query[Airing]
+      .filter { airing =>
+        (airing.startTime <> (startTime, endTime)) &&
+        (airing.endTime <> (startTime, endTime)) && (
+          airing.startTime <= startTime &&
+          airing.endTime >= endTime
+        )
+      }
+  }
 
   def upsertAiring(airing: Airing) = ctx.run(quote {
     query[Airing]

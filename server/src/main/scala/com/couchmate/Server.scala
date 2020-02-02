@@ -12,7 +12,7 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import com.couchmate.api.Routes
 import com.couchmate.common.models.Airing
-import com.couchmate.data.db.{AiringDAO, ProviderDAO, ProviderOwnerDAO}
+import com.couchmate.data.db.{AiringDAO, CMContext, ProviderDAO, ProviderOwnerDAO}
 import com.typesafe.config.{Config, ConfigFactory}
 import io.getquill.{PostgresJdbcContext, SnakeCase}
 
@@ -62,11 +62,8 @@ object Server extends ServerCommands {
 
   def apply(host: String, port: Int, config: Config): Behavior[Command] = Behaviors.setup { implicit ctx =>
 
-    implicit val db: PostgresJdbcContext[SnakeCase.type] =
-      new PostgresJdbcContext(
-        SnakeCase,
-        "ctx"
-      )
+    implicit val db: CMContext =
+      new CMContext("ctx")
 
     implicit val ec: ExecutionContext =
       ctx.executionContext

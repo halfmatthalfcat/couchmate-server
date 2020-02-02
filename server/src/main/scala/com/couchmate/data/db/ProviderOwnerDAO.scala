@@ -1,24 +1,38 @@
 package com.couchmate.data.db
 
 import com.couchmate.common.models.ProviderOwner
-import io.getquill.{PostgresJdbcContext, SnakeCase}
 
 class ProviderOwnerDAO()(
   implicit
-  ctx: PostgresJdbcContext[SnakeCase.type],
+  val ctx: CMContext,
 ) {
   import ctx._
 
   private[this] implicit val poInsertMeta =
     insertMeta[ProviderOwner](_.providerOwnerId)
 
-  def upsertProviderOwner(providerOwner: ProviderOwner) = ctx.run(quote {
+  def getProviderOwner(providerOwnerId: Long) = quote {
+    query[ProviderOwner]
+      .filter(_.providerOwnerId.orNull == providerOwnerId)
+  }
+
+  def getProviderOwnerForName(name: String) = quote {
+    query[ProviderOwner]
+      .filter(_.name == name)
+  }
+
+  def getProviderOwnerForExt(extProviderOwnerId: String) = quote {
+    query[ProviderOwner]
+      .filter(_.extProviderOwnerId.orNull == extProviderOwnerId)
+  }
+
+  def upsertProviderOwner(providerOwner: ProviderOwner) = quote {
     query[ProviderOwner]
       .insert(lift(providerOwner))
       .onConflictUpdate(_.providerOwnerId)(
         (from, to) => from.extProviderOwnerId -> to.extProviderOwnerId,
         (from, to) => from.name -> to.name,
       ).returning(po => po)
-  })
+  }
 
 }

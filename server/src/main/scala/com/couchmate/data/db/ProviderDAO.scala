@@ -1,15 +1,17 @@
 package com.couchmate.data.db
 
 import com.couchmate.common.models.Provider
-import io.getquill.{PostgresJdbcContext, SnakeCase}
 
 class ProviderDAO()(
   implicit
-  val ctx: PostgresJdbcContext[SnakeCase.type],
+  val ctx: CMContext,
 ) {
   import ctx._
 
-  def upsertProvider(provider: Provider): Provider = ctx.run(quote {
+  private[this] implicit val pInsertMeta =
+    insertMeta[Provider](_.providerId)
+
+  def upsertProvider(provider: Provider) = quote {
     query[Provider]
       .insert(lift(provider))
       .onConflictUpdate(_.providerId)(
@@ -19,6 +21,6 @@ class ProviderDAO()(
         (from, to) => from.location -> to.location,
         (from, to) => from.name -> to.name,
       ).returning(p => p)
-    })
+    }
 
 }

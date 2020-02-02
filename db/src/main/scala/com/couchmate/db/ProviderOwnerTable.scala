@@ -28,44 +28,4 @@ object ProviderOwnerTable extends Slickable[ProviderOwnerTable] {
       _.extProviderOwnerId,
       _.name,
     )
-
-//  private[this] lazy val getProviderOwnerCompiled = Compiled { (providerOwnerId: Rep[Long]) =>
-//    providerOwnerTable.filter(_.providerOwnerId === providerOwnerId)
-//  }
-//
-//  def getProviderOwner(
-//    providerOwnerId: Long,
-//  ): AppliedCompiledFunction[Long, Query[ProviderOwner, ProviderOwner, Seq], Seq[ProviderOwner]] = {
-//    getProviderOwnerCompiled(providerOwnerId)
-//  }
-//
-//  private[this] lazy val getProviderOwnerForNameCompiled = Compiled { (name: Rep[String]) =>
-//    providerOwnerTable.filter(_.name === name)
-//  }
-//
-//  def getProviderOwnerForName(name: String): AppliedCompiledFunction[String, Query[ProviderOwner, ProviderOwner, Seq], Seq[ProviderOwner]] = {
-//    getProviderOwnerForNameCompiled(name)
-//  }
-//
-//  private[this] lazy val getProviderOwnerForExtCompiled = Compiled { (extProviderOwnerId: Rep[String]) =>
-//    providerOwnerTable.filter(_.extProviderOwnerId === extProviderOwnerId)
-//  }
-//
-//  def getProviderOwnerForExt(extProviderOwnerId: String): AppliedCompiledFunction[String, Query[ProviderOwner, ProviderOwner, Seq], Seq[ProviderOwner]] = {
-//    getProviderOwnerForExtCompiled(extProviderOwnerId)
-//  }
-//
-//  def upsertProviderOwner(po: ProviderOwner): SqlStreamingAction[Vector[ProviderOwner], ProviderOwner, Effect] = {
-//    sql"""
-//         INSERT INTO provider_owner
-//         (provider_owner_id, ext_provider_owner_id, name)
-//         VALUES
-//         (${po.providerOwnerId}, ${po.extProviderOwnerId}, ${po.name})
-//         ON CONFLICT (provider_owner_id)
-//         DO UPDATE SET
-//            ext_provider_owner_id = ${po.extProviderOwnerId},
-//            name = ${po.name}
-//         RETURNING *
-//       """.as[ProviderOwner]
-//  }
 }
