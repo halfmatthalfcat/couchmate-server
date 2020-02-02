@@ -34,36 +34,4 @@ object SeriesTable extends Slickable[SeriesTable] {
       _.totalSeasons,
       _.totalEpisodes,
     )
-
-//  private[this] lazy val getSeriesComplied = Compiled { (seriesId: Rep[Long]) =>
-//    seriesTable.filter(_.seriesId === seriesId)
-//  }
-//
-//  def getSeries(seriesId: Long): AppliedCompiledFunction[Long, Query[SeriesTable, SeriesTable, Seq], Seq[SeriesTable]] = {
-//    getSeriesComplied(seriesId)
-//  }
-//
-//  private[this] lazy val getSeriesByExtCompiled = Compiled { (extId: Rep[Long]) =>
-//    seriesTable.filter(_.extId === extId)
-//  }
-//
-//  def getSeriesByExt(extId: Long): AppliedCompiledFunction[Long, Query[SeriesTable, SeriesTable, Seq], Seq[SeriesTable]] = {
-//    getSeriesByExtCompiled(extId)
-//  }
-//
-//  def upsertSeries(s: SeriesTable): SqlStreamingAction[Vector[SeriesTable], SeriesTable, Effect] = {
-//    sql"""
-//         INSERT INTO series
-//         (series_id, ext_id, series_name, total_seasons, total_episodes)
-//         VALUES
-//         (${s.seriesId}, ${s.extId}, ${s.seriesName}, ${s.totalSeasons}, ${s.totalEpisodes})
-//         ON CONFLICT (series_id)
-//         DO UPDATE SET
-//            ext_id = ${s.extId},
-//            series_name = ${s.seriesName},
-//            total_seasons = ${s.totalSeasons},
-//            total_episodes = ${s.totalEpisodes}
-//         RETURNING *
-//       """.as[SeriesTable]
-//  }
 }
