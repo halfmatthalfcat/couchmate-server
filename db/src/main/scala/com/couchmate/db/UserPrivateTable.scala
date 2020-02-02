@@ -39,26 +39,4 @@ object UserPrivateTable extends Slickable[UserPrivateTable] {
     ).addForeignKeys(
       _.userFk,
     )
-
-//  def getUserPrivate(userId: UUID)(
-//    implicit
-//    db: Database,
-//  ): Future[Option[UserPrivate]] = {
-//    db.run(userPrivateTable.filter(_.userId === userId).result.headOption)
-//  }
-//
-//  def upsertUserPrivate(userPrivate: UserPrivate)(
-//    implicit
-//    db: Database,
-//    ec: ExecutionContext,
-//  ): Future[UserPrivate] = {
-//    getUserPrivate(userPrivate.userId) flatMap {
-//      case None =>
-//        db.run((userPrivateTable returning userPrivateTable) += userPrivate)
-//      case Some(_) => for {
-//        _ <- db.run(userPrivateTable.filter(_.userId === userPrivate.userId).update(userPrivate))
-//        up <- db.run(userPrivateTable.filter(_.userId === userPrivate.userId).result.head)
-//      } yield up
-//    }
-//  }
 }
