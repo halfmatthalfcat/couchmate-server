@@ -6,11 +6,13 @@ import akka.http.scaladsl.server.Route
 import akka.util.Timeout
 import com.couchmate.api.routes._
 import com.couchmate.data.db.{CMContext, CMDatabase, ProviderDAO, ProviderOwnerDAO}
+import com.couchmate.services.thirdparty.gracenote.ProviderIngestor
 
 import scala.concurrent.ExecutionContext
 
 object Routes {
   def apply(
+    ingestor: ProviderIngestor,
     database: CMDatabase,
   )(
     implicit
@@ -22,7 +24,10 @@ object Routes {
     pathPrefix("api") {
       UserRoutes() ~
       RoomRoutes() ~
-      ProviderRoutes(database) ~
+      ProviderRoutes(
+        database,
+        ingestor,
+      ) ~
       ListingRoutes()
     }
   }

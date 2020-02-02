@@ -59,14 +59,14 @@ class GracenoteService(
 
   def getProviders(
     zipCode: String,
-    country: Option[String] = Some("USA"),
+    country: String,
   ): Source[GracenoteProvider, NotUsed] =
     Source.single(
       getGracenoteRequest(
         Seq("lineups"),
         Map(
           "postalCode" -> Some(zipCode),
-          "country" -> country,
+          "country" -> Some(country),
         ),
       ) -> zipCode
     )

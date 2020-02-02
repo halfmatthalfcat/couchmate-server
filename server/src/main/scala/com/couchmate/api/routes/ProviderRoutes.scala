@@ -33,8 +33,12 @@ object ProviderRoutes
           }
         } ~
         get {
-          parameters('zipCode, 'country.?) {
-            
+          parameters('zipCode, 'country.?) { (zipCode: String, country: Option[String]) =>
+            val source = ingestor.ingestProviders(
+              zipCode, country.getOrElse("USA"),
+            )
+
+            complete(source)
           }
         }
       } ~

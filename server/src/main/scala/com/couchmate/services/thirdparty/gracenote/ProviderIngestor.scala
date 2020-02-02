@@ -84,7 +84,7 @@ class ProviderIngestor(
       }
     }
 
-  def ingestProvider(
+  private[this] def ingestProvider(
     zipCode: String,
     country: String,
   )(gracenoteProvider: GracenoteProvider): Provider = {
@@ -96,7 +96,7 @@ class ProviderIngestor(
 
   def ingestProviders(
     zipCode: String,
-    country: Option[String],
+    country: String,
   ): Source[Provider, NotUsed] =
     gnService.getProviders(zipCode, country)
       .filter(gnp => (

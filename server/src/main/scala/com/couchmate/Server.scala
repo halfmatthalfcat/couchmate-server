@@ -13,7 +13,7 @@ import akka.util.Timeout
 import com.couchmate.api.Routes
 import com.couchmate.common.models.Airing
 import com.couchmate.data.db.{AiringDAO, CMContext, CMDatabase, ProviderDAO, ProviderOwnerDAO}
-import com.couchmate.services.thirdparty.gracenote.GracenoteService
+import com.couchmate.services.thirdparty.gracenote.{GracenoteService, ProviderIngestor}
 import com.typesafe.config.{Config, ConfigFactory}
 import io.getquill.{PostgresJdbcContext, SnakeCase}
 
@@ -87,8 +87,17 @@ object Server extends ServerCommands {
     implicit val gracenoteService: GracenoteService =
       new GracenoteService(config);
 
+    val ingestor: ProviderIngestor =
+      new ProviderIngestor(
+        gracenoteService,
+        database,
+      )
+
     val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
-      Routes(database),
+      Routes(
+        ingestor,
+        database,
+      ),
       interface = host,
       port = port,
     )
