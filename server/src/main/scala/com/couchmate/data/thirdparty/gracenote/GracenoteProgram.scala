@@ -12,8 +12,8 @@ case class GracenoteProgram(
   title: String,
   shortDescription: Option[String],
   longDescription: Option[String],
-  origAirDate: Option[ZonedDateTime],
-  releaseDate: Option[ZonedDateTime],
+  origAirDate: Option[LocalDateTime],
+  releaseDate: Option[LocalDateTime],
   entityType: GracenoteProgramType,
   subType: GracenoteProgramSubtype,
   // -- Start Series
@@ -26,20 +26,25 @@ case class GracenoteProgram(
   eventTitle: Option[String],
   organizationId: Option[Long],
   sportsId: Option[Long],
-  gameDate: Option[ZonedDateTime],
+  gameDate: Option[LocalDateTime],
   // -- End Sport
-) extends Product with Serializable
+) extends Product with Serializable {
+  def isSport: Boolean = {
+    sportsId.isDefined
+  }
+
+  def isSeries: Boolean = {
+    seriesId.isDefined &&
+    !seriesId.contains(rootId)
+  }
+}
 
 object GracenoteProgram {
-  private[this] def dateToZonedDateTime(date: Option[String]): Option[ZonedDateTime] = {
+  private[this] def dateToLocalDateTime(date: Option[String]): Option[LocalDateTime] = {
     if (date.isDefined) {
       try {
         Some(
-          ZonedDateTime.ofLocal(
-            LocalDate.parse(date.get, DateTimeFormatter.ISO_LOCAL_DATE).atStartOfDay(),
-            ZoneId.of("UTC"),
-            ZoneOffset.UTC,
-          )
+          LocalDate.parse(date.get, DateTimeFormatter.ISO_LOCAL_DATE).atStartOfDay()
         )
       } catch {
         case ex: Throwable => None
@@ -56,8 +61,8 @@ object GracenoteProgram {
     (__ \ "title").readWithDefault[String]("Unknown Program") and
     (__ \ "shortDescription").readNullable[String] and
     (__ \ "longDescription").readNullable[String] and
-    (__ \ "origAirDate").readNullable[String].map(dateToZonedDateTime) and
-    (__ \ "releaseDate").readNullable[String].map(dateToZonedDateTime) and
+    (__ \ "origAirDate").readNullable[String].map(dateToLocalDateTime) and
+    (__ \ "releaseDate").readNullable[String].map(dateToLocalDateTime) and
     (__ \ "entityType").readWithDefault[GracenoteProgramType](GracenoteProgramType.Show) and
     (__ \ "subType").readWithDefault[GracenoteProgramSubtype](GracenoteProgramSubtype.Unknown) and
     // -- Start Series
@@ -70,7 +75,7 @@ object GracenoteProgram {
     (__ \ "eventTitle").readNullable[String] and
     (__ \ "organizationId").readNullable[String].map(_.map(_.toLong)) and
     (__ \ "sportsId").readNullable[String].map(_.map(_.toLong)) and
-    (__ \ "gameDate").readNullable[String].map(dateToZonedDateTime)
+    (__ \ "gameDate").readNullable[String].map(dateToLocalDateTime)
     // -- End Sport
   )(GracenoteProgram.apply _)
 

@@ -13,18 +13,18 @@ class ProviderDAO()(
   def getProvider(providerId: Long) = ctx.run(quote {
     query[Provider]
       .filter(_.providerId.contains(lift(providerId)))
-  })
+  }).headOption
 
   def getProviderForExtAndOwner(
     extId: String,
-    providerOwnerId: Long,
+    providerOwnerId: Option[Long],
   ) = ctx.run(quote {
     query[Provider]
       .filter { p =>
-        p.providerOwnerId.contains(lift(providerOwnerId)) &&
+        p.providerOwnerId == lift(providerOwnerId) &&
         p.extId == lift(extId)
       }
-  })
+  }).headOption
 
   def upsertProvider(provider: Provider) = ctx.run(quote {
     query[Provider]

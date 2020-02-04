@@ -20,7 +20,7 @@ class AiringDAO()(
 
   def getAiringByShowAndStart(showId: Long, startTime: LocalDateTime) = quote {
     query[Airing]
-      .filter { airing =>
+    .filter { airing =>
         airing.showId == lift(showId) &&
         airing.startTime == lift(startTime)
       }

@@ -10,14 +10,13 @@ import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.stream.scaladsl._
-import com.couchmate.data.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProvider}
+import com.couchmate.data.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProvider, GracenoteSportOrganization, GracenoteSportResponse}
 import com.couchmate.util.DateUtils
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
-import scala.util.Success
+import scala.concurrent.{ExecutionContext, Future}
 
 class GracenoteService(
   config: Config,
@@ -25,8 +24,6 @@ class GracenoteService(
   implicit
   system: ActorSystem,
 ) extends PlayJsonSupport with LazyLogging {
-  private[this] lazy val httpPool =
-    Http().superPool[String]()
 
   private[this] val gnKey: String =
     config.getString("gracenote.apiKey")
@@ -59,35 +56,50 @@ class GracenoteService(
 
   def getProviders(
     zipCode: String,
-    country: String,
-  ): Source[GracenoteProvider, NotUsed] =
-    Source.single(
-      getGracenoteRequest(
+    country: Option[String],
+  )(
+    implicit
+    ec: ExecutionContext,
+  ): Future[Seq[GracenoteProvider]] = {
+    for {
+      response <- Http().singleRequest(getGracenoteRequest(
         Seq("lineups"),
         Map(
           "postalCode" -> Some(zipCode),
-          "country" -> Some(country),
-        ),
-      ) -> zipCode
-    )
-      .via(httpPool)
-      .flatMapConcat {
-        case (Success(response: HttpResponse), zipCode) =>
-          logger.debug(s"Successfully got Gracenote providers for $zipCode")
-          val decodedResponse: HttpResponse =
-            Gzip.decodeMessage(response)
-          Source.future(
-            Unmarshal(decodedResponse.entity).to[Seq[GracenoteProvider]]
-          ).mapConcat(identity)
-      }
+          "country" -> country,
+          ),
+        ))
+      decodedResponse = Gzip.decodeMessage(response)
+      payload <- Unmarshal(decodedResponse.entity).to[Seq[GracenoteProvider]]
+    } yield payload
+  }
+
+  def getProvider(
+    extProviderId: String
+  )(
+    implicit
+    ec: ExecutionContext,
+  ): Future[GracenoteProvider] = {
+    for {
+      response <- Http().singleRequest(getGracenoteRequest(
+        Seq("lineups", extProviderId),
+        Map(),
+      ))
+      decodedResponse = Gzip.decodeMessage(response)
+      payload <- Unmarshal(decodedResponse.entity).to[GracenoteProvider]
+    } yield payload
+  }
 
   def getListing(
     extListingId: String,
     startDate: OffsetDateTime = DateUtils.roundNearestHour(OffsetDateTime.now(ZoneId.of("UTC"))),
     duration: Int = 6,
-  ): Source[GracenoteChannelAiring, NotUsed] =
-    Source.single(
-      getGracenoteRequest(
+  )(
+    implicit
+    ec: ExecutionContext,
+  ): Future[Seq[GracenoteChannelAiring]] = {
+    for {
+      response <- Http().singleRequest(getGracenoteRequest(
         Seq("lineups", extListingId, "grid"),
         Map(
           "startDateTime" -> Some(
@@ -95,18 +107,31 @@ class GracenoteService(
           ),
           "endDateTime" -> Some(
             startDate.plusHours(duration).format(DateTimeFormatter.ISO_DATE_TIME)
-          )
-        )
-      ) -> extListingId,
-    )
-    .via(httpPool)
-    .flatMapConcat {
-      case (Success(response: HttpResponse), listingId) =>
-        logger.debug(s"Successfully got Gracenote listing for $listingId")
-        val decodedResponse: HttpResponse =
-          Gzip.decodeMessage(response)
-        Source.future(
-          Unmarshal(decodedResponse.entity).to[Seq[GracenoteChannelAiring]]
-        ).mapConcat(identity)
-    }
+          ))
+        ))
+      decodedResponse = Gzip.decodeMessage(response)
+      payload <- Unmarshal(decodedResponse.entity).to[Seq[GracenoteChannelAiring]]
+    } yield payload
+  }
+
+  def getSportOrganization(
+    sportId: Long,
+    orgId: Option[Long],
+  )(
+    implicit
+    ec: ExecutionContext,
+  ): Future[Option[GracenoteSportOrganization]] = {
+    for {
+      response <- Http().singleRequest(getGracenoteRequest(
+        Seq("sports", sportId.toString),
+        Map(
+          "includeOrg" -> Some("true"),
+          "officialOrg" -> Some("true"),
+        ),
+      ))
+      decodedResponse = Gzip.decodeMessage(response)
+      payload <- Unmarshal(decodedResponse.entity).to[GracenoteSportResponse]
+      org = orgId.flatMap(orgId => payload.organizations.find(_.organizationId == orgId))
+    } yield org
+  }
 }

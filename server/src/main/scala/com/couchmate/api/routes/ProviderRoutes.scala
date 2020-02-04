@@ -29,16 +29,16 @@ object ProviderRoutes
       pathEndOrSingleSlash {
         post {
           entity(as[Provider]) { provider =>
-            complete(database.provider.upsertProvider(provider))
+            complete(database.withTx(database.provider.upsertProvider(provider)))
           }
         } ~
         get {
           parameters('zipCode, 'country.?) { (zipCode: String, country: Option[String]) =>
-            val source = ingestor.ingestProviders(
+            val stream = ingestor.ingestProviders(
               zipCode, country.getOrElse("USA"),
             )
 
-            complete(source)
+            complete(stream)
           }
         }
       } ~
@@ -46,7 +46,7 @@ object ProviderRoutes
         pathEndOrSingleSlash {
           post {
             entity(as[ProviderOwner]) { providerOwner =>
-              complete(database.providerOwner.upsertProviderOwner(providerOwner))
+              complete(database.withTx(database.providerOwner.upsertProviderOwner(providerOwner)))
             }
           }
         }
