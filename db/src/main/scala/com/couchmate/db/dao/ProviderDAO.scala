@@ -27,5 +27,5 @@ class ProviderDAO(db: Database)(
       _ <- ProviderTable.table.update(provider)
       updated <- super.getProvider(providerId)
     } yield updated.result.head.transactionally)}
-  
+
 }
