@@ -27,5 +27,5 @@ class SportEventDAO(db: Database)(
       _ <- SportEventTable.table.update(sportEvent)
       updated <- super.getSportEvent(sportEventId)
     } yield updated.result.head.transactionally)}
-  
+
 }
