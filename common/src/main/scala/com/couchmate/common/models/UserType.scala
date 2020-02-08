@@ -9,7 +9,7 @@ object UserType
   with PlayJsonEnum[UserType]
   with QuillEnum[UserType] {
 
-  val values: IndexedSeq[UserType] = findValues
+  val values = findValues
 
   case object Admin       extends UserType
   case object Anon        extends UserType

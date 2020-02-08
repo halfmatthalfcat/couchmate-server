@@ -1,11 +1,10 @@
 package com.couchmate.db
 
-import com.couchmate.db.PgProfile.api._
+import com.couchmate.db.table._
 import com.typesafe.scalalogging.LazyLogging
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 object Migrations extends LazyLogging {
   private[this] val tables: Seq[Slickable[_]] = Seq(

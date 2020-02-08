@@ -1,9 +1,10 @@
-package com.couchmate.db
+package com.couchmate.db.table
 
 import java.time.LocalDateTime
 import java.util.UUID
 
 import com.couchmate.common.models.{RoomActivity, RoomActivityType}
+import com.couchmate.db.{PgProfile, Slickable}
 import com.couchmate.db.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api._
@@ -47,11 +48,11 @@ class RoomActivityTable(tag: Tag) extends Table[RoomActivity](tag, "room_activit
 }
 
 object RoomActivityTable extends Slickable[RoomActivityTable] {
-  val table = TableQuery[RoomActivityTable]
+  private[db] val table = TableQuery[RoomActivityTable]
 
-  val schema: PgProfile.SchemaDescription = table.schema
+  private[db] val schema: PgProfile.SchemaDescription = table.schema
 
-  val init = TableMigration(table)
+  private[db] val init = TableMigration(table)
     .create
     .addColumns(
       _.airingId,

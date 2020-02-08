@@ -2,6 +2,8 @@ package com.couchmate.data.db
 
 import com.couchmate.common.models.ProviderOwner
 
+import scala.concurrent.ExecutionContext
+
 class ProviderOwnerDAO()(
   implicit val ctx: CMContext
 ) {
@@ -10,7 +12,7 @@ class ProviderOwnerDAO()(
   private[this] implicit val poInsertMeta =
     insertMeta[ProviderOwner](_.providerOwnerId)
 
-  def getProviderOwner(providerOwnerId: Long) = ctx.run(quote {
+  def getProviderOwner(providerOwnerId: Long)(implicit ec: ExecutionContext) = ctx.run(quote {
     query[ProviderOwner]
       .filter(_.providerOwnerId.contains(lift(providerOwnerId)))
   })

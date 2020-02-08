@@ -1,8 +1,9 @@
-package com.couchmate.db
+package com.couchmate.db.table
 
 import java.util.UUID
 
 import com.couchmate.common.models.Lineup
+import com.couchmate.db.{PgProfile, Slickable}
 import com.couchmate.db.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api._
@@ -41,11 +42,11 @@ class LineupTable(tag: Tag) extends Table[Lineup](tag, "lineup") {
 }
 
 object LineupTable extends Slickable[LineupTable] {
-  val table = TableQuery[LineupTable]
+  private[db] val table = TableQuery[LineupTable]
 
-  val schema: PgProfile.SchemaDescription = table.schema
+  private[db] val schema: PgProfile.SchemaDescription = table.schema
 
-  val init = TableMigration(table)
+  private[db] val init = TableMigration(table)
     .create
     .addColumns(
       _.lineupId,

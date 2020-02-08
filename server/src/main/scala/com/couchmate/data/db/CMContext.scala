@@ -1,9 +1,9 @@
 package com.couchmate.data.db
 
-import io.getquill.{PostgresJdbcContext, SnakeCase}
+import io.getquill.{ idiom => _, _ }
 
 class CMContext(context: String)
-  extends PostgresJdbcContext[SnakeCase.type](SnakeCase, context) {
+  extends PostgresAsyncContext[SnakeCase.type](SnakeCase, context) {
 
   implicit class ComparisonInfix[T: Encoder](left: T) {
     def >(right: T) =

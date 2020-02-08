@@ -1,8 +1,9 @@
-package com.couchmate.db
+package com.couchmate.db.table
 
 import java.util.UUID
 
 import com.couchmate.common.models.UserPrivate
+import com.couchmate.db.{PgProfile, Slickable}
 import com.couchmate.db.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api._
@@ -27,11 +28,11 @@ class UserPrivateTable(tag: Tag) extends Table[UserPrivate](tag, "user_private")
 }
 
 object UserPrivateTable extends Slickable[UserPrivateTable] {
-  val table = TableQuery[UserPrivateTable]
+  private[db] val table = TableQuery[UserPrivateTable]
 
-  val schema: PgProfile.SchemaDescription = table.schema
+  private[db] val schema: PgProfile.SchemaDescription = table.schema
 
-  val init = TableMigration(table)
+  private[db] val init = TableMigration(table)
     .create
     .addColumns(
       _.userId,

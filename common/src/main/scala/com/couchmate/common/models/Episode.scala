@@ -5,8 +5,8 @@ import play.api.libs.json.{Json, OFormat}
 case class Episode(
   episodeId: Option[Long],
   seriesId: Long,
-  season: Option[Int],
-  episode: Option[Int],
+  season: Option[Long],
+  episode: Option[Long],
 ) extends Product with Serializable
 
 object Episode extends JsonConfig {

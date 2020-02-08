@@ -17,8 +17,8 @@ class ProviderIngestor(
 
   private[this] def addOwner(
     gracenoteProvider: GracenoteProvider,
-  )(implicit ec: ExecutionContext): Future[ProviderOwner] = Future {
-    ctx.transaction {
+  )(implicit ec: ExecutionContext): Future[ProviderOwner] =
+    ctx.transaction { implicit ec =>
       gracenoteProvider match {
         case GracenoteProvider(_, name, t, _, location, None) =>
           val cleanedName: String =
@@ -28,12 +28,17 @@ class ProviderIngestor(
               cleanName(name, t, location)
             }
 
-          providerOwner.getProviderOwnerForName(cleanedName).headOption match {
-            case None => providerOwner.upsertProviderOwner(ProviderOwner(
-              providerOwnerId = None,
-              extProviderOwnerId = None,
-              name = cleanedName
-              ))
+            for {
+              ownerExists <- providerOwner.getProviderOwnerForName(cleanedName)
+              owner <- ownerExists.fold(providerOwner.upsertProviderOwner(ProviderOwner(
+                providerOwnerId = None,
+                extProviderOwnerId = None,
+                name = cleanedName
+              )))(Future.successful)
+            } yield owner
+
+          .headOption match {
+            case None =>
             case Some(providerOwner: ProviderOwner) => providerOwner
           }
         case GracenoteProvider(_, _, t, _, location, Some(GracenoteProviderOwner(id, ownerName))) =>
@@ -42,12 +47,11 @@ class ProviderIngestor(
               providerOwnerId = None,
               extProviderOwnerId = Some(id),
               name = cleanName(ownerName, t, location),
-              ))
+            ))
             case Some(providerOwner: ProviderOwner) => providerOwner
           }
       }
     }
-  }
 
     private[this] def addProvider(
       gracenoteProvider: GracenoteProvider,

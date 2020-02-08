@@ -3,7 +3,7 @@ package com.couchmate.services.thirdparty.gracenote
 import akka.NotUsed
 import akka.actor.typed.receptionist.Receptionist.Listing
 import akka.stream.scaladsl.Source
-import com.couchmate.common.models.{Airing, Channel, Provider, ProviderChannel, Show, SportEvent, SportOrganization}
+import com.couchmate.common.models.{Airing, Channel, Episode, Provider, ProviderChannel, Series, Show, SportEvent, SportOrganization}
 import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProgram, GracenoteProgramType}
 
@@ -16,24 +16,90 @@ class ListingIngestor(
 ) {
   import database._
 
-  private[this] def ingestSport(program: GracenoteProgram): Show = {
-    sportOrganization.getSportOrganizationBySportAndOrg(
+  private[this] def ingestSport(program: GracenoteProgram)(
+    implicit
+    ec: ExecutionContext,
+  ): Future[Show] = ctx.transaction(for {
+    sportOrgExists <- Future(sportOrganization.getSportOrganizationBySportAndOrg(
       program.sportsId.get,
       program.organizationId,
-    ) match {
-      case Some(sportOrg: SportOrganization)
-    }
-  }
+    ))
+    sportOrg <- sportOrgExists.fold(for {
+      gnSO <- gnService.getSportOrganization(
+        program.sportsId.get,
+        program.organizationId,
+      )
+      so <- Future(sportOrganization.upsertSportOrganization(gnSO))
+    } yield so)(Future.successful)
+    sportEventExists <- Future(sportEvent.getSportEventFromNameAndOrg(
+      program.eventTitle.get,
+      sportOrg.sportOrganizationId.get,
+    ))
+    sportEvent <- sportEventExists.fold(Future(sportEvent.upsertSportEvent(SportEvent(
+      sportEventId = None,
+      sportEventTitle = program.eventTitle.get,
+      sportOrganizationId = sportOrg.sportOrganizationId.get,
+    ))))(Future.successful)
+    show <- Future(show.upsertShow(Show(
+      showId = None,
+      extId = program.rootId,
+      `type` = "sport",
+      episodeId = None,
+      sportEventId = sportEvent.sportEventId,
+      title = program.title,
+      description = program
+        .shortDescription
+        .orElse(program.longDescription)
+        .getOrElse("N/A"),
+      originalAirDate = program.origAirDate
+    )))
+  } yield show)
 
-  private[this] def ingestProgram(program: GracenoteProgram): Show = {
+  private[this] def ingestEpisode(program: GracenoteProgram)(
+    implicit
+    ec: ExecutionContext,
+  ): Future[Show] = ctx.transaction(for {
+    seriesExists <- Future(series.getSeriesByExt(program.seriesId.get))
+    series <- seriesExists.fold(Future(series.upsertSeries(Series(
+      seriesId = None,
+      seriesName = program.title,
+      extId = program.seriesId.get,
+      totalEpisodes = None,
+      totalSeasons = None,
+    ))))(Future.successful)
+    episode <- Future(episode.upsertEpisode(Episode(
+      episodeId = None,
+      seriesId = series.seriesId.get,
+      season = program.seasonNumber,
+      episode = program.episodeNumber,
+    )))
+    show <- Future(show.upsertShow(Show(
+      showId = None,
+      extId = program.rootId,
+      `type` = "episode",
+      episodeId = episode.episodeId,
+      sportEventId = None,
+      title = program.episodeTitle.getOrElse(program.title),
+      description = program
+        .shortDescription
+        .orElse(program.longDescription)
+        .getOrElse("N/A"),
+      originalAirDate = program.origAirDate,
+    )))
+  } yield show)
+
+  private[this] def ingestProgram(program: GracenoteProgram)(
+    implicit
+    ec: ExecutionContext,
+  ): Future[Show] = {
     show.getShowFromExt(program.rootId) match {
-      case Some(show: Show) => show
+      case Some(show: Show) => Future.successful(show)
       case None => if (program.isSport) {
-
+        ingestSport(program)
       } else if (program.isSeries) {
-
+        ingestEpisode(program)
       } else {
-        show.upsertShow(Show(
+        Future(show.upsertShow(Show(
           showId = None,
           extId = program.rootId,
           `type` = "show",
@@ -45,7 +111,7 @@ class ListingIngestor(
             .orElse(program.longDescription)
             .getOrElse("N/A"),
           originalAirDate = program.origAirDate
-        ))
+        )))
       }
     }
   }
@@ -87,10 +153,24 @@ class ListingIngestor(
   private[this] def ingestChannelAiring(
     channelAiring: GracenoteChannelAiring,
     providerId: Long,
-  )(implicit ec: ExecutionContext): Future[Seq[Listing]] = for {
-    channel <- ingestChannel(channelAiring)
-    providerChannel <- ingestProviderChannel(channel, providerId)
-  }
+  )(implicit ec: ExecutionContext): Source[Listing, NotUsed] =
+    Source.future(
+      for {
+        channel <- ingestChannel(channelAiring)
+        providerChannel <- ingestProviderChannel(channel, providerId)
+      } yield providerChannel
+    ).map { providerChannel =>
+      channelAiring.airings map { airing =>
+        providerChannel -> airing
+      }
+    }.mapConcat(identity)
+     .mapAsync(1) { case (providerChannel, airing) => ctx.transaction {
+       for {
+         show <- ingestProgram(airing.program)
+         airingExists <-
+       }
+    }}
+
 
   private[this] def getProviderAndAirings(
     extListingId: String,
@@ -121,112 +201,3 @@ class ListingIngestor(
       .mapAsync(1)(airing => ingestChannelAiring(airing._2, airing._1))
       .fold(Seq[Listing]())(_ :+ _)
 }
-//package com.couchmate.services.thirdparty.gracenote
-//
-//import akka.stream.scaladsl.{Sink, Source}
-//import com.couchmate.common.models.{Airing, Channel, Provider, ProviderChannel, Show}
-//
-//import scala.concurrent.{ExecutionContext, Future}
-//import com.couchmate.data.schema.PgProfile.api._
-//import com.couchmate.data.schema.ShowDAO
-//import com.couchmate.data.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProgram}
-//import com.typesafe.scalalogging.LazyLogging
-//
-//object ListingIngestor
-//  extends LazyLogging {
-//
-//  private[this] def ingestProgram(
-//    program: GracenoteProgram,
-//  )(
-//    implicit
-//    db: Database,
-//    ec: ExecutionContext,
-//  ): Future[Show] = {
-//    ShowDAO.getShowFromExt(program.rootId) flatMap {
-//      case Some(show) =>
-//        Future.successful(show)
-//      case None => program match {
-//        case Grace
-//      }
-//    }
-//  }
-//
-//  private[this] def ingestProviderChannel(
-//    channel: Channel,
-//    providerId: Long,
-//  )(
-//    implicit
-//    db: Database,
-//    ec: ExecutionContext,
-//  ): Future[ProviderChannel] = {
-//    ProviderChannelDAO.getProviderChannelForProviderAndChannel(
-//      providerId,
-//      channel.channelId.get,
-//    ) flatMap {
-//      case None =>
-//        ProviderChannelDAO.upsertProviderChannel(ProviderChannel(
-//          providerChannelId = None,
-//          providerId,
-//          channel.channelId.get,
-//          channel.callsign,
-//        ))
-//      case Some(providerChannel) =>
-//        Future.successful(providerChannel)
-//    }
-//  }
-//
-//  private[this] def ingestChannel(
-//    channelAiring: GracenoteChannelAiring,
-//  )(
-//    implicit
-//    db: Database,
-//    ec: ExecutionContext,
-//  ): Future[Channel] = {
-//    ChannelDAO.getChannelForExt(channelAiring.stationId) flatMap {
-//      case None =>
-//        ChannelDAO.upsertChannel(Channel(
-//          channelId = None,
-//          channelAiring.stationId,
-//          channelAiring.affiliateCallSign
-//                       .getOrElse(channelAiring.callSign)
-//        ))
-//      case Some(channel) =>
-//        Future.successful(channel)
-//    }
-//  }
-//
-//  private[this] def ingestChannelAiring(
-//    channelAiring: GracenoteChannelAiring,
-//    providerId: Long,
-//  )(
-//    implicit
-//    db: Database,
-//    ec: ExecutionContext,
-//    gs: GracenoteService,
-//  ): Future[Seq[Airing]] = {
-//    for {
-//      channel <- ingestChannel(channelAiring),
-//      providerChannel <- ingestProviderChannel(channel, providerId)
-//    }
-//  }
-//
-//  def ingestListings(
-//    extListingId: String,
-//  )(
-//    implicit
-//    db: Database,
-//    ec: ExecutionContext,
-//    gs: GracenoteService,
-//  ) = Source.future(
-//    ProviderDAO.getProviderForExtAndOwner(extListingId, None),
-//  ) flatMapConcat {
-//    case Some(Provider(Some(providerId), _, _, _, _, _)) =>
-//      gs
-//        .getListing(extListingId)
-//        .mapAsync(1)(
-//          channelAiring => ingestChannelAiring(channelAiring, providerId)
-//        )
-//    case None => Source.empty
-//  }
-//
-//}

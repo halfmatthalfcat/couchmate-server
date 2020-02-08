@@ -1,8 +1,9 @@
-package com.couchmate.db
+package com.couchmate.db.table
 
 import java.time.LocalDateTime
 
 import com.couchmate.common.models.{Airing, ListingCache}
+import com.couchmate.db.{PgProfile, Slickable}
 import com.couchmate.db.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api._
@@ -31,11 +32,11 @@ class ListingCacheTable(tag: Tag) extends Table[ListingCache](tag, "listing_cach
 }
 
 object ListingCacheTable extends Slickable[ListingCacheTable] {
-  val table: TableQuery[ListingCacheTable] = TableQuery[ListingCacheTable]
+  private[db] val table: TableQuery[ListingCacheTable] = TableQuery[ListingCacheTable]
 
-  val schema: PgProfile.SchemaDescription = table.schema
+  private[db] val schema: PgProfile.SchemaDescription = table.schema
 
-  val init = TableMigration(table)
+  private[db] val init = TableMigration(table)
     .create
     .addColumns(
       _.listingCacheId,

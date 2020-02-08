@@ -9,7 +9,7 @@ object RoomActivityType
   with PlayJsonEnum[RoomActivityType]
   with QuillEnum[RoomActivityType] {
 
-  val values: IndexedSeq[RoomActivityType] = findValues
+  val values = findValues
 
   case object Joined  extends RoomActivityType
   case object Left    extends RoomActivityType

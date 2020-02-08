@@ -1,6 +1,5 @@
 package com.couchmate.db
 
-import com.couchmate.db.PgProfile.api._
 import slick.migration.api.TableMigration
 
 trait Slickable[T <: Table[_]] {

@@ -1,6 +1,7 @@
-package com.couchmate.db
+package com.couchmate.db.table
 
 import com.couchmate.common.models.Provider
+import com.couchmate.db.{PgProfile, Slickable}
 import com.couchmate.db.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api._
@@ -38,11 +39,11 @@ class ProviderTable(tag: Tag) extends Table[Provider](tag, "provider") {
 }
 
 object ProviderTable extends Slickable[ProviderTable] {
-  val table = TableQuery[ProviderTable]
+  private[db] val table = TableQuery[ProviderTable]
 
-  val schema: PgProfile.SchemaDescription = table.schema
+  private[db] val schema: PgProfile.SchemaDescription = table.schema
 
-  val init = TableMigration(table)
+  private[db] val init = TableMigration(table)
     .create
     .addColumns(
       _.providerId,

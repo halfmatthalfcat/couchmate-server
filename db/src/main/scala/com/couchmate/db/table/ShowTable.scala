@@ -1,8 +1,9 @@
-package com.couchmate.db
+package com.couchmate.db.table
 
 import java.time.LocalDateTime
 
 import com.couchmate.common.models.Show
+import com.couchmate.db.{PgProfile, Slickable}
 import com.couchmate.db.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api._
@@ -49,11 +50,11 @@ class ShowTable(tag: Tag) extends Table[Show](tag, "show") {
 }
 
 object ShowTable extends Slickable[ShowTable] {
-  val table = TableQuery[ShowTable]
+  private[db] val table = TableQuery[ShowTable]
 
-  val schema: PgProfile.SchemaDescription = table.schema
+  private[db] val schema: PgProfile.SchemaDescription = table.schema
 
-  val init = TableMigration(table)
+  private[db] val init = TableMigration(table)
     .create
     .addColumns(
       _.showId,

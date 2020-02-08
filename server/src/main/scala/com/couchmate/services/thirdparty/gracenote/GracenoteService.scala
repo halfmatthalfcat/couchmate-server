@@ -10,6 +10,7 @@ import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.unmarshalling.Unmarshal
+import com.couchmate.common.models.SportOrganization
 import com.couchmate.data.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProvider, GracenoteSportOrganization, GracenoteSportResponse}
 import com.couchmate.util.DateUtils
 import com.typesafe.config.Config
@@ -120,7 +121,7 @@ class GracenoteService(
   )(
     implicit
     ec: ExecutionContext,
-  ): Future[Option[GracenoteSportOrganization]] = {
+  ): Future[SportOrganization] = {
     for {
       response <- Http().singleRequest(getGracenoteRequest(
         Seq("sports", sportId.toString),
@@ -132,6 +133,12 @@ class GracenoteService(
       decodedResponse = Gzip.decodeMessage(response)
       payload <- Unmarshal(decodedResponse.entity).to[GracenoteSportResponse]
       org = orgId.flatMap(orgId => payload.organizations.find(_.organizationId == orgId))
-    } yield org
+    } yield SportOrganization(
+      sportOrganizationId = None,
+      extSportId = sportId,
+      extOrgId = org.map(_.organizationId),
+      sportName = payload.sportsName,
+      orgName = org.map(_.organizationName)
+    )
   }
 }

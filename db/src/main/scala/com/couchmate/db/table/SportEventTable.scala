@@ -1,6 +1,7 @@
-package com.couchmate.db
+package com.couchmate.db.table
 
 import com.couchmate.common.models.SportEvent
+import com.couchmate.db.{PgProfile, Slickable}
 import com.couchmate.db.PgProfile.api._
 import slick.lifted.Tag
 import slick.migration.api._
@@ -33,11 +34,11 @@ class SportEventTable(tag: Tag) extends Table[SportEvent](tag, "sport_event") {
 }
 
 object SportEventTable extends Slickable[SportEventTable] {
-  val table = TableQuery[SportEventTable]
+  private[db] val table = TableQuery[SportEventTable]
 
-  val schema: PgProfile.SchemaDescription = table.schema
+  private[db] val schema: PgProfile.SchemaDescription = table.schema
 
-  val init = TableMigration(table)
+  private[db] val init = TableMigration(table)
     .create
     .addColumns(
       _.sportEventId,

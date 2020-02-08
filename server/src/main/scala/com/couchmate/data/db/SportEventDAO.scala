@@ -10,17 +10,25 @@ class SportEventDAO()(
   private[this] implicit val sportEventInsertMeta =
     insertMeta[SportEvent](_.sportEventId)
 
-  def getSportEvent(sportEventId: Long) = quote {
+  def getSportEvent(sportEventId: Long) = ctx.run(quote {
     query[SportEvent]
       .filter(_.sportEventId.contains(sportEventId))
-  }
+  }).headOption
 
-  def upsertSportEvent(sportEvent: SportEvent) = quote {
+  def getSportEventFromNameAndOrg(name: String, orgId: Long) = ctx.run(quote {
+    query[SportEvent]
+      .filter { se =>
+        se.sportEventTitle == name &&
+        se.sportOrganizationId == orgId
+      }
+  }).headOption
+
+  def upsertSportEvent(sportEvent: SportEvent) = ctx.run(quote {
     query[SportEvent]
       .insert(lift(sportEvent))
       .onConflictUpdate(_.sportEventId)(
         (from, to) => from.sportEventTitle -> to.sportEventTitle,
         (from, to) => from.sportOrganizationId -> to.sportOrganizationId,
       ).returning(se => se)
-  }
+  })
 }

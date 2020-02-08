@@ -2,7 +2,6 @@ package com.couchmate.db
 
 import com.couchmate.common.models.{RoomActivityType, UserActivityType, UserExtType, UserType}
 import enumeratum.{Enum, EnumEntry}
-import com.couchmate.db.PgProfile.api._
 
 import scala.reflect.ClassTag
 
