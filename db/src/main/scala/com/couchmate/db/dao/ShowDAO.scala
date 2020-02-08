@@ -27,5 +27,5 @@ class ShowDAO(db: Database)(
       _ <- ShowTable.table.update(show)
       updated <- super.getShow(showId)
     } yield updated.result.head.transactionally)}
-  
+
 }
