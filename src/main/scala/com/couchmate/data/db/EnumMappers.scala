@@ -1,5 +1,11 @@
 package com.couchmate.data.db
 
+import enumeratum._
+import com.couchmate.data.db.PgProfile.api._
+import com.couchmate.data.models.{RoomActivityType, UserActivityType, UserExtType, UserType}
+
+import scala.reflect.ClassTag
+
 trait EnumMappers {
 
   private[this] def enumMappedColumn[E <: EnumEntry](enum: Enum[E])(

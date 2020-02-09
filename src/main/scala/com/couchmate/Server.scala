@@ -1,7 +1,5 @@
 package com.couchmate
 
-import java.time.LocalDateTime
-
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorSystem, Behavior, PostStop}
@@ -11,11 +9,10 @@ import akka.http.scaladsl.Http.ServerBinding
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import com.couchmate.api.Routes
-import com.couchmate.data.db.{AiringDAO, CMContext, CMDatabase, ProviderDAO, ProviderOwnerDAO}
-import com.couchmate.data.models.Airing
+import com.couchmate.data.db.CMDatabase
+import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.services.thirdparty.gracenote.{GracenoteService, ProviderIngestor}
 import com.typesafe.config.{Config, ConfigFactory}
-import io.getquill.{PostgresJdbcContext, SnakeCase}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -63,14 +60,14 @@ object Server extends ServerCommands {
 
   def apply(host: String, port: Int, config: Config): Behavior[Command] = Behaviors.setup { implicit ctx =>
 
-    implicit val db: CMContext =
-      new CMContext("ctx")
-
-    val database: CMDatabase =
-      new CMDatabase()
-
     implicit val ec: ExecutionContext =
       ctx.executionContext
+
+    val db: Database =
+      Database.forConfig("db")
+
+    val database: CMDatabase =
+      new CMDatabase(db)
 
     implicit val system: ActorSystem[Nothing] =
       ctx.system

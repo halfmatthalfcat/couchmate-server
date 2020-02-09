@@ -3,11 +3,9 @@ package com.couchmate.data.db.table
 import java.time.LocalDateTime
 import java.util.UUID
 
-import com.couchmate.common.models.UserActivityType
-import com.couchmate.data.db.Slickable
-import com.couchmate.data.models.{UserActivity, UserActivityType}
-import com.couchmate.data.db.Slickable
 import com.couchmate.data.db.PgProfile.api._
+import com.couchmate.data.db.{PgProfile, Slickable}
+import com.couchmate.data.models.{UserActivity, UserActivityType}
 import slick.lifted.Tag
 import slick.migration.api._
 

@@ -1,9 +1,7 @@
 package com.couchmate.data.db.dao
 
-import com.couchmate.common.models.ZipProvider
 import com.couchmate.data.db.PgProfile.api._
-import com.couchmate.data.db.query.ZipProviderQueries
-import com.couchmate.data.db.table.ZipProviderTable
+import com.couchmate.data.db.table.{ProviderTable, ZipProviderTable}
 import com.couchmate.data.models.{Provider, ZipProvider}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -11,22 +9,58 @@ import scala.concurrent.{ExecutionContext, Future}
 class ZipProviderDAO(db: Database)(
   implicit
   ec: ExecutionContext,
-) extends ZipProviderQueries {
+) {
 
   def getZipProvidersByZip(zipCode: String): Future[Seq[ZipProvider]] = {
-    db.run(super.getZipProvidersForZip(zipCode).result)
+    db.run(ZipProviderDAO.getZipProvidersForZip(zipCode).result)
   }
 
   def getProvidersForZip(zipCode: String): Future[Seq[Provider]] = {
-    db.run(super.getProvidersForZip(zipCode).result)
+    db.run(ZipProviderDAO.getProvidersForZip(zipCode).result)
   }
 
-  def providerExistsForProviderAndZip(providerId: Long, zipCode: String): Future[Boolean] = {
-    db.run(super.providerExistsForProviderAndZip(providerId, zipCode).result)
+  def getProviderForProviderAndZip(providerId: Long, zipCode: String): Future[Option[ZipProvider]] = {
+    db.run(ZipProviderDAO.getProviderForProviderAndZip(providerId, zipCode).result.headOption)
   }
 
   def addZipProvider(zipProvider: ZipProvider): Future[ZipProvider] = {
     db.run((ZipProviderTable.table returning ZipProviderTable.table) += zipProvider)
   }
 
+  def getZipProviderFromGracenote(zipCode: String, provider: Provider): Future[ZipProvider] = {
+    db.run((for {
+      exists <- ZipProviderDAO.getProviderForProviderAndZip(
+        provider.providerId.get,
+        zipCode,
+      ).result.headOption
+      zipProvider <- exists.fold[DBIO[ZipProvider]](
+        (ZipProviderTable.table returning ZipProviderTable.table) += ZipProvider(
+          providerId = provider.providerId.get,
+          zipCode = zipCode,
+        )
+      )(DBIO.successful)
+    } yield zipProvider).transactionally)
+  }
+
+}
+
+object ZipProviderDAO {
+  private[dao] lazy val getZipProvidersForZip = Compiled { (zipCode: Rep[String]) =>
+    ZipProviderTable.table.filter(_.zipCode === zipCode)
+  }
+
+  private[dao] lazy val getProvidersForZip = Compiled { (zipCode: Rep[String]) =>
+    for {
+      zp <- ZipProviderTable.table if zp.zipCode === zipCode
+      p <- ProviderTable.table if p.providerId === zp.providerId
+    } yield p
+  }
+
+  private[dao] lazy val getProviderForProviderAndZip = Compiled {
+    (providerId: Rep[Long], zipCode: Rep[String]) =>
+      ZipProviderTable.table.filter { zp =>
+        zp.providerId === providerId &&
+        zp.zipCode === zipCode
+      }
+  }
 }

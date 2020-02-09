@@ -1,9 +1,8 @@
 package com.couchmate.data.db.table
 
-import com.couchmate.data.db.Slickable
-import com.couchmate.data.models.ZipProvider
-import com.couchmate.data.db.Slickable
 import com.couchmate.data.db.PgProfile.api._
+import com.couchmate.data.db.{PgProfile, Slickable}
+import com.couchmate.data.models.ZipProvider
 import slick.lifted.{PrimaryKey, Tag}
 import slick.migration.api._
 

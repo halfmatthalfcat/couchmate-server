@@ -1,31 +1,41 @@
 package com.couchmate.data.db.dao
 
 import com.couchmate.data.db.PgProfile.api._
-import com.couchmate.data.db.query.ChannelQueries
 import com.couchmate.data.db.table.ChannelTable
 import com.couchmate.data.models.Channel
+import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
 
 class ChannelDAO(db: Database)(
   implicit
   ec: ExecutionContext,
-) extends ChannelQueries {
+) {
 
   def getChannel(channelId: Long): Future[Option[Channel]] = {
-    db.run(super.getChannel(channelId).result.headOption)
+    db.run(ChannelDAO.getChannel(channelId).result.headOption)
   }
 
   def getChannelForExt(extId: Long): Future[Option[Channel]] = {
-    db.run(super.getChannelForExt(extId).result.headOption)
+    db.run(ChannelDAO.getChannelForExt(extId).result.headOption)
   }
 
-  def upsertChannel(channel: Channel): Future[Channel] =
-    channel.channelId.fold(
-      db.run((ChannelTable.table returning ChannelTable.table) += channel)
-    ) { (channelId: Long) => db.run(for {
+  def upsertChannel(channel: Channel): Future[Channel] = db.run(
+    channel.channelId.fold[DBIO[Channel]](
+      (ChannelTable.table returning ChannelTable.table) += channel
+    ) { (channelId: Long) => for {
       _ <- ChannelTable.table.update(channel)
-      updated <- super.getChannel(channelId)
-    } yield updated.result.head.transactionally)}
+      updated <- ChannelDAO.getChannel(channelId).result.head
+    } yield updated}.transactionally
+  )
+}
 
+object ChannelDAO {
+  private[dao] lazy val getChannel = Compiled { (channelId: Rep[Long]) =>
+    ChannelTable.table.filter(_.channelId === channelId)
+  }
+
+  private[dao] lazy val getChannelForExt = Compiled { (extId: Rep[Long]) =>
+    ChannelTable.table.filter(_.extId === extId)
+  }
 }

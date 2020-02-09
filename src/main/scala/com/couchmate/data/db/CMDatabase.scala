@@ -1,5 +1,6 @@
 package com.couchmate.data.db
 
+import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao._
 
 import scala.concurrent.ExecutionContext

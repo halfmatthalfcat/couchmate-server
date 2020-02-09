@@ -2,10 +2,9 @@ package com.couchmate.data.db.table
 
 import java.util.UUID
 
-import com.couchmate.data.db.Slickable
-import com.couchmate.data.models.UserPrivate
-import com.couchmate.data.db.Slickable
 import com.couchmate.data.db.PgProfile.api._
+import com.couchmate.data.db.{PgProfile, Slickable}
+import com.couchmate.data.models.UserPrivate
 import slick.lifted.Tag
 import slick.migration.api._
 

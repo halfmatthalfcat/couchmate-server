@@ -51,5 +51,6 @@ lazy val server = project.in(file("."))
       // "-unchecked",
       "-language:postfixOps"
     ),
-    // addCommandAlias("mg", "runMain com.couchmate.data.schema.Migrations")
+    addCommandAlias("db", "runMain com.couchmate.data.db.Migrations")
+
   )
