@@ -12,12 +12,12 @@ class LineupTable(tag: Tag) extends Table[Lineup](tag, "lineup") {
   def lineupId: Rep[Long] = column[Long]("lineup_id", O.AutoInc, O.PrimaryKey)
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.SqlType("uuid"))
-  def replacedBy: Rep[Option[UUID]] = column[Option[UUID]]("replaced_by", O.SqlType("uuid"))
+  def active: Rep[Boolean] = column[Option[UUID]]("active")
   def * = (
     lineupId.?,
     providerChannelId,
     airingId,
-    replacedBy,
+    active,
   ) <> ((Lineup.apply _).tupled, Lineup.unapply)
 
   def providerChannelFk = foreignKey(
@@ -52,7 +52,7 @@ object LineupTable extends Slickable[LineupTable] {
       _.lineupId,
       _.providerChannelId,
       _.airingId,
-      _.replacedBy,
+      _.active,
     ).addForeignKeys(
       _.providerChannelFk,
       _.airingFk,

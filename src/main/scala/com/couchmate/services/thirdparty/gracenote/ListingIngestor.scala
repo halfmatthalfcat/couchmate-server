@@ -8,6 +8,11 @@ import com.couchmate.data.thirdparty.gracenote.GracenoteChannelAiring
 
 import scala.concurrent.{ExecutionContext, Future}
 
+case class GracenoteAiringDiff(
+  add: Seq[GracenoteChannelAiring],
+  remove: Seq[GracenoteChannelAiring],
+)
+
 class ListingIngestor(
   gnService: GracenoteService,
   providerIngestor: ProviderIngestor,

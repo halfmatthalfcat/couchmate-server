@@ -44,7 +44,7 @@ class LineupDAO(db: Database)(
         lineupId = None,
         providerChannelId = providerChannel.providerChannelId.get,
         airingId = airing.airingId.get,
-        replacedBy = None,
+        active = true,
       )
     )(DBIO.successful)
   } yield lineup).transactionally)

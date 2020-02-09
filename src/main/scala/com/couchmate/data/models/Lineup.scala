@@ -8,7 +8,7 @@ case class Lineup(
   lineupId: Option[Long],
   providerChannelId: Long,
   airingId: UUID,
-  replacedBy: Option[UUID]
+  active: Boolean
 ) extends Product with Serializable
 
 object Lineup extends JsonConfig {
