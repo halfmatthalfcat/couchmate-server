@@ -1,11 +1,10 @@
 package com.couchmate.services.thirdparty.gracenote
 
 import akka.NotUsed
-import akka.actor.typed.receptionist.Receptionist.Listing
 import akka.stream.scaladsl.Source
 import com.couchmate.data.db.CMDatabase
-import com.couchmate.data.models.{Channel, Episode, Provider, ProviderChannel, Series, Show, SportEvent}
-import com.couchmate.data.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProgram, GracenoteProgramType}
+import com.couchmate.data.models.{Provider, Show}
+import com.couchmate.data.thirdparty.gracenote.GracenoteChannelAiring
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -33,11 +32,21 @@ class ListingIngestor(
         providerChannel -> airing
       }
     }.mapConcat(identity)
-     .mapAsync(1) { case (providerChannel, airing) =>
-        show.getShowFromGracenoteProgram(
-          airing.program,
-          gnService.getSportOrganization
-        )
+     .mapAsync(1) { case (pc, a) =>
+        for {
+          show <- show.getShowFromGracenoteProgram(
+            a.program,
+            gnService.getSportOrganization
+          )
+          airing <- airing.getAiringFromGracenote(
+            show.showId.get,
+            a,
+          )
+          _ <- lineup.getLineupFromGracenote(
+            pc,
+            airing,
+          )
+        } yield show
      }
 
 

@@ -6,6 +6,7 @@ import java.util.UUID
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.AiringTable
 import com.couchmate.data.models.Airing
+import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
 import slick.lifted.{Compiled, Rep}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -40,6 +41,25 @@ class AiringDAO(db: Database)(
       updated <- AiringDAO.getAiring(airingId).result.head
     } yield updated}.transactionally
   )
+
+  def getAiringFromGracenote(
+    showId: Long,
+    airing: GracenoteAiring,
+  ): Future[Airing] = db.run((for {
+    exists <- AiringDAO.getAiringByShowAndStart(
+      showId,
+      airing.startTime,
+    ).result.headOption
+    airing <- exists.fold[DBIO[Airing]](
+      (AiringTable.table returning AiringTable.table) += Airing(
+        airingId = Some(UUID.randomUUID()),
+        showId = showId,
+        startTime = airing.startTime,
+        endTime = airing.endTime,
+        duration = airing.duration
+      )
+    )(DBIO.successful)
+  } yield airing).transactionally)
 
 }
 

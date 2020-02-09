@@ -30,6 +30,7 @@ object Migrations extends LazyLogging {
       UserExtTable,
       UserPrivateTable,
       ListingCacheTable,
+      LineupTable,
     )
 
   private[this] def applySchema()(
