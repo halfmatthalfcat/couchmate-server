@@ -45,7 +45,7 @@ class ProviderIngestor(
     Source
       .future(gnService.getProviders(zipCode, country))
       .mapConcat(identity)
-      .filter(_.name.toLowerCase.contains("c-band"))
+      .filter(!_.name.toLowerCase.contains("c-band"))
       .mapAsync(1)(ingestProvider(Some(zipCode), country, _))
       .fold(Seq[Provider]())(_ :+ _)
 }

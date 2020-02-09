@@ -21,11 +21,15 @@ case class GracenoteProvider(
   }
 
   def getName(country: Option[String]): String = {
-    if (location != "None" && country.getOrElse("") != location.getOrElse("")) {
+    if (
+      location != "None" &&
+      location.isDefined &&
+      country.getOrElse("") != location.getOrElse("")
+    ) {
       if (name.toLowerCase.contains("digital")) {
-        s"${cleanName(name)} Digital ($location)"
+        s"${cleanName(name)} Digital (${location.get})"
       } else {
-        s"${cleanName(name)} ($location)"
+        s"${cleanName(name)} (${location.get})"
       }
     } else {
       cleanName(name)

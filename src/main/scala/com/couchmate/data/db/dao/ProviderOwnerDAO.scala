@@ -54,7 +54,7 @@ class ProviderOwnerDAO(db: Database)(
         owner <- exists.fold[DBIO[ProviderOwner]](
           (ProviderOwnerTable.table returning ProviderOwnerTable.table) += ProviderOwner(
             providerOwnerId = None,
-            extProviderOwnerId = Some(gracenoteProvider.mso.get.id),
+            extProviderOwnerId = None,
             name = gracenoteProvider.getName(country),
           )
         )(DBIO.successful)
