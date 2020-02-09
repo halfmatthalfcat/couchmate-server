@@ -11,7 +11,7 @@ import akka.util.Timeout
 import com.couchmate.api.Routes
 import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.db.PgProfile.api._
-import com.couchmate.services.thirdparty.gracenote.{GracenoteService, ProviderIngestor}
+import com.couchmate.services.thirdparty.gracenote.{GracenoteService, ListingIngestor, ProviderIngestor}
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.duration._
@@ -84,15 +84,23 @@ object Server extends ServerCommands {
     implicit val gracenoteService: GracenoteService =
       new GracenoteService(config);
 
-    val ingestor: ProviderIngestor =
+    val providerIngestor: ProviderIngestor =
       new ProviderIngestor(
         gracenoteService,
         database,
       )
 
+    val listingIngestor: ListingIngestor =
+      new ListingIngestor(
+        gracenoteService,
+        providerIngestor,
+        database,
+      )
+
     val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
       Routes(
-        ingestor,
+        providerIngestor,
+        listingIngestor,
         database,
       ),
       interface = host,

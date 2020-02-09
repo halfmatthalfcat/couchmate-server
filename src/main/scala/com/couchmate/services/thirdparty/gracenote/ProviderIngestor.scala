@@ -32,10 +32,12 @@ class ProviderIngestor(
       owner,
       country,
     )
-    _ <- zipProvider.getZipProviderFromGracenote(
-      zipCode.get,
-      provider,
-    ) if zipCode.isDefined
+    _ <- zipCode.fold(Future.successful[Unit]()) { zipCode: String =>
+      zipProvider.getZipProviderFromGracenote(
+        zipCode,
+        provider,
+      ) map (_ => ())
+    }
   } yield provider
 
   def ingestProviders(

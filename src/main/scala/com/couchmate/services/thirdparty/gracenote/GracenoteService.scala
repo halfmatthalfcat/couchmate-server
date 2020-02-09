@@ -131,13 +131,13 @@ class GracenoteService(
         ),
       ))
       decodedResponse = Gzip.decodeMessage(response)
-      payload <- Unmarshal(decodedResponse.entity).to[GracenoteSportResponse]
-      org = orgId.flatMap(orgId => payload.organizations.find(_.organizationId == orgId))
+      payload <- Unmarshal(decodedResponse.entity).to[Seq[GracenoteSportResponse]]
+      org = orgId.flatMap(orgId => payload.head.organizations.find(_.organizationId == orgId))
     } yield SportOrganization(
       sportOrganizationId = None,
       extSportId = sportId,
       extOrgId = org.map(_.organizationId),
-      sportName = payload.sportsName,
+      sportName = payload.head.sportsName,
       orgName = org.map(_.organizationName)
     )
   }

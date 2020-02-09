@@ -1,13 +1,18 @@
 package com.couchmate.data.thirdparty.gracenote
 
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.json._
+import play.api.libs.functional.syntax._
 
 case class GracenoteSportResponse(
-  sportId: Long,
+  sportsId: Long,
   sportsName: String,
   organizations: Seq[GracenoteSportOrganization],
 )
 
 object GracenoteSportResponse {
-  implicit val format: OFormat[GracenoteSportResponse] = Json.format[GracenoteSportResponse]
+  implicit val reads: Reads[GracenoteSportResponse] = (
+    (__ \ "sportsId").read[String].map(_.toLong) and
+    (__ \ "sportsName").read[String] and
+    (__ \ "organizations").readWithDefault[Seq[GracenoteSportOrganization]](Seq[GracenoteSportOrganization]())
+  )(GracenoteSportResponse.apply _)
 }
