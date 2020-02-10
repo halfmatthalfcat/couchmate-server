@@ -12,7 +12,7 @@ class LineupTable(tag: Tag) extends Table[Lineup](tag, "lineup") {
   def lineupId: Rep[Long] = column[Long]("lineup_id", O.AutoInc, O.PrimaryKey)
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.SqlType("uuid"))
-  def active: Rep[Boolean] = column[Option[UUID]]("active")
+  def active: Rep[Boolean] = column[Boolean]("active")
   def * = (
     lineupId.?,
     providerChannelId,

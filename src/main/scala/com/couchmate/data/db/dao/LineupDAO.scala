@@ -5,6 +5,7 @@ import java.util.UUID
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.{LineupTable, ProviderChannelTable}
 import com.couchmate.data.models.{Airing, Lineup, ProviderChannel}
+import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -48,6 +49,15 @@ class LineupDAO(db: Database)(
       )
     )(DBIO.successful)
   } yield lineup).transactionally)
+
+  def disableFromGracenote(
+    airing: GracenoteAiring,
+  ): Future[Unit] = db.run((for {
+    show <- ShowDAO.getShowByExt(
+      airing.program.rootId,
+    )
+    showExi
+  }))
 }
 
 object LineupDAO {

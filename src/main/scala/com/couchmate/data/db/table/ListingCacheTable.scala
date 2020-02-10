@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.{PgProfile, Slickable}
 import com.couchmate.data.models.{Airing, ListingCache}
+import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
 import slick.lifted.Tag
 import slick.migration.api._
 
@@ -12,7 +13,7 @@ class ListingCacheTable(tag: Tag) extends Table[ListingCache](tag, "listing_cach
   def listingCacheId: Rep[Long] = column[Long]("listing_cache_id", O.PrimaryKey, O.AutoInc)
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
   def startTime: Rep[LocalDateTime] = column[LocalDateTime]("start_time", O.SqlType("timestamp"))
-  def airings: Rep[Seq[Airing]] = column[Seq[Airing]]("airings", O.SqlType("jsonb"))
+  def airings: Rep[Seq[GracenoteAiring]] = column[Seq[GracenoteAiring]]("airings", O.SqlType("jsonb"))
   def * = (
     listingCacheId.?,
     providerChannelId,

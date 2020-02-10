@@ -1,10 +1,10 @@
 package com.couchmate.util
 
-import java.time.OffsetDateTime
+import java.time.LocalDateTime
 
 object DateUtils {
 
-  def roundNearestHour(dateTime: OffsetDateTime): OffsetDateTime = {
+  def roundNearestHour(dateTime: LocalDateTime): LocalDateTime = {
     dateTime
       .withSecond(0)
       .withMinute(0)

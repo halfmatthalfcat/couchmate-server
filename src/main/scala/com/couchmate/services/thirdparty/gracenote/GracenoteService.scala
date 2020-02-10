@@ -1,6 +1,6 @@
 package com.couchmate.services.thirdparty.gracenote
 
-import java.time.{OffsetDateTime, ZoneId, ZoneOffset}
+import java.time.{LocalDateTime, OffsetDateTime, ZoneId, ZoneOffset}
 import java.time.format.DateTimeFormatter
 
 import akka.NotUsed
@@ -93,8 +93,8 @@ class GracenoteService(
 
   def getListing(
     extListingId: String,
-    startDate: OffsetDateTime = DateUtils.roundNearestHour(OffsetDateTime.now(ZoneId.of("UTC"))),
-    duration: Int = 6,
+    startDate: LocalDateTime = DateUtils.roundNearestHour(LocalDateTime.now(ZoneId.of("UTC"))),
+    duration: Int = 1,
   )(
     implicit
     ec: ExecutionContext,
@@ -112,7 +112,7 @@ class GracenoteService(
         ))
       decodedResponse = Gzip.decodeMessage(response)
       payload <- Unmarshal(decodedResponse.entity).to[Seq[GracenoteChannelAiring]]
-    } yield payload
+    } yield payload.map(_.copy(startDate = Some(startDate)))
   }
 
   def getSportOrganization(
