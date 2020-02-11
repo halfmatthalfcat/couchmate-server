@@ -7,7 +7,7 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.Directives._
 import akka.stream.scaladsl.Source
 import akka.util.Timeout
-import com.couchmate.data.thirdparty.gracenote.GracenoteChannelAiring
+import com.couchmate.data.models.Lineup
 import com.couchmate.services.thirdparty.gracenote.ListingIngestor
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
@@ -26,9 +26,10 @@ object ListingRoutes extends PlayJsonSupport {
   ): Route = {
     path("listing" / Segment) { id: String =>
       get {
-        val listings = listingIngestor.ingestListings(
-          id,
-        )
+        val listings = Source
+          .single(id)
+          .via(listingIngestor.ingestListings)
+          .fold(Seq[Lineup]())(_ :+ _)
 
         complete(listings)
       }

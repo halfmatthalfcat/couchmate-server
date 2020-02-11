@@ -1,18 +1,13 @@
 package com.couchmate.services.thirdparty.gracenote
 
+import akka.stream.FlowShape
+import akka.stream.scaladsl.{Flow, GraphDSL, Merge, Partition, Sink, Source}
 import akka.{Done, NotUsed}
-import akka.stream.scaladsl.{Broadcast, Flow, Partition, Sink, Source}
 import com.couchmate.data.db.CMDatabase
-import com.couchmate.data.db.dao.AiringDAO
-import com.couchmate.data.models.{Provider, ProviderChannel, Show}
+import com.couchmate.data.models.{Lineup, Provider, ProviderChannel, Show}
 import com.couchmate.data.thirdparty.gracenote.{GracenoteAiring, GracenoteChannelAiring}
 
 import scala.concurrent.{ExecutionContext, Future}
-
-case class GracenoteAiringDiff(
-  add: Seq[(ProviderChannel, GracenoteAiring)],
-  remove: Seq[GracenoteAiring],
-)
 
 class ListingIngestor(
   gnService: GracenoteService,
@@ -21,7 +16,7 @@ class ListingIngestor(
 ) {
   import database._
 
-  private[this] def AddAiring(implicit ec: ExecutionContext): Flow[(ProviderChannel, GracenoteAiring), Show, NotUsed] =
+  private[this] def GetOrAddLineup(implicit ec: ExecutionContext): Flow[(ProviderChannel, GracenoteAiring), Lineup, NotUsed] =
     Flow[(ProviderChannel, GracenoteAiring)]
       .mapAsync(1) { case (pc, a) =>
         for {
@@ -33,23 +28,20 @@ class ListingIngestor(
             show.showId.get,
             a,
           )
-          _ <- lineup.getLineupFromGracenote(
+          lineup <- lineup.getLineupFromGracenote(
             pc,
             airing,
           )
-        } yield show
+        } yield lineup
       }
 
-  private[this] def RemoveAiring(
+  private[this] def RemoveLineup(
     implicit
     ec: ExecutionContext,
   ): Sink[(ProviderChannel, GracenoteAiring), Future[Done]] =
     Sink.foreachAsync(1)((lineup.disableFromGracenote _).tupled)
 
-  private[this] def CollectAiring(
-    channelAiring: GracenoteChannelAiring,
-    providerId: Long,
-  )(implicit ec: ExecutionContext):
+  private[this] def CollectAiring(implicit ec: ExecutionContext):
   Flow[
     (Long, GracenoteChannelAiring),
     (ProviderChannel, GracenoteAiring, Seq[GracenoteAiring], Seq[GracenoteAiring]),
@@ -71,28 +63,13 @@ class ListingIngestor(
     }
   }.mapConcat(identity)
 
-  private[this] val RouteAiring: Partition[(ProviderChannel, GracenoteAiring, Seq[GracenoteAiring])] =
+  private[this] val RouteAiring: Partition[(ProviderChannel, GracenoteAiring, Seq[GracenoteAiring], Seq[GracenoteAiring])] =
     Partition[(ProviderChannel, GracenoteAiring, Seq[GracenoteAiring], Seq[GracenoteAiring])](3, {
-      case (providerChannel, airing, airings, cache) =>
-        if ()
+      case (_, airing, airings, cache) =>
+        if (airings.contains(airing) && !cache.contains(airing)) 0
+        else if (!airings.contains(airing) && cache.contains(airing)) 1
+        else 2
     })
-
-//      .map { case (providerChannel, cache) =>
-//      val add: Seq[(ProviderChannel, GracenoteAiring)] =
-//        channelAiring
-//          .airings
-//          .filterNot(cache.contains)
-//          .map { airing =>
-//            providerChannel -> airing
-//          }
-//      val remove: Seq[GracenoteAiring] =
-//        cache.filterNot(channelAiring.airings.contains)
-//
-//      GracenoteAiringDiff(
-//        add,
-//        remove,
-//      )
-//    }
 
   private[this] def GetProvider(implicit ec: ExecutionContext): Flow[String, (Long, GracenoteChannelAiring), NotUsed] =
     Flow[String].mapAsync(1) { extListingId =>
@@ -113,19 +90,25 @@ class ListingIngestor(
       }
     }.mapConcat(identity)
 
-  private[this] def getProviderAndAirings(extListingId: String)(
-    implicit
-    ec: ExecutionContext,
-  ): Future[Seq[(Long, GracenoteChannelAiring)]] = {
+  def ingestListings(implicit ec: ExecutionContext): Flow[String, Lineup, NotUsed] =
+    Flow.fromGraph(GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
+      import GraphDSL.Implicits._
 
-  }
+      val idSource = builder.add(Flow[String])
+      val getProvider = builder.add(GetProvider)
+      val routeAiring = builder.add(RouteAiring)
+      val collectAiring = builder.add(CollectAiring)
+      val removeLineup = builder.add(RemoveLineup)
+      val addLineup = builder.add(GetOrAddLineup)
+      val getLineup = builder.add(GetOrAddLineup)
+      val collectLineup = builder.add(Merge[Lineup](2))
 
-  def ingestListings(
-    extListingId: String,
-  )(implicit ec: ExecutionContext): Source[Seq[Show], NotUsed] =
-    Source
-      .future(getProviderAndAirings(extListingId))
-      .mapConcat(identity)
-      .flatMapConcat(airing => ingestChannelAiring(airing._2, airing._1))
-      .fold(Seq[Show]())(_ :+ _)
+      idSource ~> getProvider ~> collectAiring ~> routeAiring.in
+
+      routeAiring.out(0).map(a => (a._1, a._2)) ~> addLineup ~> collectLineup
+      routeAiring.out(1).map(a => (a._1, a._2)) ~> removeLineup
+      routeAiring.out(2).map(a => (a._1, a._2)) ~> getLineup ~> collectLineup
+
+      FlowShape(idSource.in, collectLineup.out)
+    })
 }

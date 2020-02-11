@@ -1,6 +1,6 @@
 package com.couchmate.services.thirdparty.gracenote
 
-import java.time.{LocalDateTime, OffsetDateTime, ZoneId, ZoneOffset}
+import java.time.{LocalDateTime, OffsetDateTime, ZoneId, ZoneOffset, ZonedDateTime}
 import java.time.format.DateTimeFormatter
 
 import akka.NotUsed
@@ -99,15 +99,17 @@ class GracenoteService(
     implicit
     ec: ExecutionContext,
   ): Future[Seq[GracenoteChannelAiring]] = {
+    val offsetDateTime: OffsetDateTime =
+      OffsetDateTime.of(startDate, ZoneOffset.UTC)
     for {
       response <- Http().singleRequest(getGracenoteRequest(
         Seq("lineups", extListingId, "grid"),
         Map(
           "startDateTime" -> Some(
-            startDate.format(DateTimeFormatter.ISO_DATE_TIME)
+            offsetDateTime.format(DateTimeFormatter.ISO_DATE_TIME)
           ),
           "endDateTime" -> Some(
-            startDate.plusHours(duration).format(DateTimeFormatter.ISO_DATE_TIME)
+            offsetDateTime.plusHours(duration).format(DateTimeFormatter.ISO_DATE_TIME)
           ))
         ))
       decodedResponse = Gzip.decodeMessage(response)

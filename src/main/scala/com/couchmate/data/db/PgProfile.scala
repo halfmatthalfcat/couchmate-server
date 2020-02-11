@@ -2,6 +2,7 @@ package com.couchmate.data.db
 
 import com.couchmate.data.models._
 import com.couchmate.data.models.Airing
+import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
 import com.github.tminglei.slickpg._
 import enumeratum.{Enum, EnumEntry}
 import play.api.libs.json.{JsValue, Json}
@@ -52,10 +53,10 @@ trait PgProfile
         (v) => utils.SimpleArrayUtils.mkString[JsValue](_.toString())(v)
       ).to(_.toSeq)
 
-    implicit val airingSeqJsonMapper: DriverJdbcType[Seq[Airing]] =
-      new AdvancedArrayJdbcType[Airing](pgjson,
-        (s) => utils.SimpleArrayUtils.fromString[Airing](Json.parse(_).as[Airing])(s).orNull,
-        (v) => utils.SimpleArrayUtils.mkString[Airing](_.toString())(v)
+    implicit val airingSeqJsonMapper: DriverJdbcType[Seq[GracenoteAiring]] =
+      new AdvancedArrayJdbcType[GracenoteAiring](pgjson,
+        (s) => utils.SimpleArrayUtils.fromString[GracenoteAiring](Json.parse(_).as[GracenoteAiring])(s).orNull,
+        (v) => utils.SimpleArrayUtils.mkString[GracenoteAiring](_.toString())(v)
       ).to(_.toSeq)
   }
 }
