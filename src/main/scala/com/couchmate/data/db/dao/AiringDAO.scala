@@ -46,9 +46,10 @@ class AiringDAO(db: Database)(
     showId: Long,
     airing: GracenoteAiring,
   ): Future[Airing] = db.run((for {
-    exists <- AiringDAO.getAiringByShowAndStart(
+    exists <- AiringDAO.getAiringByShowStartAndEnd(
       showId,
       airing.startTime,
+      airing.endTime,
     ).result.headOption
     airing <- exists.fold[DBIO[Airing]](
       (AiringTable.table returning AiringTable.table) += Airing(
@@ -68,11 +69,12 @@ object AiringDAO {
     AiringTable.table.filter(_.airingId === airingId)
   }
 
-  private[dao] lazy val getAiringByShowAndStart = Compiled {
-    (showId: Rep[Long], startTime: Rep[LocalDateTime]) =>
+  private[dao] lazy val getAiringByShowStartAndEnd = Compiled {
+    (showId: Rep[Long], startTime: Rep[LocalDateTime], endTime: Rep[LocalDateTime]) =>
       AiringTable.table.filter { airing =>
         airing.showId === showId &&
-          airing.startTime === startTime
+        airing.startTime === startTime &&
+        airing.endTime === endTime
       }
   }
 

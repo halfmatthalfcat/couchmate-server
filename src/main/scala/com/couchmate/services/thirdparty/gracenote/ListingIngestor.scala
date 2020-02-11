@@ -1,8 +1,9 @@
 package com.couchmate.services.thirdparty.gracenote
 
-import akka.NotUsed
-import akka.stream.scaladsl.Source
+import akka.{Done, NotUsed}
+import akka.stream.scaladsl.{Broadcast, Flow, Partition, Sink, Source}
 import com.couchmate.data.db.CMDatabase
+import com.couchmate.data.db.dao.AiringDAO
 import com.couchmate.data.models.{Provider, ProviderChannel, Show}
 import com.couchmate.data.thirdparty.gracenote.{GracenoteAiring, GracenoteChannelAiring}
 
@@ -20,11 +21,8 @@ class ListingIngestor(
 ) {
   import database._
 
-  private[this] def addAirings(
-    airings: Seq[(ProviderChannel, GracenoteAiring)],
-  )(implicit ec: ExecutionContext): Source[Show, NotUsed] =
-    Source
-      .fromIterator(() => airings.iterator)
+  private[this] def AddAiring(implicit ec: ExecutionContext): Flow[(ProviderChannel, GracenoteAiring), Show, NotUsed] =
+    Flow[(ProviderChannel, GracenoteAiring)]
       .mapAsync(1) { case (pc, a) =>
         for {
           show <- show.getShowFromGracenoteProgram(
@@ -42,68 +40,84 @@ class ListingIngestor(
         } yield show
       }
 
-  private[this] def removeAirings(
-    airings: Seq[GracenoteAiring],
-  )(implicit ec: ExecutionContext): Source[Unit, NotUsed] =
-    Source
-      .fromIterator(() => airings.iterator)
-      .mapAsync(1) { airing =>
+  private[this] def RemoveAiring(
+    implicit
+    ec: ExecutionContext,
+  ): Sink[(ProviderChannel, GracenoteAiring), Future[Done]] =
+    Sink.foreachAsync(1)((lineup.disableFromGracenote _).tupled)
 
-      }
-
-  private[this] def ingestChannelAiring(
+  private[this] def CollectAiring(
     channelAiring: GracenoteChannelAiring,
     providerId: Long,
-  )(implicit ec: ExecutionContext): Source[Show, NotUsed] =
-    Source.future(
-      for {
-        channel <- channel.getChannelFromGracenote(channelAiring)
-        providerChannel <- providerChannel.getProviderChannelFromGracenote(
-          channel,
-          providerId,
-        )
-        cache <- listingCache.getListingCache(
-          providerChannel.providerChannelId.get,
-          channelAiring.startDate.get,
-        )
-      } yield (providerChannel, cache.map(_.airings).getOrElse(Seq()))
-    ).map { case (providerChannel, cache) =>
-      val add: Seq[(ProviderChannel, GracenoteAiring)] =
-        channelAiring
-          .airings
-          .filterNot(cache.contains)
-          .map { airing =>
-            providerChannel -> airing
-          }
-      val remove: Seq[GracenoteAiring] =
-        cache.filterNot(channelAiring.airings.contains)
-
-      GracenoteAiringDiff(
-        add,
-        remove,
+  )(implicit ec: ExecutionContext):
+  Flow[
+    (Long, GracenoteChannelAiring),
+    (ProviderChannel, GracenoteAiring, Seq[GracenoteAiring], Seq[GracenoteAiring]),
+    NotUsed,
+  ] = Flow[(Long, GracenoteChannelAiring)].mapAsync(1) {
+    case (providerId, channelAiring) => for {
+      channel <- channel.getChannelFromGracenote(channelAiring)
+      providerChannel <- providerChannel.getProviderChannelFromGracenote(
+        channel,
+        providerId,
       )
+      cache <- listingCache.getListingCache(
+        providerChannel.providerChannelId.get,
+        channelAiring.startDate.get,
+      ).map(_.map(_.airings).getOrElse(Seq()))
+    // Combine the new airings and the cache, get distinct and pass them through the router
+    } yield (channelAiring.airings ++ cache).distinct.map { airing =>
+      (providerChannel, airing, channelAiring.airings, cache)
     }
+  }.mapConcat(identity)
 
+  private[this] val RouteAiring: Partition[(ProviderChannel, GracenoteAiring, Seq[GracenoteAiring])] =
+    Partition[(ProviderChannel, GracenoteAiring, Seq[GracenoteAiring], Seq[GracenoteAiring])](3, {
+      case (providerChannel, airing, airings, cache) =>
+        if ()
+    })
+
+//      .map { case (providerChannel, cache) =>
+//      val add: Seq[(ProviderChannel, GracenoteAiring)] =
+//        channelAiring
+//          .airings
+//          .filterNot(cache.contains)
+//          .map { airing =>
+//            providerChannel -> airing
+//          }
+//      val remove: Seq[GracenoteAiring] =
+//        cache.filterNot(channelAiring.airings.contains)
+//
+//      GracenoteAiringDiff(
+//        add,
+//        remove,
+//      )
+//    }
+
+  private[this] def GetProvider(implicit ec: ExecutionContext): Flow[String, (Long, GracenoteChannelAiring), NotUsed] =
+    Flow[String].mapAsync(1) { extListingId =>
+      provider.getProviderForExtAndOwner(extListingId, None) flatMap {
+        case Some(Provider(Some(providerId), _, _, _, _, _)) =>
+          gnService.getListing(extListingId) map { airings =>
+            airings.map(providerId -> _)
+          }
+        case None => for {
+          gnProvider <- gnService.getProvider(extListingId)
+          provider <- providerIngestor.ingestProvider(
+            None,
+            None,
+            gnProvider
+          )
+          airings <- gnService.getListing(extListingId)
+        } yield airings.map(provider.providerId.get -> _)
+      }
+    }.mapConcat(identity)
 
   private[this] def getProviderAndAirings(extListingId: String)(
     implicit
     ec: ExecutionContext,
   ): Future[Seq[(Long, GracenoteChannelAiring)]] = {
-    provider.getProviderForExtAndOwner(extListingId, None) flatMap {
-      case Some(Provider(Some(providerId), _, _, _, _, _)) =>
-        gnService.getListing(extListingId) map { airings =>
-          airings.map(providerId -> _)
-        }
-      case None => for {
-        gnProvider <- gnService.getProvider(extListingId)
-        provider <- providerIngestor.ingestProvider(
-          None,
-          None,
-          gnProvider
-        )
-        airings <- gnService.getListing(extListingId)
-      } yield airings.map(provider.providerId.get -> _)
-    }
+
   }
 
   def ingestListings(

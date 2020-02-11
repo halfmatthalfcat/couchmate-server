@@ -51,13 +51,30 @@ class LineupDAO(db: Database)(
   } yield lineup).transactionally)
 
   def disableFromGracenote(
-    airing: GracenoteAiring,
+    providerChannel: ProviderChannel,
+    gnAiring: GracenoteAiring,
   ): Future[Unit] = db.run((for {
     show <- ShowDAO.getShowByExt(
-      airing.program.rootId,
-    )
-    showExi
-  }))
+      gnAiring.program.rootId,
+    ).result.headOption
+    airing <- show.fold[DBIO[Option[Airing]]](DBIO.successful(None)) { s =>
+      AiringDAO.getAiringByShowStartAndEnd(
+        s.extId,
+        gnAiring.startTime,
+        gnAiring.endTime,
+      ).result.headOption
+    }
+    lineup <- airing.fold[DBIO[Option[Lineup]]](DBIO.successful(None)) { a =>
+      LineupDAO.getLineupForProviderChannelAndAiring(
+        providerChannel.providerChannelId.get,
+        a.airingId.get,
+      ).result.headOption
+    }
+    _ <- lineup.fold[DBIO[Unit]](DBIO.successful()) { l =>
+      LineupTable.table.update(l.copy(active = false))
+      DBIO.successful()
+    }
+  } yield ()).transactionally)
 }
 
 object LineupDAO {
