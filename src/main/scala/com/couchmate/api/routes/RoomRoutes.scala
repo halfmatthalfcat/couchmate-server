@@ -11,7 +11,6 @@ import scala.concurrent.ExecutionContext
 object RoomRoutes {
   def apply()(
     implicit
-    actorSystem: ActorSystem[Nothing],
     executionContext: ExecutionContext,
   ): Route = {
     import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling._

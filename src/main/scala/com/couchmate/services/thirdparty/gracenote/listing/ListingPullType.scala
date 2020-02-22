@@ -1,4 +1,4 @@
-package com.couchmate.services.thirdparty.gracenote
+package com.couchmate.services.thirdparty.gracenote.listing
 
 import enumeratum.values.{IntEnum, IntEnumEntry}
 

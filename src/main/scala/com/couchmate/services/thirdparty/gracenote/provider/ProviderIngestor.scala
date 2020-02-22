@@ -1,4 +1,4 @@
-package com.couchmate.services.thirdparty.gracenote
+package com.couchmate.services.thirdparty.gracenote.provider
 
 import akka.NotUsed
 import akka.stream.Materializer
@@ -6,6 +6,7 @@ import akka.stream.scaladsl.Source
 import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.models.Provider
 import com.couchmate.data.thirdparty.gracenote.GracenoteProvider
+import com.couchmate.services.thirdparty.gracenote.GracenoteService
 
 import scala.concurrent.{ExecutionContext, Future}
 

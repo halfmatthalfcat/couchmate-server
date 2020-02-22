@@ -7,7 +7,7 @@ import akka.http.scaladsl.server.Route
 import akka.util.Timeout
 import com.couchmate.data.db._
 import com.couchmate.data.models.{Provider, ProviderOwner}
-import com.couchmate.services.thirdparty.gracenote.ProviderIngestor
+import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
 import scala.concurrent.ExecutionContext

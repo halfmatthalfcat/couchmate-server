@@ -1,13 +1,15 @@
-package com.couchmate.services.thirdparty.gracenote
+package com.couchmate.services.thirdparty.gracenote.listing
 
 import java.time.{LocalDateTime, ZoneId}
 
 import akka.stream.FlowShape
-import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Merge, MergeLatest, Partition, Sink, Source, ZipLatest, ZipLatestWith}
+import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Merge, Partition, Sink}
 import akka.{Done, NotUsed}
 import com.couchmate.data.db.CMDatabase
-import com.couchmate.data.models.{Lineup, Provider, ProviderChannel, Show}
+import com.couchmate.data.models.{Lineup, Provider, ProviderChannel}
 import com.couchmate.data.thirdparty.gracenote.{GracenoteAiring, GracenoteChannelAiring}
+import com.couchmate.services.thirdparty.gracenote.GracenoteService
+import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
 import com.couchmate.util.DateUtils
 import com.couchmate.util.akka.CombineLatestWith
 
@@ -111,12 +113,12 @@ class ListingIngestor(
       }
     }
 
-  def ingestListings(implicit ec: ExecutionContext): Flow[String, Double, NotUsed] =
+  def ingestListings(pullType: ListingPullType)(implicit ec: ExecutionContext): Flow[String, Double, NotUsed] =
     Flow.fromGraph(GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
       import GraphDSL.Implicits._
 
       val idSource = builder.add(Flow[String])
-      val getProvider = builder.add(GetProvider(ListingPullType.Initial))
+      val getProvider = builder.add(GetProvider(pullType))
       val broadcastAirings = builder.add(Broadcast[Seq[GracenoteChannelAiring]](2))
 
       val routeAiring = builder.add(RouteAiring)
