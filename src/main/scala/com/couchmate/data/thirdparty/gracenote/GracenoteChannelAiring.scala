@@ -6,6 +6,7 @@ import play.api.libs.json._
 import play.api.libs.functional.syntax._
 
 case class GracenoteChannelAiring(
+  providerId: Option[Long],
   channel: String,
   callSign: String,
   affiliateCallSign: Option[String],
@@ -16,6 +17,7 @@ case class GracenoteChannelAiring(
 
 object GracenoteChannelAiring {
   implicit val reads: Reads[GracenoteChannelAiring] = (
+    (__ \ "providerId").readNullable[Long] and
     (__ \ "channel").read[String] and
     (__ \ "callSign").read[String] and
     (__ \ "affiliateCallSign").readNullable[String] and

@@ -29,7 +29,6 @@ object ListingRoutes extends PlayJsonSupport {
         val listings = Source
           .single(id)
           .via(listingIngestor.ingestListings)
-          .fold(Seq[Lineup]())(_ :+ _)
 
         complete(listings)
       }
