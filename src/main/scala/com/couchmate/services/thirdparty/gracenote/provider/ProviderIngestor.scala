@@ -33,7 +33,7 @@ class ProviderIngestor(
       owner,
       country,
     )
-    _ <- zipCode.fold(Future.successful[Unit]()) { zipCode: String =>
+    _ <- zipCode.fold(Future.successful()) { zipCode: String =>
       zipProvider.getZipProviderFromGracenote(
         zipCode,
         provider,

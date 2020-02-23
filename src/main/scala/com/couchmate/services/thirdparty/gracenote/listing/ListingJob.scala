@@ -34,11 +34,11 @@ object ListingJob extends LazyLogging {
       case AddListener(listener) =>
         run(listeners :+ listener)
       case p @ JobProgress(progress) if progress < 1 =>
-        logger.debug(s"~~~~~~~$progress")
         listeners.foreach(_ ! p)
         Behaviors.same
       case _ =>
         parent ! JobEnded(extId)
+        listeners.foreach(_ ! JobEnded(extId))
         Behaviors.stopped
     }
 

@@ -29,7 +29,7 @@ object ListingHandler {
       case Connected(actorRef) =>
         run(Some(actorRef))
       case Progress(progress) =>
-        socket.fold[Unit](()) { resolvedSocket =>
+        socket.fold(()) { resolvedSocket =>
           resolvedSocket ! ServerSentEvent(
             eventType = Some("progress"),
             data = progress.toString
@@ -37,7 +37,7 @@ object ListingHandler {
         }
         Behaviors.same
       case Finished =>
-        socket.fold[Unit](()) { resolvedSocket =>
+        socket.fold(()) { resolvedSocket =>
           resolvedSocket ! ServerSentEvent(
             eventType = Some("complete"),
             data = "complete"
@@ -54,5 +54,6 @@ object ListingHandler {
     actorRef: ActorRef[ListingCoordinator.Command],
   ): Behavior[SSEHandler.Command] = SSEHandler.interceptor(apply(extId, actorRef)) {
     case SSEHandler.Connected(actorRef) => Connected(actorRef)
+    // case SSEHandler.Complete => ()
   }
 }
