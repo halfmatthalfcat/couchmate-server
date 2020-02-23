@@ -8,14 +8,14 @@ import akka.util.Timeout
 import com.couchmate.Server
 import com.couchmate.api.routes._
 import com.couchmate.data.db._
-import com.couchmate.services.thirdparty.gracenote.listing.{ListingCoordinator, ListingIngestor}
-import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
+import com.couchmate.services.thirdparty.gracenote.listing.ListingCoordinator
+import com.couchmate.services.thirdparty.gracenote.provider.ProviderCoordinator
 
 import scala.concurrent.ExecutionContext
 
 object Routes {
   def apply(
-    providerIngestor: ProviderIngestor,
+    providerCoordinator: ActorRef[ProviderCoordinator.Command],
     listingCoordinator: ActorRef[ListingCoordinator.Command],
     database: CMDatabase,
   )(
@@ -30,8 +30,7 @@ object Routes {
       UserRoutes() ~
       RoomRoutes() ~
       ProviderRoutes(
-        database,
-        providerIngestor,
+        providerCoordinator,
       ) ~
       ListingRoutes(
         listingCoordinator,

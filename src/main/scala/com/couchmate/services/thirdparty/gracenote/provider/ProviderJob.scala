@@ -1,4 +1,4 @@
-package com.couchmate.services.thirdparty.gracenote.listing
+package com.couchmate.services.thirdparty.gracenote.provider
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
@@ -7,38 +7,34 @@ import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.ExecutionContext
 
-object ListingJob extends LazyLogging {
+object ProviderJob extends LazyLogging {
   sealed trait Command
-  case class JobEnded(extId: String) extends Command
-  case class JobProgress(progress: Double) extends Command
+  case class JobEnded(zipCode: String, country: Option[String]) extends Command
   case class AddListener(actorRef: ActorRef[Command]) extends Command
 
   def apply(
-    extId: String,
-    listingIngestor: ListingIngestor,
+    zipCode: String,
+    country: Option[String],
+    providerIngestor: ProviderIngestor,
     initiate: ActorRef[Command],
     parent: ActorRef[Command],
   ): Behavior[Command] = Behaviors.setup { ctx =>
-    logger.debug(s"Starting job $extId")
+    logger.debug(s"Starting job $zipCode for ${country.getOrElse("USA")}")
     implicit val system: ActorSystem[Nothing] = ctx.system
     implicit val ec: ExecutionContext = ctx.executionContext
 
-    Source
-      .single(extId)
-      .via(listingIngestor.ingestListings(ListingPullType.Initial))
-      .to(Sink.foreach { progress =>
-        ctx.self ! JobProgress(progress)
-      }).run()
+    providerIngestor
+      .ingestProviders(zipCode, country)
+      .to(Sink.onComplete(_ =>
+        ctx.self ! JobEnded(zipCode, country))
+      ).run()
 
     def run(listeners: Seq[ActorRef[Command]]): Behavior[Command] = Behaviors.receiveMessage {
       case AddListener(listener) =>
         run(listeners :+ listener)
-      case p @ JobProgress(progress) if progress < 1 =>
-        listeners.foreach(_ ! p)
-        Behaviors.same
-      case _ =>
-        listeners.foreach(_ ! JobEnded(extId))
-        parent ! JobEnded(extId)
+      case jobEnded: JobEnded =>
+        listeners.foreach(_ ! jobEnded)
+        parent ! jobEnded
         Behaviors.stopped
     }
 

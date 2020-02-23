@@ -15,7 +15,7 @@ import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.services.thirdparty.gracenote.listing.{ListingCoordinator, ListingIngestor}
 import com.couchmate.services.thirdparty.gracenote.GracenoteService
-import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
+import com.couchmate.services.thirdparty.gracenote.provider.{ProviderCoordinator, ProviderIngestor}
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.duration._
@@ -114,9 +114,19 @@ object Server {
         ),
       )
 
+    val providerCoordinator: ActorRef[ProviderCoordinator.Command] =
+      singletonManager.init(
+        SingletonActor(
+          Behaviors.supervise(
+            ProviderCoordinator(providerIngestor),
+          ).onFailure[Exception](SupervisorStrategy.restart),
+          "ProviderCoordinator",
+        ),
+      )
+
     val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
       Routes(
-        providerIngestor,
+        providerCoordinator,
         listingCoordinator,
         database,
       ),
