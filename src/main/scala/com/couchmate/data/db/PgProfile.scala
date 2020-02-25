@@ -43,7 +43,7 @@ trait PgProfile
                                    )
 
     implicit val roomActivityTypeMapper = enumMappedColumn(RoomActivityType)
-    implicit val userTypeMapper = enumMappedColumn(UserType)
+    implicit val userTypeMapper = enumMappedColumn(UserRole)
     implicit val userActivityTypeMapper = enumMappedColumn(UserActivityType)
     implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
 

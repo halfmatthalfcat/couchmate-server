@@ -24,7 +24,7 @@ object SSEHandler {
   def apply(behavior: Behavior[Command])(
     implicit
     ctx: ActorContext[Server.Command],
-    executionContext: ExecutionContext,
+    ec: ExecutionContext,
   ): Source[ServerSentEvent, NotUsed] = {
     val conn: ActorRef[Command] =
       ctx.spawnAnonymous(behavior)

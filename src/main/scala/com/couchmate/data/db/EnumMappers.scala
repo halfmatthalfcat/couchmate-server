@@ -2,7 +2,7 @@ package com.couchmate.data.db
 
 import enumeratum._
 import com.couchmate.data.db.PgProfile.api._
-import com.couchmate.data.models.{RoomActivityType, UserActivityType, UserExtType, UserType}
+import com.couchmate.data.models.{RoomActivityType, UserActivityType, UserExtType, UserRole}
 
 import scala.reflect.ClassTag
 
@@ -17,7 +17,7 @@ trait EnumMappers {
     )
 
   implicit val roomActivityTypeMapper = enumMappedColumn(RoomActivityType)
-  implicit val userTypeMapper = enumMappedColumn(UserType)
+  implicit val userTypeMapper = enumMappedColumn(UserRole)
   implicit val userActivityTypeMapper = enumMappedColumn(UserActivityType)
   implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
 

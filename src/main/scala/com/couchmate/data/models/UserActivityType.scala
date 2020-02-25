@@ -6,8 +6,7 @@ sealed trait UserActivityType extends EnumEntry
 
 object UserActivityType
   extends Enum[UserActivityType]
-  with PlayJsonEnum[UserActivityType]
-  with QuillEnum[UserActivityType] {
+  with PlayJsonEnum[UserActivityType] {
 
   val values = findValues
 

@@ -10,7 +10,7 @@ import akka.http.scaladsl.Http.ServerBinding
 import akka.stream.ActorAttributes.SupervisionStrategy
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import com.couchmate.api.Routes
+import com.couchmate.api.{ApiServer, JwtProvider, Routes}
 import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.services.thirdparty.gracenote.listing.{ListingCoordinator, ListingIngestor}
@@ -77,64 +77,14 @@ object Server {
 
     cluster.manager ! Join(cluster.selfMember.address)
 
-    implicit val untypedSystem: ClassicActorSystem =
-      ctx.system.toClassic
-
-    // TODO remove this, should already be provided by system/untypedSystem
-    implicit val materializer: ActorMaterializer =
-      ActorMaterializer()(untypedSystem)
-
     implicit val timeout: Timeout = 30 seconds
 
-    implicit val gracenoteService: GracenoteService =
-      new GracenoteService(config);
-
-    val providerIngestor: ProviderIngestor =
-      new ProviderIngestor(
-        gracenoteService,
-        database,
-      )
-
-    val listingIngestor: ListingIngestor =
-      new ListingIngestor(
-        gracenoteService,
-        providerIngestor,
-        database,
-      )
-
-    val singletonManager: ClusterSingleton = ClusterSingleton(system)
-
-    val listingCoordinator: ActorRef[ListingCoordinator.Command] =
-      singletonManager.init(
-        SingletonActor(
-          Behaviors.supervise(
-            ListingCoordinator(listingIngestor),
-          ).onFailure[Exception](SupervisorStrategy.restart),
-          "ListingCoordinator",
-        ),
-      )
-
-    val providerCoordinator: ActorRef[ProviderCoordinator.Command] =
-      singletonManager.init(
-        SingletonActor(
-          Behaviors.supervise(
-            ProviderCoordinator(providerIngestor),
-          ).onFailure[Exception](SupervisorStrategy.restart),
-          "ProviderCoordinator",
-        ),
-      )
-
-    val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
-      Routes(
-        providerCoordinator,
-        listingCoordinator,
-        database,
-      ),
-      interface = host,
-      port = port,
-    )
-
-    ctx.pipeToSelf(httpServer) {
+    ctx.pipeToSelf(ApiServer(
+      host,
+      port,
+      config,
+      database,
+    )) {
       case Success(binding) => Started(binding)
       case Failure(ex)      => StartFailed(ex)
     }

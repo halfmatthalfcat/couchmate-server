@@ -1,30 +1,47 @@
 package com.couchmate.api.routes
 
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
-import akka.util.Timeout
+import akka.http.scaladsl.server.Route
 import com.couchmate.api._
-import com.couchmate.data.models.User
-import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
+import com.couchmate.data.models.{User, UserRole}
+import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
-object UserRoutes extends PlayJsonSupport {
-  def apply()(
-    implicit
-    executionContext: ExecutionContext,
-    timeout: Timeout,
-  ): Route = {
+trait UserRoutes
+  extends ApiFunctions
+  with HttpMetricsDirectives {
+
+  private[api] val userRoutes: Route =
     path("user") {
-      (post | put) {
-        pathEndOrSingleSlash {
+      pathEndOrSingleSlash {
+        get {
+          authenticate { (userId, _) =>
+            async {
+              db.user.getUser(userId) map {
+                case Some(user) => StatusCodes.OK -> Some(user)
+                case None => StatusCodes.InternalServerError -> None
+              }
+            }
+          }
+        } ~
+        (post | put) {
           entity(as[User]) { user =>
-            asyncWithBody[User] {
-              Future.successful(Left(200 -> user))
+            authenticate {
+              authorize(
+                // Admin privileges
+                (_, userRole) => Future.successful(userRole == UserRole.Admin),
+                // User owned
+                (userId, _) => Future.successful(user.userId.contains(userId))
+              ) {
+                async {
+                  db.user.upsertUser(user).map(StatusCodes.OK -> Some(_))
+                }
+              }
             }
           }
         }
       }
     }
-  }
 }

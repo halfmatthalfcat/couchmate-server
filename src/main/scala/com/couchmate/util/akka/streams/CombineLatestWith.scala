@@ -1,7 +1,7 @@
-package com.couchmate.util.akka
+package com.couchmate.util.akka.streams
 
-import akka.stream.{Attributes, FanInShape2, Inlet, Outlet}
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
+import akka.stream.{Attributes, FanInShape2, Inlet, Outlet}
 
 object CombineLatestWith extends CombineLatestWithApply
 
