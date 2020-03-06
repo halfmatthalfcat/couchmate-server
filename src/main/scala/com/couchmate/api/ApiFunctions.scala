@@ -2,6 +2,7 @@ package com.couchmate.api
 
 import java.util.UUID
 
+import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -17,7 +18,8 @@ import scala.util.{Failure, Success}
 trait ApiFunctions
   extends PlayJsonSupport
   with JwtProvider
-  with HttpMetricsDirectives {
+  with HttpMetricsDirectives
+  with EventStreamMarshalling {
   implicit val ec: ExecutionContext
   val db: CMDatabase
 

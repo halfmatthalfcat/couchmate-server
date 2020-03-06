@@ -10,8 +10,7 @@ import fr.davit.akka.http.metrics.prometheus.marshalling.PrometheusMarshallers
 
 trait SystemRoutes
   extends ApiFunctions
-  with PrometheusMarshallers
-  with LazyLogging {
+  with PrometheusMarshallers {
 
   private[api] def systemRoutes(
     registry: PrometheusRegistry,

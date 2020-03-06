@@ -5,13 +5,10 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.couchmate.api._
 import com.couchmate.data.models.{User, UserRole}
-import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 
 import scala.concurrent.Future
 
-trait UserRoutes
-  extends ApiFunctions
-  with HttpMetricsDirectives {
+trait UserRoutes extends ApiFunctions {
 
   private[api] val userRoutes: Route =
     path("user") {

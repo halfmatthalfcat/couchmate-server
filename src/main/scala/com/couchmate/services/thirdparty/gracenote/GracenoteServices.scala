@@ -13,7 +13,7 @@ trait GracenoteServices {
   val config: Config
   val db: CMDatabase
 
-  private[GracenoteServices] implicit val actorSystem: ClassicActorSystem =
+  private[this] implicit val actorSystem: ClassicActorSystem =
     system.toClassic
 
   private[this] val gracenoteService: GracenoteService =
