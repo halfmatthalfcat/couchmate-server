@@ -18,11 +18,8 @@ class UserMetaDAO(db: Database)(
   }
 
   // TODO how to not get after insert
-  def upsertUserMeta(userMeta: UserMeta): Future[UserMeta] =
-    db.run(((UserMetaTable.table returning UserMetaTable.table).insertOrUpdate(userMeta) flatMap {
-      case None => UserMetaDAO.getUserMeta(userMeta.userId).result.head
-      case Some(um) => UserMetaDAO.getUserMeta(um.userId).result.head
-    }).transactionally)
+  def upsertUserMeta(userMeta: UserMeta) =
+    db.run((UserMetaTable.table returning UserMetaTable.table).insertOrUpdate(userMeta))
 
 }
 

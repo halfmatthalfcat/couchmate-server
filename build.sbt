@@ -40,7 +40,8 @@ lazy val server = project.in(file("."))
       "com.beachape"                %%  "enumeratum-play-json"          % "1.5.17",
       "com.beachape"                %%  "enumeratum-slick"              % "1.5.16",
       "com.wix"                     %%  "accord-core"                   % "0.7.4",
-      "fr.davit"                    %%  "akka-http-metrics-prometheus"  % "0.6.0"
+      "fr.davit"                    %%  "akka-http-metrics-prometheus"  % "0.6.0",
+      "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     mainClass in (Compile, run) := Some("com.couchmate.Server"),
@@ -53,5 +54,4 @@ lazy val server = project.in(file("."))
       "-language:postfixOps"
     ),
     addCommandAlias("db", "runMain com.couchmate.data.db.Migrations")
-
   )

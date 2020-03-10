@@ -9,7 +9,7 @@ import slick.lifted.Tag
 import slick.migration.api._
 
 class UserPrivateTable(tag: Tag) extends Table[UserPrivate](tag, "user_private") {
-  def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
+  def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
   def password: Rep[String] = column[String]("password")
   def * = (
     userId,

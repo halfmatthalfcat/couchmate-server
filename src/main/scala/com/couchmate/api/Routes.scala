@@ -10,7 +10,8 @@ trait Routes
   with SystemRoutes
   with ListingRoutes
   with ProviderRoutes
-  with UserRoutes {
+  with UserRoutes
+  with SignupRoutes {
 
   def routes(
     registry: PrometheusRegistry,
@@ -19,7 +20,8 @@ trait Routes
     pathPrefix("api") {
       userRoutes ~
       providerRoutes ~
-      listingRoutes
+      listingRoutes ~
+      signupRoutes
     }
   }
 }

@@ -9,13 +9,11 @@ import slick.lifted.Tag
 import slick.migration.api._
 
 class UserMetaTable(tag: Tag) extends Table[UserMeta](tag, "user_meta") {
-  def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
+  def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
   def email: Rep[String] = column[String]("email")
-  def role: Rep[UserRole] = column[UserRole]("role")
   def * = (
     userId,
     email,
-    role,
   ) <> ((UserMeta.apply _).tupled, UserMeta.unapply)
 
   def userFk = foreignKey(

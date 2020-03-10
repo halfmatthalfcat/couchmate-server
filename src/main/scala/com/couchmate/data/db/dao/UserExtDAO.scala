@@ -18,11 +18,8 @@ class UserExtDAO(db: Database)(
   }
 
   // TODO how to not get after insert
-  def upsertUserExt(userExt: UserExt): Future[UserExt] =
-    db.run(((UserExtTable.table returning UserExtTable.table).insertOrUpdate(userExt) flatMap {
-      case None => UserExtDAO.getUserExt(userExt.userId).result.head
-      case Some(ue) => UserExtDAO.getUserExt(ue.userId).result.head
-    }).transactionally)
+  def upsertUserExt(userExt: UserExt) =
+    db.run((UserExtTable.table returning UserExtTable.table).insertOrUpdate(userExt))
 
 }
 

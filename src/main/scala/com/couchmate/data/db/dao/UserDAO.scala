@@ -27,7 +27,7 @@ class UserDAO(db: Database)(
 
   def upsertUser(user: User): Future[User] = db.run(
     user.userId.fold[DBIO[User]](
-      (UserTable.table returning UserTable.table) += user
+      (UserTable.table returning UserTable.table) += user.copy(userId = Some(UUID.randomUUID()))
     ) { (userId: UUID) => for {
       _ <- UserTable.table.update(user)
       updated <- UserDAO.getUser(userId).result.head

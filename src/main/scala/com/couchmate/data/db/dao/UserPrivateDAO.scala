@@ -17,11 +17,8 @@ class UserPrivateDAO(db: Database)(
     db.run(UserPrivateDAO.getUserPrivate(userId).result.headOption)
   }
 
-  def upsertUserPrivate(userPrivate: UserPrivate): Future[UserPrivate] =
-    db.run(((UserPrivateTable.table returning UserPrivateTable.table).insertOrUpdate(userPrivate) flatMap {
-      case None => UserPrivateDAO.getUserPrivate(userPrivate.userId).result.head
-      case Some(up) => UserPrivateDAO.getUserPrivate(up.userId).result.head
-    }).transactionally)
+  def upsertUserPrivate(userPrivate: UserPrivate) =
+    db.run((UserPrivateTable.table returning UserPrivateTable.table).insertOrUpdate(userPrivate))
 
 }
 

@@ -1,10 +1,9 @@
 package com.couchmate.data.db
 
 import com.couchmate.data.models._
-import com.couchmate.data.models.Airing
 import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
 import com.github.tminglei.slickpg._
-import enumeratum.{Enum, EnumEntry}
+import enumeratum.{Enum, EnumEntry, SlickEnumSupport}
 import play.api.libs.json.{JsValue, Json}
 import slick.basic.Capability
 import slick.jdbc.JdbcCapabilities
@@ -13,11 +12,12 @@ import slick.migration.api.PostgresDialect
 import scala.reflect.ClassTag
 
 trait PgProfile
-  extends ExPostgresProfile
-  with PgArraySupport
-  with PgDate2Support
-  with PgPlayJsonSupport
-  with array.PgArrayJdbcTypes {
+    extends ExPostgresProfile
+    with PgArraySupport
+    with PgDate2Support
+    with PgPlayJsonSupport
+    with array.PgArrayJdbcTypes
+    with SlickEnumSupport {
   override val pgjson: String = "jsonb"
 
   override protected def computeCapabilities: Set[Capability] =
@@ -27,20 +27,20 @@ trait PgProfile
   val plainAPI: API = new API with PlayJsonPlainImplicits
 
   trait API
-    extends super.API
-    with ArrayImplicits
-    with DateTimeImplicits
-    with JsonImplicits {
+      extends super.API
+      with ArrayImplicits
+      with DateTimeImplicits
+      with JsonImplicits {
     implicit val dialect: PostgresDialect =
       new PostgresDialect
 
     private[this] def enumMappedColumn[E <: EnumEntry](enum: Enum[E])(
-      implicit classTag: ClassTag[E],
+        implicit classTag: ClassTag[E],
     ): BaseColumnType[E] =
       MappedColumnType.base[E, String](
         { _.entryName.toLowerCase },
         { enum.lowerCaseNamesToValuesMap },
-                                   )
+      )
 
     implicit val roomActivityTypeMapper = enumMappedColumn(RoomActivityType)
     implicit val userTypeMapper = enumMappedColumn(UserRole)
@@ -48,14 +48,19 @@ trait PgProfile
     implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
 
     implicit val playJsonArrayTypeMapper: DriverJdbcType[Seq[JsValue]] =
-      new AdvancedArrayJdbcType[JsValue](pgjson,
+      new AdvancedArrayJdbcType[JsValue](
+        pgjson,
         (s) => utils.SimpleArrayUtils.fromString[JsValue](Json.parse)(s).orNull,
-        (v) => utils.SimpleArrayUtils.mkString[JsValue](_.toString())(v)
-      ).to(_.toSeq)
+        (v) => utils.SimpleArrayUtils.mkString[JsValue](_.toString())(v))
+        .to(_.toSeq)
 
     implicit val airingSeqJsonMapper: DriverJdbcType[Seq[GracenoteAiring]] =
-      new AdvancedArrayJdbcType[GracenoteAiring](pgjson,
-        (s) => utils.SimpleArrayUtils.fromString[GracenoteAiring](Json.parse(_).as[GracenoteAiring])(s).orNull,
+      new AdvancedArrayJdbcType[GracenoteAiring](
+        pgjson,
+        (s) =>
+          utils.SimpleArrayUtils
+            .fromString[GracenoteAiring](Json.parse(_).as[GracenoteAiring])(s)
+            .orNull,
         (v) => utils.SimpleArrayUtils.mkString[GracenoteAiring](_.toString())(v)
       ).to(_.toSeq)
   }
