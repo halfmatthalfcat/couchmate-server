@@ -58,7 +58,7 @@ class ListingIngestor(
         channel <- channel.getChannelFromGracenote(channelAiring)
         providerChannel <- providerChannel.getProviderChannelFromGracenote(
           channel,
-          channelAiring.providerId.get,
+          channelAiring,
         )
         cache <- listingCache.getListingCache(
           providerChannel.providerChannelId.get,

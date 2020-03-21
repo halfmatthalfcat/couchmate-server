@@ -13,6 +13,7 @@ class CMDatabase(db: Database)(
   val airing: AiringDAO = new AiringDAO(db)
   val channel: ChannelDAO = new ChannelDAO(db)
   val episode: EpisodeDAO = new EpisodeDAO(db)
+  val grid: GridDAO = new GridDAO(db)
   val listingCache: ListingCacheDAO = new ListingCacheDAO(db)
   val lineup: LineupDAO = new LineupDAO(db)
   val providerChannel: ProviderChannelDAO = new ProviderChannelDAO(db)

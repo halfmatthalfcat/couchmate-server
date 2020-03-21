@@ -2,6 +2,7 @@ package com.couchmate.data.models
 
 import java.time.LocalDateTime
 
+import com.couchmate.data.thirdparty.gracenote.GracenoteProgramType
 import play.api.libs.json.{Json, OFormat}
 
 case class Show(

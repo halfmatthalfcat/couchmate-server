@@ -1,7 +1,8 @@
 package com.couchmate.data.db
 
 import com.couchmate.data.models._
-import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
+import com.couchmate.data.thirdparty.gracenote.{GracenoteAiring, GracenoteProgramType}
+import com.couchmate.util.slick.UUIDPlainImplicits
 import com.github.tminglei.slickpg._
 import enumeratum.{Enum, EnumEntry, SlickEnumSupport}
 import play.api.libs.json.{JsValue, Json}
@@ -14,6 +15,7 @@ import scala.reflect.ClassTag
 trait PgProfile
     extends ExPostgresProfile
     with PgArraySupport
+    with PgDateSupport
     with PgDate2Support
     with PgPlayJsonSupport
     with array.PgArrayJdbcTypes
@@ -23,8 +25,7 @@ trait PgProfile
   override protected def computeCapabilities: Set[Capability] =
     super.computeCapabilities + JdbcCapabilities.insertOrUpdate
 
-  override val api: API = new API {}
-  val plainAPI: API = new API with PlayJsonPlainImplicits
+  override val api = new API {}
 
   trait API
       extends super.API
@@ -46,6 +47,7 @@ trait PgProfile
     implicit val userTypeMapper = enumMappedColumn(UserRole)
     implicit val userActivityTypeMapper = enumMappedColumn(UserActivityType)
     implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
+    implicit val gnProgramTypeMapper = enumMappedColumn(GracenoteProgramType)
 
     implicit val playJsonArrayTypeMapper: DriverJdbcType[Seq[JsValue]] =
       new AdvancedArrayJdbcType[JsValue](
@@ -64,6 +66,12 @@ trait PgProfile
         (v) => utils.SimpleArrayUtils.mkString[GracenoteAiring](_.toString())(v)
       ).to(_.toSeq)
   }
+
+  val plainAPI = new API
+    with PlayJsonPlainImplicits
+    with SimpleArrayPlainImplicits
+    with Date2DateTimePlainImplicits
+    with UUIDPlainImplicits { }
 }
 
 object PgProfile extends PgProfile

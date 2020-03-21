@@ -3,6 +3,7 @@ package com.couchmate.data.db.dao
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ProviderChannelTable
 import com.couchmate.data.models.{Channel, ProviderChannel}
+import com.couchmate.data.thirdparty.gracenote.GracenoteChannelAiring
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -31,18 +32,18 @@ class ProviderChannelDAO(db: Database)(
 
   def getProviderChannelFromGracenote(
     channel: Channel,
-    providerId: Long,
+    channelAiring: GracenoteChannelAiring,
   ): Future[ProviderChannel] = db.run((for {
     exists <- ProviderChannelDAO.getProviderChannelForProviderAndChannel(
-      providerId,
+      channelAiring.providerId.get,
       channel.channelId.get,
     ).result.headOption
     pc <- exists.fold[DBIO[ProviderChannel]](
       (ProviderChannelTable.table returning ProviderChannelTable.table) += ProviderChannel(
         providerChannelId = None,
-        providerId,
+        channelAiring.providerId.get,
         channel.channelId.get,
-        channel.callsign,
+        channelAiring.channel,
       )
     )(DBIO.successful)
   } yield pc).transactionally)

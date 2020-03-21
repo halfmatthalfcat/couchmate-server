@@ -39,8 +39,8 @@ trait ApiFunctions
         val jwt = bearerRegex.findFirstMatchIn(value).get.group(1)
         validate(jwt) match {
           case Success(uuid) =>
-            onComplete(db.userMeta.getUserMeta(uuid)) {
-              case Success(Some(meta)) => block(uuid, meta.role)
+            onComplete(db.user.getUser(uuid)) {
+              case Success(Some(user)) => block(uuid, user.role)
               case Failure(_) => complete(StatusCodes.InternalServerError)
             }
           case _ => complete(StatusCodes.Unauthorized)

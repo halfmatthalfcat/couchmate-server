@@ -24,6 +24,7 @@ lazy val server = project.in(file("."))
       slick("slick-hikaricp"),
       slickPg(),
       slickPg("play-json"),
+      "io.underscore"               %%  "slickless"                     % "0.3.6",
       "io.github.nafg"              %%  "slick-migration-api"           % "0.7.0",
       "com.typesafe.akka"           %%  "akka-http"                     % "10.1.11",
       "com.typesafe.play"           %%  "play-json"                     % "2.8.1",
@@ -41,17 +42,21 @@ lazy val server = project.in(file("."))
       "com.beachape"                %%  "enumeratum-slick"              % "1.5.16",
       "com.wix"                     %%  "accord-core"                   % "0.7.4",
       "fr.davit"                    %%  "akka-http-metrics-prometheus"  % "0.6.0",
-      "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1"
+      "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1",
+      "com.chuusai"                 %%  "shapeless"                     % "2.3.3"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     mainClass in (Compile, run) := Some("com.couchmate.Server"),
     scalacOptions ++= Seq(
-      // "-Xfatal-warnings",
-      // "-Xlog-implicits",
-      // "-deprecation",
-      // "-feature",
-      // "-unchecked",
-      "-language:postfixOps"
+//      "-deprecation",
+      "-encoding", "UTF-8",
+//      "-unchecked",
+//      "-feature",
+      // "-language:implicitConversions",
+      "-language:postfixOps",
+//      "-Ywarn-dead-code",
+//      "-Xlint",
+//      "-Xfatal-warnings",
     ),
     addCommandAlias("db", "runMain com.couchmate.data.db.Migrations")
   )
