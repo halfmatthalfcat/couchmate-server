@@ -1,19 +1,21 @@
 package com.couchmate.services
 
-import java.util.UUID
-
+import com.couchmate.api.JwtProvider
 import com.couchmate.data.models.{UserMeta, UserPrivate, UserProvider, UserRole, User => DataUser}
 import com.couchmate.api.models.User
 import com.couchmate.api.models.signup.{AnonSignup, EmailSignup}
 import com.couchmate.data.db.CMDatabase
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.github.t3hnar.bcrypt._
+import com.typesafe.config.Config
+import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait SignupService {
+trait SignupService extends JwtProvider with LazyLogging {
   implicit val ec: ExecutionContext
   val db: CMDatabase
+  val config: Config
 
   val moniker: Moniker = Moniker()
 
@@ -29,12 +31,16 @@ trait SignupService {
       active = true,
       verified = false,
     ))
+    token <- Future.fromTry(create(user.userId.toString))
   } yield User(
     userId = user.userId.get,
     username = user.username,
+    token = token,
+    zipCode = signup.zipCode,
+    providerId = signup.providerId,
   )
 
-  def emailSignup(signup: EmailSignup): Future[User] = for {
+  def emailSignup(signup: EmailSignup): Future[User] = (for {
     user <- db.user.upsertUser(DataUser(
       userId = None,
       username = moniker
@@ -46,6 +52,7 @@ trait SignupService {
       verified = false,
       role = UserRole.Registered,
     ))
+    token <- Future.fromTry(create(user.userId.get.toString))
     _ <- db.userMeta.upsertUserMeta(UserMeta(
       userId =  user.userId.get,
       email = signup.email,
@@ -62,6 +69,13 @@ trait SignupService {
   } yield User(
     userId = user.userId.get,
     username = user.username,
-  )
+    token = token,
+    zipCode = signup.zipCode,
+    providerId = signup.providerId,
+  )) recoverWith {
+    case ex: Throwable =>
+      logger.debug(ex.getLocalizedMessage)
+      Future.failed(ex)
+  }
 
 }

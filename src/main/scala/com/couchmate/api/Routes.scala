@@ -1,7 +1,11 @@
 package com.couchmate.api
 
+import akka.http.scaladsl.model.HttpMethods
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import ch.megard.akka.http.cors.javadsl.model.HttpHeaderRange
+import ch.megard.akka.http.cors.scaladsl.model.HttpOriginMatcher
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.couchmate.api.routes._
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
 
@@ -18,10 +22,12 @@ trait Routes
   ): Route = {
     systemRoutes(registry) ~
     pathPrefix("api") {
-      userRoutes ~
-      providerRoutes ~
-      listingRoutes ~
-      signupRoutes
+      cors() {
+        userRoutes ~
+        providerRoutes ~
+        listingRoutes ~
+        signupRoutes
+      }
     }
   }
 }

@@ -25,7 +25,6 @@ trait ProviderRoutes
                 providerCoordinator,
               )
             )
-
           complete(handler)
         }
       }

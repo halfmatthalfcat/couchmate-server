@@ -4,8 +4,9 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, BehaviorInterceptor, TypedActorContext}
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import com.couchmate.services.thirdparty.gracenote.listing.{ListingCoordinator, ListingJob}
+import com.typesafe.scalalogging.LazyLogging
 
-object ListingHandler {
+object ListingHandler extends LazyLogging {
   sealed trait Command
 
   case class Connected(actorRef: ActorRef[ServerSentEvent]) extends Command
@@ -15,7 +16,7 @@ object ListingHandler {
   case class Progress(progress: Double) extends Command
 
   def apply(
-    extId: String,
+    providerId: Long,
     actorRef: ActorRef[ListingCoordinator.Command],
   ): Behavior[Command] = Behaviors.setup { ctx =>
     val jobAdapter = ctx.messageAdapter[ListingJob.Command] {
@@ -23,7 +24,7 @@ object ListingHandler {
       case ListingJob.JobProgress(progress) => Progress(progress)
     }
 
-    actorRef ! ListingCoordinator.RequestListing(extId, jobAdapter)
+    actorRef ! ListingCoordinator.RequestListing(providerId, jobAdapter)
 
     def run(socket: Option[ActorRef[ServerSentEvent]]): Behavior[Command] = Behaviors.receiveMessage {
       case Connected(actorRef) =>
@@ -50,9 +51,9 @@ object ListingHandler {
   }
 
   def sse(
-    extId: String,
+    providerId: Long,
     actorRef: ActorRef[ListingCoordinator.Command],
-  ): Behavior[SSEHandler.Command] = SSEHandler.interceptor(apply(extId, actorRef)) {
+  ): Behavior[SSEHandler.Command] = SSEHandler.interceptor(apply(providerId, actorRef)) {
     case SSEHandler.Connected(actorRef) => Connected(actorRef)
     // case SSEHandler.Complete => ()
   }

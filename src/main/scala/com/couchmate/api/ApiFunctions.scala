@@ -6,6 +6,7 @@ import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.models.UserRole
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
@@ -19,7 +20,8 @@ trait ApiFunctions
   extends PlayJsonSupport
   with JwtProvider
   with HttpMetricsDirectives
-  with EventStreamMarshalling {
+  with EventStreamMarshalling
+  with CorsDirectives {
   implicit val ec: ExecutionContext
   val db: CMDatabase
 

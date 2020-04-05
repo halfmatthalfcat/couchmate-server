@@ -19,7 +19,7 @@ trait ListingRoutes
 
   private[api] val listingRoutes: Route =
     pathPrefix("listing") {
-      pathLabeled(Segment, ":listingId") { id: String =>
+      pathLabeled(LongNumber, ":providerId") { id: Long =>
         get {
           val handler =
             SSEHandler(

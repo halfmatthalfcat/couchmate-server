@@ -49,21 +49,21 @@ trait PgProfile
     implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
     implicit val gnProgramTypeMapper = enumMappedColumn(GracenoteProgramType)
 
-    implicit val playJsonArrayTypeMapper: DriverJdbcType[Seq[JsValue]] =
+    implicit val playJsonArrayTypeMapper =
       new AdvancedArrayJdbcType[JsValue](
         pgjson,
         (s) => utils.SimpleArrayUtils.fromString[JsValue](Json.parse)(s).orNull,
-        (v) => utils.SimpleArrayUtils.mkString[JsValue](_.toString())(v))
+        (v) => utils.SimpleArrayUtils.mkString[JsValue](b => Json.stringify(Json.toJson(b)))(v))
         .to(_.toSeq)
 
-    implicit val airingSeqJsonMapper: DriverJdbcType[Seq[GracenoteAiring]] =
+    implicit val airingSeqJsonMapper =
       new AdvancedArrayJdbcType[GracenoteAiring](
         pgjson,
         (s) =>
           utils.SimpleArrayUtils
             .fromString[GracenoteAiring](Json.parse(_).as[GracenoteAiring])(s)
             .orNull,
-        (v) => utils.SimpleArrayUtils.mkString[GracenoteAiring](_.toString())(v)
+        (v) => utils.SimpleArrayUtils.mkString[GracenoteAiring](b => Json.stringify(Json.toJson(b)))(v)
       ).to(_.toSeq)
   }
 

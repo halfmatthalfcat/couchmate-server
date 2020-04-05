@@ -9,22 +9,22 @@ import scala.concurrent.ExecutionContext
 
 object ListingJob extends LazyLogging {
   sealed trait Command
-  case class JobEnded(extId: String) extends Command
+  case class JobEnded(providerId: Long) extends Command
   case class JobProgress(progress: Double) extends Command
   case class AddListener(actorRef: ActorRef[Command]) extends Command
 
   def apply(
-    extId: String,
+    providerId: Long,
     listingIngestor: ListingIngestor,
     initiate: ActorRef[Command],
     parent: ActorRef[Command],
   ): Behavior[Command] = Behaviors.setup { ctx =>
-    logger.debug(s"Starting job $extId")
+    logger.debug(s"Starting job $providerId")
     implicit val system: ActorSystem[Nothing] = ctx.system
     implicit val ec: ExecutionContext = ctx.executionContext
 
     Source
-      .single(extId)
+      .single(providerId)
       .via(listingIngestor.ingestListings(ListingPullType.Initial))
       .to(Sink.foreach { progress =>
         ctx.self ! JobProgress(progress)
@@ -36,9 +36,9 @@ object ListingJob extends LazyLogging {
       case p @ JobProgress(progress) if progress < 1 =>
         listeners.foreach(_ ! p)
         Behaviors.same
-      case _ =>
-        listeners.foreach(_ ! JobEnded(extId))
-        parent ! JobEnded(extId)
+      case JobProgress(progress) if progress == 1 =>
+        listeners.foreach(_ ! JobEnded(providerId))
+        parent ! JobEnded(providerId)
         Behaviors.stopped
     }
 

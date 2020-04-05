@@ -6,8 +6,8 @@ import com.typesafe.scalalogging.LazyLogging
 
 object ListingCoordinator extends LazyLogging {
   sealed trait Command
-  case class RequestListing(extId: String, actorRef: ActorRef[ListingJob.Command]) extends Command
-  case class RemoveListing(extId: String) extends Command
+  case class RequestListing(providerId: Long, actorRef: ActorRef[ListingJob.Command]) extends Command
+  case class RemoveListing(providerId: Long) extends Command
 
   def apply(
     listingIngestor: ListingIngestor,
@@ -16,13 +16,13 @@ object ListingCoordinator extends LazyLogging {
       case ListingJob.JobEnded(extId) => RemoveListing(extId)
     }
 
-    def run(jobs: Map[String, ActorRef[ListingJob.Command]]): Behavior[Command] = Behaviors.receiveMessage {
-      case RequestListing(extId, actorRef) =>
-        jobs.get(extId).fold {
+    def run(jobs: Map[Long, ActorRef[ListingJob.Command]]): Behavior[Command] = Behaviors.receiveMessage {
+      case RequestListing(providerId, actorRef) =>
+        jobs.get(providerId).fold {
           val job: ActorRef[ListingJob.Command] =
-            ctx.spawn(ListingJob(extId, listingIngestor, actorRef, jobMapper), extId)
+            ctx.spawn(ListingJob(providerId, listingIngestor, actorRef, jobMapper), providerId.toString)
 
-          run(jobs + (extId -> job))
+          run(jobs + (providerId -> job))
         } { job =>
           job ! ListingJob.AddListener(actorRef)
           Behaviors.same

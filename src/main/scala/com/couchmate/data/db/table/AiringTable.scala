@@ -34,8 +34,8 @@ class AiringTable(tag: Tag) extends Table[Airing](tag, "airing") {
   )
 
   def showStartTimeIdx = index(
-    "show_start_time_idx",
-    (showId, startTime),
+    "show_timing_idx",
+    (showId, startTime, endTime),
     unique = true
   )
 

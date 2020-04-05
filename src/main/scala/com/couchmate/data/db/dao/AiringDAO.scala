@@ -57,7 +57,7 @@ class AiringDAO(db: Database)(
         showId = showId,
         startTime = airing.startTime,
         endTime = airing.endTime,
-        duration = airing.duration
+        duration = airing.duration,
       )
     )(DBIO.successful)
   } yield airing).transactionally)

@@ -13,7 +13,7 @@ class ListingCacheTable(tag: Tag) extends Table[ListingCache](tag, "listing_cach
   def listingCacheId: Rep[Long] = column[Long]("listing_cache_id", O.PrimaryKey, O.AutoInc)
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
   def startTime: Rep[LocalDateTime] = column[LocalDateTime]("start_time", O.SqlType("timestamp"))
-  def airings: Rep[Seq[GracenoteAiring]] = column[Seq[GracenoteAiring]]("airings", O.SqlType("jsonb"))
+  def airings: Rep[Seq[GracenoteAiring]] = column[Seq[GracenoteAiring]]("airings", O.SqlType("jsonb[]"))
   def * = (
     listingCacheId.?,
     providerChannelId,

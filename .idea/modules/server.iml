@@ -327,5 +327,6 @@
     <orderEntry type="library" name="sbt: software.amazon.ion:ion-java:1.0.2:jar" level="project" />
     <orderEntry type="library" name="sbt: com.github.halfmatthalfcat:scala-moniker_2.13:0.0.1:jar" level="project" />
     <orderEntry type="library" name="sbt: io.underscore:slickless_2.13:0.3.6:jar" level="project" />
+    <orderEntry type="library" name="sbt: ch.megard:akka-http-cors_2.13:0.4.2:jar" level="project" />
   </component>
 </module>

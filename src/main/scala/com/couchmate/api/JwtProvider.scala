@@ -53,7 +53,7 @@ trait JwtProvider {
       )
     )
     val signedJwt: SignedJWT = new SignedJWT(
-      new JWSHeader(JWSAlgorithm.HS512),
+      new JWSHeader(JWSAlgorithm.HS256),
       claimsSet.build()
     )
 

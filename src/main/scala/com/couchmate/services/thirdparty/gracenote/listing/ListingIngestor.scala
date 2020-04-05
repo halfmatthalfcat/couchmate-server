@@ -12,6 +12,7 @@ import com.couchmate.services.thirdparty.gracenote.GracenoteService
 import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
 import com.couchmate.util.DateUtils
 import com.couchmate.util.akka.streams.CombineLatestWith
+import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -19,7 +20,7 @@ class ListingIngestor(
   gnService: GracenoteService,
   providerIngestor: ProviderIngestor,
   database: CMDatabase,
-) {
+) extends LazyLogging {
   import database._
 
   private[this] def GetOrAddLineup(implicit ec: ExecutionContext): Flow[(ProviderChannel, GracenoteAiring), Lineup, NotUsed] =
@@ -41,6 +42,16 @@ class ListingIngestor(
         } yield lineup
       }
 
+  private[this] def LogAiringFlow(name: String): Flow[
+    (ProviderChannel, GracenoteAiring),
+    (ProviderChannel, GracenoteAiring),
+    NotUsed,
+  ] =
+    Flow[(ProviderChannel, GracenoteAiring)]
+      .log(name, { case ((pc, a)) =>
+        s"${pc.providerChannelId.get}|${a.program.rootId}|${a.startTime.toString}|${a.endTime.toString}"
+      })
+
   private[this] def RemoveLineup(
     implicit
     ec: ExecutionContext,
@@ -60,42 +71,45 @@ class ListingIngestor(
           channel,
           channelAiring,
         )
-        cache <- listingCache.getListingCache(
+        cache <- listingCache.getOrAddListingCache(
           providerChannel.providerChannelId.get,
           channelAiring.startDate.get,
-        ).map(_.map(_.airings).getOrElse(Seq()))
+          channelAiring.airings,
+        ).map(_.airings)
       // Combine the new airings and the cache, get distinct and pass them through the router
-      } yield (channelAiring.airings ++ cache).distinct.map { airing =>
+      } yield (channelAiring.airings ++ cache).distinctBy { airing =>
+        s"${airing.program.rootId}${airing.startTime.toString}${airing.endTime.toString}"
+      }.map { airing =>
         (providerChannel, airing, channelAiring.airings, cache)
       }
     }
     .mapConcat(identity)
 
+  private[this] def airingExists(airing1: GracenoteAiring)(airing2: GracenoteAiring): Boolean = {
+    (airing1.program.rootId == airing2.program.rootId) &&
+    (airing1.startTime == airing2.startTime) &&
+    (airing1.endTime == airing2.endTime)
+  }
+
   private[this] val RouteAiring: Partition[(ProviderChannel, GracenoteAiring, Seq[GracenoteAiring], Seq[GracenoteAiring])] =
     Partition[(ProviderChannel, GracenoteAiring, Seq[GracenoteAiring], Seq[GracenoteAiring])](3, {
       case (_, airing, airings, cache) =>
-        if (airings.contains(airing) && !cache.contains(airing)) 0
-        else if (!airings.contains(airing) && cache.contains(airing)) 1
+        if (airings.exists(airingExists(airing)) && !cache.exists(airingExists(airing))) 0
+        else if (!airings.exists(airingExists(airing)) && cache.exists(airingExists(airing))) 1
         else 2
     })
 
   private[this] def GetProvider(pullType: ListingPullType)(
     implicit
     ec: ExecutionContext,
-  ): Flow[String, Seq[GracenoteChannelAiring], NotUsed] =
-    Flow[String]
-      .mapAsync(1) { extListingId =>
-        provider.getProviderForExtAndOwner(extListingId, None) flatMap {
-          case Some(Provider(Some(providerId), _, _, _, _, _)) =>
+  ): Flow[Long, Seq[GracenoteChannelAiring], NotUsed] =
+    Flow[Long]
+      .mapAsync(1) { providerId =>
+        provider.getProvider(providerId) flatMap {
+          case Some(Provider(Some(providerId), _, extListingId, _, _, _)) =>
             Future.successful((extListingId, providerId))
-          case None => for {
-            gnProvider <- gnService.getProvider(extListingId)
-            provider <- providerIngestor.ingestProvider(
-              None,
-              None,
-              gnProvider
-            )
-          } yield (extListingId, provider.providerId.get)
+          case None =>
+            Future.failed(new RuntimeException("Could not find provider for that providerId"))
         }
       }.mapConcat { case (extListingId, providerId) =>
         Seq.fill(pullType.value)((extListingId, providerId)).zipWithIndex
@@ -113,11 +127,11 @@ class ListingIngestor(
       }
     }
 
-  def ingestListings(pullType: ListingPullType)(implicit ec: ExecutionContext): Flow[String, Double, NotUsed] =
+  def ingestListings(pullType: ListingPullType)(implicit ec: ExecutionContext): Flow[Long, Double, NotUsed] =
     Flow.fromGraph(GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
       import GraphDSL.Implicits._
 
-      val idSource = builder.add(Flow[String])
+      val idSource = builder.add(Flow[Long])
       val getProvider = builder.add(GetProvider(pullType))
       val broadcastAirings = builder.add(Broadcast[Seq[GracenoteChannelAiring]](2))
 
@@ -130,23 +144,32 @@ class ListingIngestor(
 
       val totalAirings = builder.add(GetTotalAirings)
       val zipTotalAndAirings = builder.add(CombineLatestWith(
-        (total: Int, curr: (Lineup, Long)) =>
+        (total: Int, curr: (Lineup, Long)) => {
           (curr._2.toDouble + 1) / total.toDouble
-      ))
+        }))
+
+      val logAdds = builder.add(LogAiringFlow("add"))
+      val logRemoves = builder.add(LogAiringFlow("remove"))
+      val logPasses = builder.add(LogAiringFlow("pass"))
 
       // Pull airings from Gracenote
       idSource ~> getProvider ~> broadcastAirings
 
       // Process airings
       broadcastAirings.out(0) ~> collectAiring ~> routeAiring.in
-      routeAiring.out(0).map(a => (a._1, a._2)) ~> addLineup ~> collectLineup.in(0)
-      routeAiring.out(1).map(a => (a._1, a._2)) ~> removeLineup
-      routeAiring.out(2).map(a => (a._1, a._2)) ~> getLineup ~> collectLineup.in(1)
+      routeAiring.out(0).map(a => (a._1, a._2)) ~> logAdds ~> addLineup ~> collectLineup.in(0)
+      routeAiring.out(1).map(a => (a._1, a._2)) ~> logRemoves ~> removeLineup
+      routeAiring.out(2).map(a => (a._1, a._2)) ~> logPasses ~> getLineup ~> collectLineup.in(1)
 
       // Track job progress
       broadcastAirings.out(1) ~> totalAirings ~> zipTotalAndAirings.in0
       collectLineup.out.zipWithIndex ~> zipTotalAndAirings.in1
 
       FlowShape(idSource.in, zipTotalAndAirings.out)
-    })
+    }).recover {
+      case ex: Throwable =>
+        logger.error(ex.toString);
+        logger.error(ex.getStackTrace.mkString("\n"))
+        100d
+    }
 }
