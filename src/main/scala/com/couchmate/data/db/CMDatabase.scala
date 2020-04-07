@@ -9,7 +9,6 @@ class CMDatabase(db: Database)(
   implicit
   ec: ExecutionContext,
 ) {
-
   val airing: AiringDAO = new AiringDAO(db)
   val channel: ChannelDAO = new ChannelDAO(db)
   val episode: EpisodeDAO = new EpisodeDAO(db)
@@ -32,4 +31,10 @@ class CMDatabase(db: Database)(
   val userProvider: UserProviderDAO = new UserProviderDAO(db)
   val zipProvider: ZipProviderDAO = new ZipProviderDAO(db)
 
+  def close(): Unit = db.close()
+}
+
+object CMDatabase {
+  def apply()(implicit ec: ExecutionContext): CMDatabase =
+    new CMDatabase(Database.forConfig("db"))
 }

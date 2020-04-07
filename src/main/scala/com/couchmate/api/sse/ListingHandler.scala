@@ -3,8 +3,10 @@ package com.couchmate.api.sse
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, BehaviorInterceptor, TypedActorContext}
 import akka.http.scaladsl.model.sse.ServerSentEvent
+import com.couchmate.api.models.grid.Grid
 import com.couchmate.services.thirdparty.gracenote.listing.{ListingCoordinator, ListingJob}
 import com.typesafe.scalalogging.LazyLogging
+import play.api.libs.json.Json
 
 object ListingHandler extends LazyLogging {
   sealed trait Command
@@ -12,7 +14,7 @@ object ListingHandler extends LazyLogging {
   case class Connected(actorRef: ActorRef[ServerSentEvent]) extends Command
   case object Ack extends Command
 
-  case object Finished extends Command
+  case class Finished(grid: Grid) extends Command
   case class Progress(progress: Double) extends Command
 
   def apply(
@@ -20,7 +22,7 @@ object ListingHandler extends LazyLogging {
     actorRef: ActorRef[ListingCoordinator.Command],
   ): Behavior[Command] = Behaviors.setup { ctx =>
     val jobAdapter = ctx.messageAdapter[ListingJob.Command] {
-      case ListingJob.JobEnded(_) => Finished
+      case ListingJob.JobEnded(_, grid) => Finished(grid)
       case ListingJob.JobProgress(progress) => Progress(progress)
     }
 
@@ -37,11 +39,11 @@ object ListingHandler extends LazyLogging {
           )
         }
         Behaviors.same
-      case Finished =>
+      case Finished(grid) =>
         socket.fold(()) { resolvedSocket =>
           resolvedSocket ! ServerSentEvent(
             eventType = Some("complete"),
-            data = "complete"
+            data = Json.stringify(Json.toJson(grid))
           )
         }
         Behaviors.stopped

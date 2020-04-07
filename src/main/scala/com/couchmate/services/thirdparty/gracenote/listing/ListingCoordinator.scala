@@ -9,18 +9,16 @@ object ListingCoordinator extends LazyLogging {
   case class RequestListing(providerId: Long, actorRef: ActorRef[ListingJob.Command]) extends Command
   case class RemoveListing(providerId: Long) extends Command
 
-  def apply(
-    listingIngestor: ListingIngestor,
-  ): Behavior[Command] = Behaviors.setup { ctx =>
+  def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     val jobMapper: ActorRef[ListingJob.Command] = ctx.messageAdapter[ListingJob.Command] {
-      case ListingJob.JobEnded(extId) => RemoveListing(extId)
+      case ListingJob.JobEnded(extId, _) => RemoveListing(extId)
     }
 
     def run(jobs: Map[Long, ActorRef[ListingJob.Command]]): Behavior[Command] = Behaviors.receiveMessage {
       case RequestListing(providerId, actorRef) =>
         jobs.get(providerId).fold {
           val job: ActorRef[ListingJob.Command] =
-            ctx.spawn(ListingJob(providerId, listingIngestor, actorRef, jobMapper), providerId.toString)
+            ctx.spawn(ListingJob(providerId, actorRef, jobMapper), providerId.toString)
 
           run(jobs + (providerId -> job))
         } { job =>

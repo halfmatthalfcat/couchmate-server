@@ -1,27 +1,39 @@
 package com.couchmate.services.thirdparty.gracenote.listing
 
+import java.time.{LocalDateTime, ZoneId}
+
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.stream.scaladsl.{Sink, Source}
+import com.couchmate.api.models.grid.Grid
+import com.couchmate.data.db.CMDatabase
+import com.couchmate.services.thirdparty.gracenote.GracenoteService
+import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.ExecutionContext
+import scala.util.Success
 
 object ListingJob extends LazyLogging {
   sealed trait Command
-  case class JobEnded(providerId: Long) extends Command
+  case class JobEnded(providerId: Long, grid: Grid) extends Command
   case class JobProgress(progress: Double) extends Command
   case class AddListener(actorRef: ActorRef[Command]) extends Command
 
   def apply(
     providerId: Long,
-    listingIngestor: ListingIngestor,
     initiate: ActorRef[Command],
     parent: ActorRef[Command],
   ): Behavior[Command] = Behaviors.setup { ctx =>
     logger.debug(s"Starting job $providerId")
     implicit val system: ActorSystem[Nothing] = ctx.system
     implicit val ec: ExecutionContext = ctx.executionContext
+    val db: CMDatabase = CMDatabase()
+    val gnService: GracenoteService = GracenoteService()
+    val providerIngestor: ProviderIngestor =
+      new ProviderIngestor(gnService, db)
+    val listingIngestor: ListingIngestor =
+      new ListingIngestor(gnService, providerIngestor, db)
 
     Source
       .single(providerId)
@@ -37,8 +49,18 @@ object ListingJob extends LazyLogging {
         listeners.foreach(_ ! p)
         Behaviors.same
       case JobProgress(progress) if progress == 1 =>
-        listeners.foreach(_ ! JobEnded(providerId))
-        parent ! JobEnded(providerId)
+        ctx.pipeToSelf(db.grid.getGrid(
+          providerId,
+          LocalDateTime.now(ZoneId.of("UTC")),
+          1,
+        )) {
+          case Success(grid) => JobEnded(providerId, grid)
+        }
+        Behaviors.same
+      case ended: JobEnded =>
+        listeners.foreach(_ ! ended)
+        parent ! ended
+        db.close()
         Behaviors.stopped
     }
 

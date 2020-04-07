@@ -3,11 +3,10 @@ package com.couchmate.services
 import akka.actor.typed.{ActorRef, ActorSystem, SupervisorStrategy}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.typed.{ClusterSingleton, SingletonActor}
-import com.couchmate.services.thirdparty.gracenote.GracenoteServices
 import com.couchmate.services.thirdparty.gracenote.listing.ListingCoordinator
 import com.couchmate.services.thirdparty.gracenote.provider.ProviderCoordinator
 
-trait ClusterSingletons extends GracenoteServices {
+trait ClusterSingletons {
   val system: ActorSystem[Nothing]
 
   private[this] val singletonManager: ClusterSingleton =
@@ -17,7 +16,7 @@ trait ClusterSingletons extends GracenoteServices {
     singletonManager.init(
       SingletonActor(
         Behaviors.supervise(
-          ListingCoordinator(listingIngestor),
+          ListingCoordinator(),
         ).onFailure[Exception](SupervisorStrategy.restart),
         "ListingCoordinator",
       ),
@@ -27,7 +26,7 @@ trait ClusterSingletons extends GracenoteServices {
     singletonManager.init(
       SingletonActor(
         Behaviors.supervise(
-          ProviderCoordinator(providerIngestor),
+          ProviderCoordinator(),
         ).onFailure[Exception](SupervisorStrategy.restart),
         "ProviderCoordinator",
       ),

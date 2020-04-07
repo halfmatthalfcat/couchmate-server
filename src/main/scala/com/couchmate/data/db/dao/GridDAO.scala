@@ -4,6 +4,7 @@ import java.time.LocalDateTime
 
 import com.couchmate.api.models.grid.{Grid, GridAiring}
 import com.couchmate.data.db.PgProfile.plainAPI._
+import com.couchmate.util.DateUtils
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -20,7 +21,7 @@ class GridDAO(db: Database)(
     val endTime: LocalDateTime = startTime.plusHours(duration)
     db.run(GridDAO.getGrid(
       providerId,
-      startTime,
+      DateUtils.roundNearestHour(startTime),
       endTime,
     )) map { airings: Seq[GridAiring] =>
       Grid(

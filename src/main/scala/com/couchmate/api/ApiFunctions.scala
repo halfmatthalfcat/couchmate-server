@@ -23,7 +23,7 @@ trait ApiFunctions
   with EventStreamMarshalling
   with CorsDirectives {
   implicit val ec: ExecutionContext
-  val db: CMDatabase
+  val db: CMDatabase = CMDatabase()
 
   /**
    * Authenticates an incoming request

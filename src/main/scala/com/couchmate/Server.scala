@@ -1,31 +1,25 @@
 package com.couchmate
 
-import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, PostStop, SupervisorStrategy}
-import akka.actor.{ActorSystem => ClassicActorSystem}
-import akka.cluster.typed.{Cluster, ClusterSingleton, Join, SingletonActor}
-import akka.http.scaladsl.Http
+import akka.actor.typed.{ActorSystem, Behavior, PostStop}
+import akka.cluster.typed.{Cluster, Join}
 import akka.http.scaladsl.Http.ServerBinding
-import akka.stream.ActorAttributes.SupervisionStrategy
-import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import com.couchmate.api.{ApiServer, JwtProvider, Routes}
-import com.couchmate.data.db.CMDatabase
-import com.couchmate.data.db.PgProfile.api._
-import com.couchmate.services.thirdparty.gracenote.listing.{ListingCoordinator, ListingIngestor}
-import com.couchmate.services.thirdparty.gracenote.GracenoteService
-import com.couchmate.services.thirdparty.gracenote.provider.{ProviderCoordinator, ProviderIngestor}
+import com.couchmate.api.ApiServer
 import com.typesafe.config.{Config, ConfigFactory}
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 object Server {
+
   sealed trait Command
+
   case class StartFailed(cause: Throwable) extends Command
+
   case class Started(binding: ServerBinding) extends Command
+
   case object Stop extends Command
 
   private[this] def running(binding: ServerBinding, ctx: ActorContext[Command]): Behavior[Command] =
@@ -34,7 +28,8 @@ object Server {
         ctx.log.info(
           "Stopping server http://{}:{}/",
           binding.localAddress.getHostString,
-          binding.localAddress.getPort)
+          binding.localAddress.getPort,
+        )
         Behaviors.stopped
     }.receiveSignal {
       case (_, PostStop) =>
@@ -56,19 +51,13 @@ object Server {
         running(binding, ctx)
       case Stop =>
         starting(wasStopped = true, ctx)
-    }
+    },
   }
 
   def apply(host: String, port: Int, config: Config): Behavior[Command] = Behaviors.setup { implicit ctx =>
 
     implicit val ec: ExecutionContext =
       ctx.executionContext
-
-    val db: Database =
-      Database.forConfig("db")
-
-    val database: CMDatabase =
-      new CMDatabase(db)
 
     implicit val system: ActorSystem[Nothing] =
       ctx.system
@@ -83,10 +72,9 @@ object Server {
       host,
       port,
       config,
-      database,
     )) {
       case Success(binding) => Started(binding)
-      case Failure(ex)      => StartFailed(ex)
+      case Failure(ex) => StartFailed(ex)
     }
 
     starting(wasStopped = false, ctx)

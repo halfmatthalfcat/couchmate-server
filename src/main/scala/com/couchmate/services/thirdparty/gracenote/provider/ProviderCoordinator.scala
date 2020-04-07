@@ -9,9 +9,7 @@ object ProviderCoordinator extends LazyLogging {
   case class RequestProviders(zipCode: String, country: Option[String], actorRef: ActorRef[ProviderJob.Command]) extends Command
   case class RemoveProvider(zipCode: String, country: Option[String]) extends Command
 
-  def apply(
-    providerIngestor: ProviderIngestor,
-  ): Behavior[Command] = Behaviors.setup { ctx =>
+  def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     val jobMapper: ActorRef[ProviderJob.Command] = ctx.messageAdapter[ProviderJob.Command] {
       case ProviderJob.JobEnded(zipCode, country) => RemoveProvider(zipCode, country)
     }
@@ -21,7 +19,7 @@ object ProviderCoordinator extends LazyLogging {
         jobs.get((zipCode, country)).fold {
           val job: ActorRef[ProviderJob.Command] =
             ctx.spawn(
-              ProviderJob(zipCode, country, providerIngestor, actorRef, jobMapper),
+              ProviderJob(zipCode, country, actorRef, jobMapper),
               s"$zipCode-${country.getOrElse("USA")}"
             )
 

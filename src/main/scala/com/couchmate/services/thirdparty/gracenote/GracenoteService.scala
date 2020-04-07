@@ -3,17 +3,19 @@ package com.couchmate.services.thirdparty.gracenote
 import java.time.{LocalDateTime, OffsetDateTime, ZoneId, ZoneOffset, ZonedDateTime}
 import java.time.format.DateTimeFormatter
 
-import akka.NotUsed
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem => ClassicActorSystem}
+import akka.actor.typed.scaladsl.adapter._
+import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.stream.ActorMaterializer
 import com.couchmate.data.models.SportOrganization
 import com.couchmate.data.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProvider, GracenoteSportOrganization, GracenoteSportResponse}
 import com.couchmate.util.DateUtils
-import com.typesafe.config.Config
+import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
@@ -23,8 +25,14 @@ class GracenoteService(
   config: Config,
 )(
   implicit
-  system: ActorSystem,
+  system: ActorSystem[Nothing],
 ) extends PlayJsonSupport with LazyLogging {
+
+  private[this] implicit val classicSystem: ClassicActorSystem =
+    system.toClassic
+
+  private[this] implicit val materializer: ActorMaterializer =
+    ActorMaterializer()(classicSystem)
 
   private[this] val gnKey: String =
     config.getString("gracenote.apiKey")
@@ -143,4 +151,14 @@ class GracenoteService(
       orgName = org.map(_.organizationName)
     )
   }
+}
+
+object GracenoteService {
+  def apply()(
+    implicit
+    system: ActorSystem[Nothing],
+  ): GracenoteService =
+    new GracenoteService(
+      ConfigFactory.load()
+    )
 }

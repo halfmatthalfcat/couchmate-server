@@ -5,6 +5,8 @@ import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.stream.scaladsl.{Broadcast, Sink, Source}
 import com.couchmate.data.models.Provider
 import com.couchmate.api.models.{Provider => ApiProvider}
+import com.couchmate.data.db.CMDatabase
+import com.couchmate.services.thirdparty.gracenote.GracenoteService
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.ExecutionContext
@@ -18,13 +20,16 @@ object ProviderJob extends LazyLogging {
   def apply(
     zipCode: String,
     country: Option[String],
-    providerIngestor: ProviderIngestor,
     initiate: ActorRef[Command],
     parent: ActorRef[Command],
   ): Behavior[Command] = Behaviors.setup { ctx =>
     logger.debug(s"Starting job $zipCode for ${country.getOrElse("USA")}")
     implicit val system: ActorSystem[Nothing] = ctx.system
     implicit val ec: ExecutionContext = ctx.executionContext
+    val db: CMDatabase = CMDatabase()
+    val gnService: GracenoteService = GracenoteService()
+    val providerIngestor: ProviderIngestor =
+      new ProviderIngestor(gnService, db)
 
     providerIngestor
       .ingestProviders(zipCode, country)
@@ -49,6 +54,7 @@ object ProviderJob extends LazyLogging {
       case jobEnded: JobEnded =>
         listeners.foreach(_ ! jobEnded)
         parent ! jobEnded
+        db.close()
         Behaviors.stopped
     }
 
