@@ -1,8 +1,10 @@
-package com.couchmate.api.sse
+package com.couchmate.api.ws
 
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, BehaviorInterceptor, TypedActorContext}
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.http.scaladsl.model.sse.ServerSentEvent
+import akka.http.scaladsl.model.ws.Message
+import com.couchmate.api.models.WSMessage
 import com.couchmate.api.models.grid.Grid
 import com.couchmate.services.thirdparty.gracenote.listing.{ListingCoordinator, ListingJob}
 import com.typesafe.scalalogging.LazyLogging
@@ -11,8 +13,9 @@ import play.api.libs.json.Json
 object ListingHandler extends LazyLogging {
   sealed trait Command
 
-  case class Connected(actorRef: ActorRef[ServerSentEvent]) extends Command
+  case class Connected(actorRef: ActorRef[Message]) extends Command
   case object Ack extends Command
+  case object Stop extends Command
 
   case class Finished(grid: Grid) extends Command
   case class Progress(progress: Double) extends Command
@@ -28,35 +31,36 @@ object ListingHandler extends LazyLogging {
 
     actorRef ! ListingCoordinator.RequestListing(providerId, jobAdapter)
 
-    def run(socket: Option[ActorRef[ServerSentEvent]]): Behavior[Command] = Behaviors.receiveMessage {
+    def run(socket: Option[ActorRef[Message]]): Behavior[Command] = Behaviors.receiveMessage {
       case Connected(actorRef) =>
         run(Some(actorRef))
       case Progress(progress) =>
         socket.fold(()) { resolvedSocket =>
-          resolvedSocket ! ServerSentEvent(
-            eventType = Some("progress"),
-            data = progress.toString
+          resolvedSocket ! WSMessage(
+            "progress",
+            Some(progress)
           )
         }
         Behaviors.same
       case Finished(grid) =>
         socket.fold(()) { resolvedSocket =>
-          resolvedSocket ! ServerSentEvent(
-            eventType = Some("complete"),
-            data = Json.stringify(Json.toJson(grid))
+          resolvedSocket ! WSMessage(
+            "complete",
+            Some(grid),
           )
         }
+        Behaviors.stopped
+      case Stop =>
         Behaviors.stopped
     }
 
     run(None)
   }
 
-  def sse(
+  def ws(
     providerId: Long,
     actorRef: ActorRef[ListingCoordinator.Command],
-  ): Behavior[SSEHandler.Command] = SSEHandler.interceptor(apply(providerId, actorRef)) {
-    case SSEHandler.Connected(actorRef) => Connected(actorRef)
-    // case SSEHandler.Complete => ()
+  ): Behavior[WSHandler.Command] = WSHandler.interceptor(apply(providerId, actorRef)) {
+    case WSHandler.Connected(actorRef) => Connected(actorRef)
   }
 }

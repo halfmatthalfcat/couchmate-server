@@ -1,16 +1,12 @@
 package com.couchmate.api.routes
 
-import java.time.{LocalDateTime, ZoneId, ZoneOffset}
-
 import akka.actor.typed.scaladsl.ActorContext
-import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.couchmate.Server
 import com.couchmate.api.ApiFunctions
-import com.couchmate.api.sse.{ListingHandler, SSEHandler}
+import com.couchmate.api.ws.{GridHandler, ListingHandler, WSHandler}
 import com.couchmate.services.ClusterSingletons
-import com.couchmate.util.DateUtils
 
 trait ListingRoutes
   extends ApiFunctions
@@ -22,24 +18,28 @@ trait ListingRoutes
       pathLabeled(LongNumber, ":providerId") { id: Long =>
         get {
           val handler =
-            SSEHandler(
-              ListingHandler.sse(
+            WSHandler(
+              ListingHandler.ws(
                 id,
                 listingCoordinator,
               )
             )
 
-          complete(handler)
+          handleWebSocketMessages(handler)
         }
       } ~
       pathLabeled("grid" / LongNumber, "grid/:providerId") { providerId: Long =>
         parameter(Symbol("page").?) { (page: Option[String]) =>
-          async {
-            db.grid.getGrid(
-              providerId,
-              DateUtils.roundNearestHour(LocalDateTime.now(ZoneOffset.UTC).plusHours(page.map(_.toLong).getOrElse(0))),
-              60,
-            ).map(StatusCodes.OK -> Some(_))
+          get {
+            val handler =
+              WSHandler(
+                GridHandler.ws(
+                  providerId,
+                  page.map(_.toInt).getOrElse(0),
+                )
+              )
+
+            handleWebSocketMessages(handler)
           }
         }
       }

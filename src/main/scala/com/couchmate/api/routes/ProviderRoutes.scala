@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.couchmate.Server
 import com.couchmate.api.ApiFunctions
-import com.couchmate.api.sse.{ProviderHandler, SSEHandler}
+import com.couchmate.api.ws.{ProviderHandler, WSHandler}
 import com.couchmate.services.ClusterSingletons
 
 trait ProviderRoutes
@@ -18,14 +18,15 @@ trait ProviderRoutes
       get {
         parameters(Symbol("zipCode"), Symbol("country").?) { (zipCode: String, country: Option[String]) =>
           val handler =
-            SSEHandler(
-              ProviderHandler.sse(
+            WSHandler(
+              ProviderHandler.ws(
                 zipCode,
                 country,
                 providerCoordinator,
               )
             )
-          complete(handler)
+
+          handleWebSocketMessages(handler)
         }
       }
     }
