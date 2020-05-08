@@ -7,7 +7,17 @@
       <parameters>
         <parameter value="-encoding" />
         <parameter value="UTF-8" />
+        <parameter value="-P:scala2ts:debug:false" />
+        <parameter value="-P:scala2ts:type:includes:com\.couchmate\.api\.models" />
+        <parameter value="-P:scala2ts:outDir:/Users/matt/Code/Couchmate/server/target" />
+        <parameter value="-P:scala2ts:outFileName:index.ts" />
+        <parameter value="-P:scala2ts:pj:name:@couchmate/server" />
+        <parameter value="-P:scala2ts:pj:version:0.0.1" />
+        <parameter value="-P:scala2ts:pj:registry:https://gitlab.com/api/v4/projects/1/packages/npm/" />
       </parameters>
+      <plugins>
+        <plugin path="$USER_HOME$/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/com/github/scala2ts/scala2ts-core_2.13/1.0.3/scala2ts-core_2.13-1.0.3.jar" />
+      </plugins>
     </profile>
   </component>
 </project>

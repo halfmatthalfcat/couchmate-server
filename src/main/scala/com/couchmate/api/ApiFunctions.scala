@@ -9,6 +9,7 @@ import akka.http.scaladsl.server.Route
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.models.UserRole
+import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 import play.api.libs.json.{Reads, Writes}
@@ -21,7 +22,8 @@ trait ApiFunctions
   with JwtProvider
   with HttpMetricsDirectives
   with EventStreamMarshalling
-  with CorsDirectives {
+  with CorsDirectives
+  with LazyLogging {
   implicit val ec: ExecutionContext
   val db: CMDatabase = CMDatabase()
 
@@ -97,7 +99,8 @@ trait ApiFunctions
         complete(code -> body)
       case Success((code, None)) =>
         complete(code)
-      case Failure(_) =>
+      case Failure(ex) =>
+        logger.debug(ex.getMessage)
         complete(StatusCodes.InternalServerError)
     }
   }

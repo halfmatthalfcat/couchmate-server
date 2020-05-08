@@ -9,6 +9,7 @@ import com.couchmate.api.models.grid.Grid
 import com.couchmate.data.db.CMDatabase
 import com.couchmate.services.thirdparty.gracenote.GracenoteService
 import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
+import com.couchmate.util.DateUtils
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.ExecutionContext
@@ -51,8 +52,8 @@ object ListingJob extends LazyLogging {
       case JobProgress(progress) if progress == 1 =>
         ctx.pipeToSelf(db.grid.getGrid(
           providerId,
-          LocalDateTime.now(ZoneId.of("UTC")),
-          1,
+          DateUtils.roundNearestHour(LocalDateTime.now(ZoneId.of("UTC"))),
+          60,
         )) {
           case Success(grid) => JobEnded(providerId, grid)
         }

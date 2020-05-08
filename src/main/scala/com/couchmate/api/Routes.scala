@@ -17,13 +17,13 @@ trait Routes
     registry: PrometheusRegistry,
   ): Route = {
     systemRoutes(registry) ~
-      pathPrefix("api") {
-        cors() {
-          userRoutes ~
-            providerRoutes ~
-            listingRoutes ~
-            signupRoutes
-        },
+    pathPrefix("api") {
+      cors() {
+        userRoutes ~
+        providerRoutes ~
+        listingRoutes ~
+        signupRoutes
       },
+    },
   }
 }

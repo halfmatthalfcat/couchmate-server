@@ -33,12 +33,14 @@ trait ListingRoutes
         }
       } ~
       pathLabeled("grid" / LongNumber, "grid/:providerId") { providerId: Long =>
-        async {
-          db.grid.getGrid(
-            providerId,
-            DateUtils.roundNearestHour(LocalDateTime.now(ZoneOffset.UTC)),
-            3,
-          ).map(StatusCodes.OK -> Some(_))
+        parameter(Symbol("page").?) { (page: Option[String]) =>
+          async {
+            db.grid.getGrid(
+              providerId,
+              DateUtils.roundNearestHour(LocalDateTime.now(ZoneOffset.UTC).plusHours(page.map(_.toLong).getOrElse(0))),
+              60,
+            ).map(StatusCodes.OK -> Some(_))
+          }
         }
       }
     }

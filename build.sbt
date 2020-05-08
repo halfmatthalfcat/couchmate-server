@@ -4,13 +4,30 @@
 
 import Common._
 import sbt.Keys._
+import sbt.Resolver
 
-lazy val server = project.in(file("."))
+lazy val tsSettings = Seq(
+  tsEnable := true,
+  tsIncludeTypes := Seq(
+    "com\\.couchmate\\.api\\.models".r
+  ),
+  tsOutDir := s"${(target in Compile).value}/typescript",
+  tsPackageJsonName := "@couchmate/server",
+  tsPackageJsonVersion := version.value,
+  tsPackageJsonRegistry := "https://gitlab.com/api/v4/projects/1/packages/npm/"
+)
+
+lazy val server = (project in file("."))
+  .enablePlugins(Scala2TSPlugin)
+  .settings(tsSettings: _*)
   .settings(
     name := "server",
     version := "0.0.1",
     scalaVersion := "2.13.1",
-    resolvers += Resolver.jcenterRepo,
+    resolvers ++= Seq(
+      Resolver.jcenterRepo,
+      Resolver.sonatypeRepo("snapshot")
+    ),
     libraryDependencies ++= Seq(
       akka("actor-typed"),
       akka("remote"),
@@ -44,7 +61,7 @@ lazy val server = project.in(file("."))
       "com.wix"                     %%  "accord-core"                   % "0.7.4",
       "fr.davit"                    %%  "akka-http-metrics-prometheus"  % "0.6.0",
       "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1",
-      "com.chuusai"                 %%  "shapeless"                     % "2.3.3"
+      "com.chuusai"                 %%  "shapeless"                     % "2.3.3",
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     mainClass in (Compile, run) := Some("com.couchmate.Server"),

@@ -4,7 +4,7 @@ import com.couchmate.data.models._
 import com.couchmate.data.thirdparty.gracenote.{GracenoteAiring, GracenoteProgramType}
 import com.couchmate.util.slick.UUIDPlainImplicits
 import com.github.tminglei.slickpg._
-import enumeratum.{Enum, EnumEntry, SlickEnumSupport}
+import enumeratum.{Enum, EnumEntry, SlickEnumPlainSqlSupport, SlickEnumSupport}
 import play.api.libs.json.{JsValue, Json}
 import slick.basic.Capability
 import slick.jdbc.JdbcCapabilities
@@ -25,7 +25,7 @@ trait PgProfile
   override protected def computeCapabilities: Set[Capability] =
     super.computeCapabilities + JdbcCapabilities.insertOrUpdate
 
-  override val api = new API {}
+  override val api = new API { }
 
   trait API
       extends super.API
@@ -44,6 +44,7 @@ trait PgProfile
       )
 
     implicit val roomActivityTypeMapper = enumMappedColumn(RoomActivityType)
+    implicit val roomStatusTypeMapper = enumMappedColumn(RoomStatusType)
     implicit val userTypeMapper = enumMappedColumn(UserRole)
     implicit val userActivityTypeMapper = enumMappedColumn(UserActivityType)
     implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
@@ -71,7 +72,13 @@ trait PgProfile
     with PlayJsonPlainImplicits
     with SimpleArrayPlainImplicits
     with Date2DateTimePlainImplicits
-    with UUIDPlainImplicits { }
+    with UUIDPlainImplicits
+    with SlickEnumPlainSqlSupport {
+    implicit val roomStatusSetParameter = setParameterForEnum(RoomStatusType)
+    implicit val roomActivitySetParameter = setParameterForEnum(RoomActivityType)
+
+    implicit val roomStatusGetResult = getResultForEnum(RoomStatusType)
+  }
 }
 
 object PgProfile extends PgProfile

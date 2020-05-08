@@ -5,6 +5,7 @@ import java.util.UUID
 
 import com.couchmate.util.slick.RowParser
 import com.couchmate.data.db.PgProfile.plainAPI._
+import com.couchmate.data.models.RoomStatusType
 import play.api.libs.json.{Json, OFormat}
 import slick.jdbc.GetResult
 
@@ -13,6 +14,7 @@ case class GridAiring(
   startTime: LocalDateTime,
   endTime: LocalDateTime,
   duration: Int,
+  channelId: Long,
   channel: String,
   callsign: String,
   title: String,
@@ -23,6 +25,8 @@ case class GridAiring(
   episode: Option[Long],
   season: Option[Long],
   originalAiringDate: Option[LocalDateTime],
+  status: RoomStatusType,
+  count: Long,
 )
 
 object GridAiring {
