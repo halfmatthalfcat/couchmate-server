@@ -17,7 +17,7 @@ trait UserRoutes extends ApiFunctions {
           authenticate { (userId, _) =>
             async {
               db.user.getUser(userId) map {
-                case Some(user) => StatusCodes.OK -> Some(user)
+                case Some(user) => StatusCodes.OK -> Option(user)
                 case None => StatusCodes.InternalServerError -> None
               }
             }

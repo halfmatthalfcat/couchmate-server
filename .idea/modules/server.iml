@@ -11,7 +11,7 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="sbt: ch.megard:akka-http-cors_2.13:0.4.2:jar" level="project" />
+    <orderEntry type="library" name="sbt: ch.megard:akka-http-cors_2.13:0.4.3:jar" level="project" />
     <orderEntry type="library" name="sbt: ch.qos.logback:logback-classic:1.2.3:jar" level="project" />
     <orderEntry type="library" name="sbt: ch.qos.logback:logback-core:1.2.3:jar" level="project" />
     <orderEntry type="library" name="sbt: com.amazonaws:aws-java-sdk-accessanalyzer:1.11.705:jar" level="project" />

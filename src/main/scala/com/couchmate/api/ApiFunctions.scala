@@ -5,16 +5,17 @@ import java.util.UUID
 import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{ExceptionHandler, Route}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.couchmate.data.db.CMDatabase
-import com.couchmate.data.models.UserRole
+import com.couchmate.data.models.{CMError, UserRole}
 import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 import play.api.libs.json.{Reads, Writes}
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.matching.Regex
 import scala.util.{Failure, Success}
 
 trait ApiFunctions
@@ -37,10 +38,10 @@ trait ApiFunctions
    * @return A completed [[Route]]
    */
   private[api] def authenticate(block: (UUID, UserRole) => Route): Route = {
-    val bearerRegex = "Bearer (.+)".r
+    val bearerRegex: Regex = "Bearer (.+)".r
     optionalHeaderValueByName("Authorization") {
       case Some(value) if bearerRegex.matches(value) =>
-        val jwt = bearerRegex.findFirstMatchIn(value).get.group(1)
+        val jwt: String = bearerRegex.findFirstMatchIn(value).get.group(1)
         validate(jwt) match {
           case Success(uuid) =>
             onComplete(db.user.getUser(uuid)) {
@@ -86,34 +87,33 @@ trait ApiFunctions
     userId: UUID,
     userRole: UserRole,
   ): Route = {
-    onComplete(processRules(userId, userRole, rules)) {
-      case Success(true) => block
-      case Success(false) => complete(StatusCodes.Forbidden)
-      case Failure(_) => complete(StatusCodes.InternalServerError)
+    onSuccess(processRules(userId, userRole, rules)) {
+      case true => block
+      case false => complete(StatusCodes.Forbidden)
     }
   }
 
   private[api] def async[W: Writes](block: => Future[(StatusCode, Option[W])]): Route = {
-    onComplete(block) {
-      case Success((code, Some(body))) =>
+    onSuccess(block) {
+      case (code, Some(body)) =>
         complete(code -> body)
-      case Success((code, None)) =>
+      case (code, None) =>
         complete(code)
-      case Failure(ex) =>
-        logger.debug(ex.getMessage)
-        complete(StatusCodes.InternalServerError)
     }
   }
 
-  private[api] def asyncWithEntity[R: Reads, W: Writes](block: R => Future[(StatusCode, Option[W])]): Route = {
+  private[api] def asyncWithEntity[R: Reads, W: Writes](
+    block: R => Future[(StatusCode, Option[W])]
+  )(
+    implicit
+    eh: ExceptionHandler
+  ): Route = {
     entity(as[R]) { entity =>
-      onComplete(block(entity)) {
-        case Success((code, Some(body))) =>
+      onSuccess(block(entity)) {
+        case (code, Some(body)) =>
           complete(code -> body)
-        case Success((code, None)) =>
+        case (code, None) =>
           complete(code)
-        case Failure(_) =>
-          complete(StatusCodes.InternalServerError)
       }
     }
   }

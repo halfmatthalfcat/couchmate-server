@@ -18,7 +18,7 @@ lazy val tsSettings = Seq(
 )
 
 lazy val server = (project in file("."))
-  .enablePlugins(Scala2TSPlugin)
+  .enablePlugins(Scala2TSPlugin, DockerPlugin)
   .settings(tsSettings: _*)
   .settings(
     name := "server",
@@ -44,7 +44,7 @@ lazy val server = (project in file("."))
       "io.underscore"               %%  "slickless"                     % "0.3.6",
       "io.github.nafg"              %%  "slick-migration-api"           % "0.7.0",
       "com.typesafe.akka"           %%  "akka-http"                     % "10.1.11",
-      "ch.megard"                   %%  "akka-http-cors"                % "0.4.2",
+      "ch.megard"                   %%  "akka-http-cors"                % "0.4.3",
       "com.typesafe.play"           %%  "play-json"                     % "2.8.1",
       "com.typesafe"                %   "config"                        % "1.4.0",
       "com.amazonaws"               %   "aws-java-sdk"                  % "1.11.705",

@@ -17,7 +17,10 @@ class UserMetaDAO(db: Database)(
     db.run(UserMetaDAO.getUserMeta(userId).result.headOption)
   }
 
-  // TODO how to not get after insert
+  def emailExists(email: String): Future[Boolean] = {
+    db.run(UserMetaDAO.emailExists(email).result)
+  }
+
   def upsertUserMeta(userMeta: UserMeta) =
     db.run((UserMetaTable.table returning UserMetaTable.table).insertOrUpdate(userMeta))
 
@@ -26,5 +29,9 @@ class UserMetaDAO(db: Database)(
 object UserMetaDAO {
   private[dao] lazy val getUserMeta = Compiled { (userId: Rep[UUID]) =>
     UserMetaTable.table.filter(_.userId === userId)
+  }
+
+  private[dao] lazy val emailExists = Compiled { (email: Rep[String]) =>
+    UserMetaTable.table.filter(_.email === email).exists
   }
 }

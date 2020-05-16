@@ -10,7 +10,7 @@ case class User(
   token: String,
   zipCode: String,
   providerId: Long,
-) extends Product with Serializable
+)
 
 object User {
   implicit val format: OFormat[User] = Json.format[User]

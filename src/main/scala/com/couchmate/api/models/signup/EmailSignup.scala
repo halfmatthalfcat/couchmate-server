@@ -4,6 +4,7 @@ import play.api.libs.json.{Json, OFormat}
 
 case class EmailSignup(
   email: String,
+  username: String,
   password: String,
   providerId: Long,
   zipCode: String,

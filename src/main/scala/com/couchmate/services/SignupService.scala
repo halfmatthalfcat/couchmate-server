@@ -1,9 +1,10 @@
 package com.couchmate.services
 
 import com.couchmate.api.JwtProvider
-import com.couchmate.data.models.{UserMeta, UserPrivate, UserProvider, UserRole, User => DataUser}
+import com.couchmate.data.models.{CMError, UserMeta, UserPrivate, UserProvider, UserRole, User => DataUser}
 import com.couchmate.api.models.User
-import com.couchmate.api.models.signup.{AnonSignup, EmailSignup}
+import com.couchmate.api.models.signup.SignupError.{EmailExists, UsernameExists}
+import com.couchmate.api.models.signup.{AnonSignup, EmailSignup, ValidateSignup}
 import com.couchmate.data.db.CMDatabase
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.github.t3hnar.bcrypt._
@@ -40,14 +41,24 @@ trait SignupService extends JwtProvider with LazyLogging {
     providerId = signup.providerId,
   )
 
-  def emailSignup(signup: EmailSignup): Future[User] = (for {
+  def validateSignup(email: String, username: String): Future[ValidateSignup] = for {
+    e <- db.userMeta.emailExists(email)
+    u <- db.user.usernameExists(username)
+  } yield ValidateSignup(u, e)
+
+  def emailSignup(signup: EmailSignup): Future[User] = for {
+    v <- validateSignup(signup.email, signup.username)
+    _ = {
+      logger.debug(s"$v")
+      if (v.email) {
+        throw new CMError(EmailExists)
+      } else if (v.username) {
+        throw new CMError(UsernameExists)
+      } else { () }
+    }
     user <- db.user.upsertUser(DataUser(
       userId = None,
-      username = moniker
-        .getRandom()
-        .split(' ')
-        .map(_.capitalize)
-        .mkString(" "),
+      username = signup.username,
       active = true,
       verified = false,
       role = UserRole.Registered,
@@ -72,10 +83,6 @@ trait SignupService extends JwtProvider with LazyLogging {
     token = token,
     zipCode = signup.zipCode,
     providerId = signup.providerId,
-  )) recoverWith {
-    case ex: Throwable =>
-      logger.debug(ex.getLocalizedMessage)
-      Future.failed(ex)
-  }
+  )
 
 }

@@ -23,7 +23,7 @@ trait Routes
         providerRoutes ~
         listingRoutes ~
         signupRoutes
-      },
-    },
+      }
+    }
   }
 }

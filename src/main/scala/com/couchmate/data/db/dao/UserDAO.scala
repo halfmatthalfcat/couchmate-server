@@ -33,6 +33,10 @@ class UserDAO(db: Database)(
       updated <- UserDAO.getUser(userId).result.head
     } yield updated}.transactionally
   )
+
+  def usernameExists(username: String): Future[Boolean] = {
+    db.run(UserDAO.usernameExists(username).result)
+  }
 }
 
 object UserDAO {
@@ -59,5 +63,9 @@ object UserDAO {
           ue.extId === extId
         )
       } yield u
+  }
+
+  private[dao] lazy val usernameExists = Compiled { (username: Rep[String]) =>
+    UserTable.table.filter(_.username === username).exists
   }
 }
