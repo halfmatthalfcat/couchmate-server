@@ -254,7 +254,9 @@
     <orderEntry type="library" name="sbt: com.github.tminglei:slick-pg_core_2.13:0.18.1:jar" level="project" />
     <orderEntry type="library" name="sbt: com.github.tminglei:slick-pg_play-json_2.13:0.18.1:jar" level="project" />
     <orderEntry type="library" name="sbt: com.google.protobuf:protobuf-java:3.10.0:jar" level="project" />
+    <orderEntry type="library" name="sbt: com.lightbend.akka:akka-stream-alpakka-amqp_2.13:2.0.0:jar" level="project" />
     <orderEntry type="library" name="sbt: com.nimbusds:nimbus-jose-jwt:4.27:jar" level="project" />
+    <orderEntry type="library" name="sbt: com.rabbitmq:amqp-client:5.3.0:jar" level="project" />
     <orderEntry type="library" name="sbt: com.typesafe.akka:akka-actor-typed_2.13:2.6.1:jar" level="project" />
     <orderEntry type="library" name="sbt: com.typesafe.akka:akka-actor_2.13:2.6.1:jar" level="project" />
     <orderEntry type="library" name="sbt: com.typesafe.akka:akka-cluster-metrics_2.13:2.6.1:jar" level="project" />

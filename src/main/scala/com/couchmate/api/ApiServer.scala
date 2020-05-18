@@ -7,6 +7,7 @@ import akka.actor.{ActorSystem => ClassicActorSystem}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import com.couchmate.Server
+import com.couchmate.util.AmqpProvider
 import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsRoute._
 

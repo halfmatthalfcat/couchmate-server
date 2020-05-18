@@ -11,7 +11,7 @@ import com.couchmate.data.thirdparty.gracenote.{GracenoteAiring, GracenoteChanne
 import com.couchmate.services.thirdparty.gracenote.GracenoteService
 import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
 import com.couchmate.util.DateUtils
-import com.couchmate.util.akka.streams.CombineLatestWith
+import com.couchmate.util.stream.CombineLatestWith
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.{ExecutionContext, Future}

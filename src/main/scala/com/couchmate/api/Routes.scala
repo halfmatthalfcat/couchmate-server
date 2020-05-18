@@ -3,6 +3,7 @@ package com.couchmate.api
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.couchmate.api.routes._
+import com.couchmate.util.AmqpProvider
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
 
 trait Routes
@@ -11,7 +12,8 @@ trait Routes
     with ListingRoutes
     with ProviderRoutes
     with UserRoutes
-    with SignupRoutes {
+    with SignupRoutes
+    with RoomRoutes {
 
   def routes(
     registry: PrometheusRegistry,
@@ -19,10 +21,13 @@ trait Routes
     systemRoutes(registry) ~
     pathPrefix("api") {
       cors() {
-        userRoutes ~
-        providerRoutes ~
-        listingRoutes ~
-        signupRoutes
+        concat(
+          roomRoutes,
+          userRoutes,
+          providerRoutes,
+          listingRoutes,
+          signupRoutes,
+        )
       }
     }
   }

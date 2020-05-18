@@ -6,8 +6,9 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.http.scaladsl.model.ws.Message
 import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.{Flow, Sink}
-import akka.stream.typed.scaladsl.ActorSource
+import akka.stream.typed.scaladsl.{ActorSink, ActorSource}
 import com.couchmate.Server
+import play.api.libs.json.{JsValue, Json, Reads}
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -15,6 +16,7 @@ import scala.util.{Failure, Success}
 object WSHandler {
   sealed trait Command
   case class Connected(actorRef: ActorRef[Message]) extends Command
+  case class Incoming(js: JsValue) extends Command
   case object Complete extends Command
   case class Failed(ex: Throwable) extends Command
 
@@ -25,6 +27,17 @@ object WSHandler {
   ): Flow[Message, Message, NotUsed] = {
     val conn: ActorRef[Command] =
       ctx.spawnAnonymous(behavior)
+
+    val incoming = Flow[Message]
+      .filter(_.isText)
+      .flatMapConcat(_.asTextMessage.getStreamedText)
+      .map(Json.parse)
+      .map(Incoming)
+      .to(ActorSink.actorRef(
+        conn,
+        Complete,
+        Failed
+      ))
 
     val outgoing = ActorSource
       .actorRef[Message](
@@ -47,7 +60,7 @@ object WSHandler {
 
     // We drain all incoming messages
     // WS used exclusively for streaming out
-    Flow.fromSinkAndSource(Sink.ignore, outgoing)
+    Flow.fromSinkAndSource(incoming, outgoing)
   }
 
   def interceptor[T](behavior: Behavior[T])(handler: PartialFunction[WSHandler.Command, T]): Behavior[WSHandler.Command] =

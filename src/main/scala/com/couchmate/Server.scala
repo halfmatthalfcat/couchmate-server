@@ -6,6 +6,7 @@ import akka.cluster.typed.{Cluster, Join}
 import akka.http.scaladsl.Http.ServerBinding
 import akka.util.Timeout
 import com.couchmate.api.ApiServer
+import com.couchmate.api.ws.SeatHandler
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
@@ -51,7 +52,7 @@ object Server {
         running(binding, ctx)
       case Stop =>
         starting(wasStopped = true, ctx)
-    },
+    }
   }
 
   def apply(host: String, port: Int, config: Config): Behavior[Command] = Behaviors.setup { implicit ctx =>
@@ -67,6 +68,8 @@ object Server {
     cluster.manager ! Join(cluster.selfMember.address)
 
     implicit val timeout: Timeout = 30 seconds
+
+    ctx.spawnAnonymous(SeatHandler())
 
     ctx.pipeToSelf(ApiServer(
       host,

@@ -1,4 +1,4 @@
-package com.couchmate.util.akka.streams
+package com.couchmate.util.stream
 
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, FanInShape2, Inlet, Outlet}

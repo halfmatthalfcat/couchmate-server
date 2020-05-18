@@ -1,0 +1,25 @@
+apiVersion: skaffold/v2beta3
+kind: Config
+metadata:
+  name: site
+build:
+  artifacts:
+    - image: registry.couchmate.com/core/server
+      context: target/docker/stage
+  local:
+    push: true
+  tagPolicy:
+    gitCommit:
+      variant: Tags
+deploy:
+  helm:
+    flags:
+      install:
+        - --atomic
+      upgrade:
+        - --atomic
+    releases:
+      - name: core
+        chartPath: charts
+        values:
+          image: registry.couchmate.com/core/server

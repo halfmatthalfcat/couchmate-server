@@ -9,6 +9,7 @@ import akka.http.scaladsl.server.{ExceptionHandler, Route}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.models.{CMError, UserRole}
+import com.couchmate.util.AmqpProvider
 import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
@@ -21,6 +22,7 @@ import scala.util.{Failure, Success}
 trait ApiFunctions
   extends PlayJsonSupport
   with JwtProvider
+  with AmqpProvider
   with HttpMetricsDirectives
   with EventStreamMarshalling
   with CorsDirectives

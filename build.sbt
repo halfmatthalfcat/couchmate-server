@@ -18,7 +18,11 @@ lazy val tsSettings = Seq(
 )
 
 lazy val server = (project in file("."))
-  .enablePlugins(Scala2TSPlugin, DockerPlugin)
+  .enablePlugins(
+    Scala2TSPlugin,
+    JavaAppPackaging,
+    DockerPlugin,
+  )
   .settings(tsSettings: _*)
   .settings(
     name := "server",
@@ -41,6 +45,7 @@ lazy val server = (project in file("."))
       slick("slick-hikaricp"),
       slickPg(),
       slickPg("play-json"),
+      "com.lightbend.akka"          %%  "akka-stream-alpakka-amqp"      % "2.0.0",
       "io.underscore"               %%  "slickless"                     % "0.3.6",
       "io.github.nafg"              %%  "slick-migration-api"           % "0.7.0",
       "com.typesafe.akka"           %%  "akka-http"                     % "10.1.11",
@@ -64,6 +69,7 @@ lazy val server = (project in file("."))
       "com.chuusai"                 %%  "shapeless"                     % "2.3.3",
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
+    discoveredMainClasses in Compile := Seq(),
     mainClass in (Compile, run) := Some("com.couchmate.Server"),
     scalacOptions ++= Seq(
 //      "-deprecation",
