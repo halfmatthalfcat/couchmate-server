@@ -3,7 +3,7 @@ package com.couchmate.data.db.dao
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ShowTable
 import com.couchmate.data.models.{Show, SportOrganization}
-import com.couchmate.data.thirdparty.gracenote.GracenoteProgram
+import com.couchmate.external.gracenote.models.GracenoteProgram
 
 import scala.concurrent.{ExecutionContext, Future}
 

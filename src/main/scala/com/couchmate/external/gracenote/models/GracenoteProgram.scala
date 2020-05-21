@@ -1,10 +1,10 @@
-package com.couchmate.data.thirdparty.gracenote
+package com.couchmate.external.gracenote.models
 
-import java.time.{LocalDate, LocalDateTime, OffsetDateTime, ZoneId, ZoneOffset, ZonedDateTime}
 import java.time.format.DateTimeFormatter
+import java.time.{LocalDate, LocalDateTime}
 
-import play.api.libs.json._
 import play.api.libs.functional.syntax._
+import play.api.libs.json._
 
 case class GracenoteProgram(
   tmsId: String,

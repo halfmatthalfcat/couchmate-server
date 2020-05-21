@@ -3,7 +3,7 @@ package com.couchmate.data.db.dao
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ChannelTable
 import com.couchmate.data.models.Channel
-import com.couchmate.data.thirdparty.gracenote.GracenoteChannelAiring
+import com.couchmate.external.gracenote.models.GracenoteChannelAiring
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}

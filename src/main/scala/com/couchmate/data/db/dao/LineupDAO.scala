@@ -5,7 +5,7 @@ import java.util.UUID
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.{LineupTable, ProviderChannelTable}
 import com.couchmate.data.models.{Airing, Lineup, ProviderChannel}
-import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
+import com.couchmate.external.gracenote.models.GracenoteAiring
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}

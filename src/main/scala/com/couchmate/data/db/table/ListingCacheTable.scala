@@ -5,7 +5,7 @@ import java.time.LocalDateTime
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.{PgProfile, Slickable}
 import com.couchmate.data.models.{Airing, ListingCache}
-import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
+import com.couchmate.external.gracenote.models.GracenoteAiring
 import slick.lifted.Tag
 import slick.migration.api._
 

@@ -2,7 +2,7 @@ package com.couchmate.data.models
 
 import java.time.LocalDateTime
 
-import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
+import com.couchmate.external.gracenote.models.GracenoteAiring
 import play.api.libs.json.{Json, OFormat}
 
 case class ListingCache(

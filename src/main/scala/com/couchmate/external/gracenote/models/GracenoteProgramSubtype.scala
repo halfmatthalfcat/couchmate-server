@@ -1,4 +1,4 @@
-package com.couchmate.data.thirdparty.gracenote
+package com.couchmate.external.gracenote.models
 
 import enumeratum._
 

@@ -3,7 +3,7 @@ package com.couchmate.data.db.dao
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ProviderTable
 import com.couchmate.data.models.{Provider, ProviderOwner}
-import com.couchmate.data.thirdparty.gracenote.GracenoteProvider
+import com.couchmate.external.gracenote.models.GracenoteProvider
 
 import scala.concurrent.{ExecutionContext, Future}
 

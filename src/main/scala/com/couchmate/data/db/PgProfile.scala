@@ -1,7 +1,7 @@
 package com.couchmate.data.db
 
 import com.couchmate.data.models._
-import com.couchmate.data.thirdparty.gracenote.{GracenoteAiring, GracenoteProgramType}
+import com.couchmate.external.gracenote.models.{GracenoteAiring, GracenoteProgramType}
 import com.couchmate.util.slick.UUIDPlainImplicits
 import com.github.tminglei.slickpg._
 import enumeratum.{Enum, EnumEntry, SlickEnumPlainSqlSupport, SlickEnumSupport}

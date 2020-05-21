@@ -3,6 +3,7 @@
  */
 
 import Common._
+import com.github.scala2ts.configuration.SealedTypesMapping
 import sbt.Keys._
 import sbt.Resolver
 
@@ -11,6 +12,7 @@ lazy val tsSettings = Seq(
   tsIncludeTypes := Seq(
     "com\\.couchmate\\.api\\.models".r
   ),
+  tsSealedTypesMapping := SealedTypesMapping.AsUnionString,
   tsOutDir := s"${(target in Compile).value}/typescript",
   tsPackageJsonName := "@couchmate/server",
   tsPackageJsonVersion := version.value,
@@ -51,6 +53,7 @@ lazy val server = (project in file("."))
       "com.typesafe.akka"           %%  "akka-http"                     % "10.1.11",
       "ch.megard"                   %%  "akka-http-cors"                % "0.4.3",
       "com.typesafe.play"           %%  "play-json"                     % "2.8.1",
+      "org.julienrf"                %%  "play-json-derived-codecs"      % "7.0.0",
       "com.typesafe"                %   "config"                        % "1.4.0",
       "com.amazonaws"               %   "aws-java-sdk"                  % "1.11.705",
       "com.nimbusds"                %   "nimbus-jose-jwt"               % "4.27",

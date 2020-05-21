@@ -5,7 +5,7 @@ import java.time.LocalDateTime
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ListingCacheTable
 import com.couchmate.data.models.ListingCache
-import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
+import com.couchmate.external.gracenote.models.GracenoteAiring
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}

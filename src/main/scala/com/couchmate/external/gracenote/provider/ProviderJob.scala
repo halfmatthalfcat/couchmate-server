@@ -1,4 +1,4 @@
-package com.couchmate.services.thirdparty.gracenote.provider
+package com.couchmate.external.gracenote.provider
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
@@ -6,7 +6,7 @@ import akka.stream.scaladsl.{Broadcast, Sink, Source}
 import com.couchmate.data.models.Provider
 import com.couchmate.api.models.{Provider => ApiProvider}
 import com.couchmate.data.db.CMDatabase
-import com.couchmate.services.thirdparty.gracenote.GracenoteService
+import com.couchmate.external.gracenote.GracenoteService
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.ExecutionContext

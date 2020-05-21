@@ -1,4 +1,4 @@
-package com.couchmate.services.thirdparty.gracenote.listing
+package com.couchmate.external.gracenote.listing
 
 import java.time.{LocalDateTime, ZoneId}
 
@@ -7,9 +7,9 @@ import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Merge, Partition, Sink}
 import akka.{Done, NotUsed}
 import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.models.{Lineup, Provider, ProviderChannel}
-import com.couchmate.data.thirdparty.gracenote.{GracenoteAiring, GracenoteChannelAiring}
-import com.couchmate.services.thirdparty.gracenote.GracenoteService
-import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
+import com.couchmate.external.gracenote.GracenoteService
+import com.couchmate.external.gracenote.models.{GracenoteAiring, GracenoteChannelAiring}
+import com.couchmate.external.gracenote.provider.ProviderIngestor
 import com.couchmate.util.DateUtils
 import com.couchmate.util.stream.CombineLatestWith
 import com.typesafe.scalalogging.LazyLogging

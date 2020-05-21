@@ -1,4 +1,4 @@
-package com.couchmate.services.thirdparty.gracenote
+package com.couchmate.external.gracenote
 
 import java.time.{LocalDateTime, OffsetDateTime, ZoneId, ZoneOffset, ZonedDateTime}
 import java.time.format.DateTimeFormatter
@@ -13,7 +13,7 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.ActorMaterializer
 import com.couchmate.data.models.SportOrganization
-import com.couchmate.data.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProvider, GracenoteSportOrganization, GracenoteSportResponse}
+import com.couchmate.external.gracenote.models.{GracenoteChannelAiring, GracenoteProvider, GracenoteSportResponse}
 import com.couchmate.util.DateUtils
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging

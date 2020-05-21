@@ -6,7 +6,7 @@ import java.util.UUID
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.AiringTable
 import com.couchmate.data.models.Airing
-import com.couchmate.data.thirdparty.gracenote.GracenoteAiring
+import com.couchmate.external.gracenote.models.GracenoteAiring
 import slick.lifted.{Compiled, Rep}
 
 import scala.concurrent.{ExecutionContext, Future}

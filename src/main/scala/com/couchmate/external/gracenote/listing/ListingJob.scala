@@ -1,4 +1,4 @@
-package com.couchmate.services.thirdparty.gracenote.listing
+package com.couchmate.external.gracenote.listing
 
 import java.time.{LocalDateTime, ZoneId}
 
@@ -7,8 +7,8 @@ import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.stream.scaladsl.{Sink, Source}
 import com.couchmate.api.models.grid.Grid
 import com.couchmate.data.db.CMDatabase
-import com.couchmate.services.thirdparty.gracenote.GracenoteService
-import com.couchmate.services.thirdparty.gracenote.provider.ProviderIngestor
+import com.couchmate.external.gracenote.GracenoteService
+import com.couchmate.external.gracenote.provider.ProviderIngestor
 import com.couchmate.util.DateUtils
 import com.typesafe.scalalogging.LazyLogging
 

@@ -1,4 +1,4 @@
-package com.couchmate.services.thirdparty.gracenote.provider
+package com.couchmate.external.gracenote.provider
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
