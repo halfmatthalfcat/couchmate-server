@@ -7,7 +7,6 @@ import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{ExceptionHandler, Route}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
-import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.models.{CMError, UserRole}
 import com.couchmate.util.AmqpProvider
 import com.typesafe.scalalogging.LazyLogging

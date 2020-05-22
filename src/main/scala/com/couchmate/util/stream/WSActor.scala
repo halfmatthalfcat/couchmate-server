@@ -30,37 +30,18 @@ object WSActor extends LazyLogging {
   private case class  ConnFailure(ex: Throwable)  extends Command
   private case class  Failed(ex: Throwable)       extends Command
 
-  private case class  State(
-    amqp: ActorRef[AmqpActor.Command],
-    ws: ActorRef[Command]
-  )
+  private case class  State()
 
   def apply(userId: UUID): Behavior[Command] = Behaviors.setup { ctx =>
     logger.info(s"Starting WS Actor with userId: ${userId.toString}")
-
-    val amqpAdapter = ctx.messageAdapter[AmqpActor.Command] {
-      case AmqpActor.Incoming(message) =>
-        Incoming(message)
-    }
-
-    def init(): Behavior[Command] = Behaviors.receiveMessagePartial {
-      case Connected(actorRef) =>
-        run(State(
-          ctx.spawn(AmqpActor(amqpAdapter, Set(UserRoute(userId))), "amqp"),
-          actorRef
-        ))
-    }
 
     def run(state: State): Behavior[Command] = Behaviors.receiveMessage {
       case Incoming(IncomingWSMessage(message)) =>
         logger.debug(s"Got WS Message: ${message}")
         Behaviors.same
-      case Incoming(IncomingAmqpMessage(message)) =>
-        logger.debug(s"Got AMQP Message: ${message}")
-        Behaviors.same
     }
 
-    init()
+    run(State())
   }
 
   def ws(userId: UUID)(

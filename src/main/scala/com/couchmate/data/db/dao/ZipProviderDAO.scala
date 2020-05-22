@@ -6,28 +6,41 @@ import com.couchmate.data.models.{Provider, ZipProvider}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class ZipProviderDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait ZipProviderDAO {
 
-  def getZipProvidersByZip(zipCode: String): Future[Seq[ZipProvider]] = {
+  def getZipProvidersByZip(zipCode: String)(
+    implicit
+    db: Database
+  ): Future[Seq[ZipProvider]] = {
     db.run(ZipProviderDAO.getZipProvidersForZip(zipCode).result)
   }
 
-  def getProvidersForZip(zipCode: String): Future[Seq[Provider]] = {
+  def getProvidersForZip(zipCode: String)(
+    implicit
+    db: Database
+  ): Future[Seq[Provider]] = {
     db.run(ZipProviderDAO.getProvidersForZip(zipCode).result)
   }
 
-  def getProviderForProviderAndZip(providerId: Long, zipCode: String): Future[Option[ZipProvider]] = {
+  def getProviderForProviderAndZip(providerId: Long, zipCode: String)(
+    implicit
+    db: Database
+  ): Future[Option[ZipProvider]] = {
     db.run(ZipProviderDAO.getProviderForProviderAndZip(providerId, zipCode).result.headOption)
   }
 
-  def addZipProvider(zipProvider: ZipProvider): Future[ZipProvider] = {
+  def addZipProvider(zipProvider: ZipProvider)(
+    implicit
+    db: Database
+  ): Future[ZipProvider] = {
     db.run((ZipProviderTable.table returning ZipProviderTable.table) += zipProvider)
   }
 
-  def getZipProviderFromGracenote(zipCode: String, provider: Provider): Future[ZipProvider] = {
+  def getZipProviderFromGracenote(zipCode: String, provider: Provider)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[ZipProvider] = {
     db.run((for {
       exists <- ZipProviderDAO.getProviderForProviderAndZip(
         provider.providerId.get,

@@ -8,24 +8,34 @@ import com.couchmate.data.models.{User, UserExtType}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class UserDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait UserDAO {
 
-  def getUser(userId: UUID): Future[Option[User]] = {
+  def getUser(userId: UUID)(
+    implicit
+    db: Database
+  ): Future[Option[User]] = {
     db.run(UserDAO.getUser(userId).result.headOption)
   }
 
-  def getUserByEmail(email: String): Future[Option[User]] = {
+  def getUserByEmail(email: String)(
+    implicit
+    db: Database
+  ): Future[Option[User]] = {
     db.run(UserDAO.getUserByEmail(email).result.headOption)
   }
 
-  def getUserByExt(extType: UserExtType, extId: String): Future[Option[User]] = {
+  def getUserByExt(extType: UserExtType, extId: String)(
+    implicit
+    db: Database
+  ): Future[Option[User]] = {
     db.run(UserDAO.getUserByExt(extType, extId).result.headOption)
   }
 
-  def upsertUser(user: User): Future[User] = db.run(
+  def upsertUser(user: User)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[User] = db.run(
     user.userId.fold[DBIO[User]](
       (UserTable.table returning UserTable.table) += user.copy(userId = Some(UUID.randomUUID()))
     ) { (userId: UUID) => for {
@@ -34,7 +44,10 @@ class UserDAO(db: Database)(
     } yield updated}.transactionally
   )
 
-  def usernameExists(username: String): Future[Boolean] = {
+  def usernameExists(username: String)(
+    implicit
+    db: Database
+  ): Future[Boolean] = {
     db.run(UserDAO.usernameExists(username).result)
   }
 }

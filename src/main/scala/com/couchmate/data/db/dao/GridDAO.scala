@@ -9,10 +9,7 @@ import com.couchmate.util.DateUtils
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class GridDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+class GridDAO {
 
   def getGrid(
     providerId: Long,

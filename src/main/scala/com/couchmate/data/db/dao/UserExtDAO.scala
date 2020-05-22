@@ -8,18 +8,22 @@ import com.couchmate.data.models.UserExt
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class UserExtDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait UserExtDAO {
 
-  def getUserExt(userId: UUID): Future[Option[UserExt]] = {
+  def getUserExt(userId: UUID)(
+    implicit
+    db: Database
+  ): Future[Option[UserExt]] = {
     db.run(UserExtDAO.getUserExt(userId).result.headOption)
   }
 
   // TODO how to not get after insert
-  def upsertUserExt(userExt: UserExt) =
+  def upsertUserExt(userExt: UserExt)(
+    implicit
+    db: Database
+  ) = {
     db.run((UserExtTable.table returning UserExtTable.table).insertOrUpdate(userExt))
+  }
 
 }
 

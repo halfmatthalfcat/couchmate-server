@@ -6,20 +6,27 @@ import com.couchmate.data.models.SportOrganization
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class SportOrganizationDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait SportOrganizationDAO {
 
-  def getSportOrganization(sportOrganizationId: Long): Future[Option[SportOrganization]] = {
+  def getSportOrganization(sportOrganizationId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[SportOrganization]] = {
     db.run(SportOrganizationDAO.getSportOrganization(sportOrganizationId).result.headOption)
   }
 
-  def getSportOrganizationBySportAndOrg(extSportId: Long, extOrgId: Option[Long]): Future[Option[SportOrganization]] = {
+  def getSportOrganizationBySportAndOrg(extSportId: Long, extOrgId: Option[Long])(
+    implicit
+    db: Database
+  ): Future[Option[SportOrganization]] = {
     db.run(SportOrganizationDAO.getSportOrganizationBySportAndOrg(extSportId, extOrgId).result.headOption)
   }
 
-  def upsertSportOrganization(sportOrganization: SportOrganization): Future[SportOrganization] = db.run(
+  def upsertSportOrganization(sportOrganization: SportOrganization)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[SportOrganization] = db.run(
     sportOrganization.sportOrganizationId.fold[DBIO[SportOrganization]](
       (SportOrganizationTable.table returning SportOrganizationTable.table) += sportOrganization
     ) { (sportOrganizationId: Long) => for {

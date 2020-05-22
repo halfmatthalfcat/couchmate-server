@@ -2,29 +2,44 @@ package com.couchmate.data.db.dao
 
 import java.util.UUID
 
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.RoomActivityTable
 import com.couchmate.data.models.{RoomActivity, RoomActivityType}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class RoomActivityDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+class RoomActivityDAO {
 
-  def getRoomCount(airingId: UUID): Future[Int] = {
-    db.run(RoomActivityDAO.getRoomCount(airingId).result)
-  }
+  def getRoomCount(airingId: UUID)(
+    implicit
+    db: Database
+  ): Future[Int] =
+    db.run(RoomActivityDAO.getRoomCount(airingId))
 
-  def addRoomActivity(roomActivity: RoomActivity): Future[RoomActivity] = {
-    db.run((RoomActivityTable.table returning RoomActivityTable.table) += roomActivity)
-  }
+  def getRoomCount$()(
+    implicit
+    session: SlickSession
+  ): Flow[UUID, Int, NotUsed] =
+    Slick.flowWithPassThrough(RoomActivityDAO.getRoomCount)
 
+  def addRoomActivity(roomActivity: RoomActivity)(
+    implicit
+    db: Database
+  ): Future[RoomActivity] =
+    db.run(RoomActivityDAO.addRoomActivity(roomActivity))
+
+  def addRoomActivity$()(
+    implicit
+    session: SlickSession
+  ): Flow[RoomActivity, RoomActivity, NotUsed] =
+    Slick.flowWithPassThrough(RoomActivityDAO.addRoomActivity)
 }
 
 object RoomActivityDAO {
-  private[this] lazy val getUserLatest =
+  private[this] lazy val getUserLatestQuery =
     RoomActivityTable.table
       .groupBy(_.userId)
       .map {
@@ -32,9 +47,9 @@ object RoomActivityDAO {
           userId -> query.map(_.created).max
       }
 
-  private[dao] lazy val getRoomCount = Compiled { (airingId: Rep[UUID]) =>
+  private[this] lazy val getRoomCountQuery = Compiled { (airingId: Rep[UUID]) =>
     (for {
-      counts <- getUserLatest
+      counts <- getUserLatestQuery
       ra <- RoomActivityTable.table if (
         ra.airingId === airingId &&
         ra.userId === counts._1 &&
@@ -43,4 +58,10 @@ object RoomActivityDAO {
       )
     } yield ra).length
   }
+
+  private[dao] def getRoomCount(airingId: UUID): DBIO[Int] =
+    getRoomCountQuery(airingId).result
+
+  private[dao] def addRoomActivity(roomActivity: RoomActivity): DBIO[RoomActivity] =
+    (RoomActivityTable.table returning RoomActivityTable.table) += roomActivity
 }

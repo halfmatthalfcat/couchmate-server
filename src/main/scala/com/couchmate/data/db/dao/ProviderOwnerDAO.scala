@@ -1,5 +1,8 @@
 package com.couchmate.data.db.dao
 
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ProviderOwnerTable
 import com.couchmate.data.models.ProviderOwner
@@ -7,72 +10,129 @@ import com.couchmate.external.gracenote.models.GracenoteProvider
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class ProviderOwnerDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait ProviderOwnerDAO {
 
-  def getProviderOwner(providerOwnerId: Long): Future[Option[ProviderOwner]] = {
-    db.run(ProviderOwnerDAO.getProviderOwner(providerOwnerId).result.headOption)
-  }
+  def getProviderOwner(providerOwnerId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[ProviderOwner]] =
+    db.run(ProviderOwnerDAO.getProviderOwner(providerOwnerId))
 
-  def getProviderOwnerForName(name: String): Future[Option[ProviderOwner]] = {
-    db.run(ProviderOwnerDAO.getProviderOwnerForName(name).result.headOption)
-  }
+  def getProviderOwner$()(
+    implicit
+    session: SlickSession
+  ): Flow[Long, Option[ProviderOwner], NotUsed] =
+    Slick.flowWithPassThrough(ProviderOwnerDAO.getProviderOwner)
 
-  def getProviderOwnerForExt(extProviderOwnerId: String): Future[Option[ProviderOwner]] = {
-    db.run(ProviderOwnerDAO.getProviderOwnerForExt(extProviderOwnerId).result.headOption)
-  }
+  def getProviderOwnerForName(name: String)(
+    implicit
+    db: Database
+  ): Future[Option[ProviderOwner]] =
+    db.run(ProviderOwnerDAO.getProviderOwnerForName(name))
 
-  def upsertProviderOwner(providerOwner: ProviderOwner): Future[ProviderOwner] = db.run(
-    providerOwner.providerOwnerId.fold[DBIO[ProviderOwner]](
-      (ProviderOwnerTable.table returning ProviderOwnerTable.table) += providerOwner
-    ) { (providerOwnerId: Long) => for {
-      _ <- ProviderOwnerTable.table.update(providerOwner)
-      updated <- ProviderOwnerDAO.getProviderOwner(providerOwnerId).result.head
-    } yield updated}.transactionally
-  )
+  def getProviderOwnerForName$()(
+    implicit
+    session: SlickSession
+  ): Flow[String, Option[ProviderOwner], NotUsed] =
+    Slick.flowWithPassThrough(ProviderOwnerDAO.getProviderOwnerForName)
+
+  def getProviderOwnerForExt(extProviderOwnerId: String)(
+    implicit
+    db: Database
+  ): Future[Option[ProviderOwner]] =
+    db.run(ProviderOwnerDAO.getProviderOwnerForExt(extProviderOwnerId))
+
+  def getProviderOwnerForExt$()(
+    implicit
+    session: SlickSession
+  ): Flow[String, Option[ProviderOwner], NotUsed] =
+    Slick.flowWithPassThrough(ProviderOwnerDAO.getProviderOwnerForExt)
+
+  def upsertProviderOwner(providerOwner: ProviderOwner)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[ProviderOwner] =
+    db.run(ProviderOwnerDAO.upsertProviderOwner(providerOwner))
+
+  def upsertProviderOwner$()(
+    implicit
+    ec: ExecutionContext,
+    session: SlickSession
+  ): Flow[ProviderOwner, ProviderOwner, NotUsed] =
+    Slick.flowWithPassThrough(ProviderOwnerDAO.upsertProviderOwner)
 
   def getProviderOwnerFromGracenote(
     gracenoteProvider: GracenoteProvider,
     country: Option[String],
-  ): Future[ProviderOwner] = {
-    if (gracenoteProvider.mso.isDefined) {
-      db.run((for {
-        exists <- ProviderOwnerDAO.getProviderOwnerForExt(gracenoteProvider.mso.get.id).result.headOption
-        owner <- exists.fold[DBIO[ProviderOwner]](
-          (ProviderOwnerTable.table returning ProviderOwnerTable.table) += ProviderOwner(
-            providerOwnerId = None,
-            extProviderOwnerId = Some(gracenoteProvider.mso.get.id),
-            name = gracenoteProvider.getOwnerName,
-          )
-        )(DBIO.successful)
-      } yield owner).transactionally)
-    } else {
-      db.run((for {
-        exists <- ProviderOwnerDAO.getProviderOwnerForName(gracenoteProvider.getName(country)).result.headOption
-        owner <- exists.fold[DBIO[ProviderOwner]](
-          (ProviderOwnerTable.table returning ProviderOwnerTable.table) += ProviderOwner(
-            providerOwnerId = None,
-            extProviderOwnerId = None,
-            name = gracenoteProvider.getName(country),
-          )
-        )(DBIO.successful)
-      } yield owner).transactionally)
-    }
-  }
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[ProviderOwner] =
+    db.run(ProviderOwnerDAO.getProviderOwnerFromGracenote(gracenoteProvider, country))
+
+  def getProviderOwnerFromGracenote$()(
+    implicit
+    ec: ExecutionContext,
+    session: SlickSession
+  ): Flow[(GracenoteProvider, Option[String]), ProviderOwner, NotUsed] =
+    Slick.flowWithPassThrough(
+      (ProviderOwnerDAO.getProviderOwnerFromGracenote _).tupled
+    )
 }
 
 object ProviderOwnerDAO {
-  private[dao] lazy val getProviderOwner = Compiled { (providerOwnerId: Rep[Long]) =>
+  private[this] lazy val getProviderOwnerQuery = Compiled { (providerOwnerId: Rep[Long]) =>
     ProviderOwnerTable.table.filter(_.providerOwnerId === providerOwnerId)
   }
 
-  private[dao] lazy val getProviderOwnerForName = Compiled { (name: Rep[String]) =>
+  private[dao] def getProviderOwner(providerOwnerId: Long): DBIO[Option[ProviderOwner]] =
+    getProviderOwnerQuery(providerOwnerId).result.headOption
+
+  private[this] lazy val getProviderOwnerForNameQuery = Compiled { (name: Rep[String]) =>
     ProviderOwnerTable.table.filter(_.name === name)
   }
 
-  private[dao] lazy val getProviderOwnerForExt = Compiled { (extProviderOwnerId: Rep[String]) =>
+  private[dao] def getProviderOwnerForName(name: String): DBIO[Option[ProviderOwner]] =
+    getProviderOwnerForNameQuery(name).result.headOption
+
+  private[this] lazy val getProviderOwnerForExtQuery = Compiled { (extProviderOwnerId: Rep[String]) =>
     ProviderOwnerTable.table.filter(_.extProviderOwnerId === extProviderOwnerId)
   }
+
+  private[dao] def getProviderOwnerForExt(extProviderOwnerId: String): DBIO[Option[ProviderOwner]] =
+    getProviderOwnerForExtQuery(extProviderOwnerId).result.headOption
+
+  private[dao] def upsertProviderOwner(providerOwner: ProviderOwner)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[ProviderOwner] =
+    providerOwner.providerOwnerId.fold[DBIO[ProviderOwner]](
+      (ProviderOwnerTable.table returning ProviderOwnerTable.table) += providerOwner
+    ) { (providerOwnerId: Long) => for {
+      _ <- ProviderOwnerTable.table.update(providerOwner)
+      updated <- ProviderOwnerDAO.getProviderOwner(providerOwnerId)
+    } yield updated.get}
+
+  private[dao] def getProviderOwnerFromGracenote(
+    gracenoteProvider: GracenoteProvider,
+    country: Option[String]
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[ProviderOwner] = for {
+    exists <- ProviderOwnerDAO.getProviderOwnerForExt(
+      gracenoteProvider.mso.map(_.id).getOrElse(
+        gracenoteProvider.getName(country)
+      )
+    )
+    owner <- exists.fold[DBIO[ProviderOwner]](
+      (ProviderOwnerTable.table returning ProviderOwnerTable.table) += ProviderOwner(
+        providerOwnerId = None,
+        extProviderOwnerId = Some(gracenoteProvider.mso.get.id),
+        name = gracenoteProvider.getOwnerName,
+      )
+    )(DBIO.successful)
+  } yield owner
 }

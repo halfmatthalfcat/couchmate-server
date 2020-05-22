@@ -7,20 +7,27 @@ import com.couchmate.external.gracenote.models.GracenoteProgram
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class SportEventDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait SportEventDAO {
 
-  def getSportEvent(sportEventId: Long): Future[Option[SportEvent]] = {
+  def getSportEvent(sportEventId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[SportEvent]] = {
     db.run(SportEventDAO.getSportEvent(sportEventId).result.headOption)
   }
 
-  def getSportEventByNameAndOrg(name: String, orgId: Long): Future[Option[SportEvent]] = {
+  def getSportEventByNameAndOrg(name: String, orgId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[SportEvent]] = {
     db.run(SportEventDAO.getSportEventByNameAndOrg(name, orgId).result.headOption)
   }
 
-  def upsertSportEvent(sportEvent: SportEvent): Future[SportEvent] = db.run(
+  def upsertSportEvent(sportEvent: SportEvent)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[SportEvent] = db.run(
     sportEvent.sportEventId.fold[DBIO[SportEvent]](
       (SportEventTable.table returning SportEventTable.table) += sportEvent
     ) { (sportEventId: Long) => for {

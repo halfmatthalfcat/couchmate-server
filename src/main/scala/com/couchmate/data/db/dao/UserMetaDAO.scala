@@ -8,21 +8,28 @@ import com.couchmate.data.models.UserMeta
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class UserMetaDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait UserMetaDAO {
 
-  def getUserMeta(userId: UUID): Future[Option[UserMeta]] = {
+  def getUserMeta(userId: UUID)(
+    implicit
+    db: Database
+  ): Future[Option[UserMeta]] = {
     db.run(UserMetaDAO.getUserMeta(userId).result.headOption)
   }
 
-  def emailExists(email: String): Future[Boolean] = {
+  def emailExists(email: String)(
+    implicit
+    db: Database
+  ): Future[Boolean] = {
     db.run(UserMetaDAO.emailExists(email).result)
   }
 
-  def upsertUserMeta(userMeta: UserMeta) =
+  def upsertUserMeta(userMeta: UserMeta)(
+    implicit
+    db: Database
+  ) = {
     db.run((UserMetaTable.table returning UserMetaTable.table).insertOrUpdate(userMeta))
+  }
 
 }
 

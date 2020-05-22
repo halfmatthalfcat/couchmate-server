@@ -8,32 +8,47 @@ import com.couchmate.data.models.{Provider, UserProvider}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class UserProviderDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait UserProviderDAO {
 
-  def getUserProvider(userId: UUID): Future[Option[UserProvider]] = {
+  def getUserProvider(userId: UUID)(
+    implicit
+    db: Database
+  ): Future[Option[UserProvider]] = {
     db.run(UserProviderDAO.getUserProvider(userId).result.headOption)
   }
 
-  def getProviders(userId: UUID): Future[Seq[Provider]] = {
+  def getProviders(userId: UUID)(
+    implicit
+    db: Database
+  ): Future[Seq[Provider]] = {
     db.run(UserProviderDAO.getProviders(userId).result)
   }
 
-  def userProviderExists(providerId: Long, zipCode: String): Future[Boolean] = {
+  def userProviderExists(providerId: Long, zipCode: String)(
+    implicit
+    db: Database
+  ): Future[Boolean] = {
     db.run(UserProviderDAO.userProviderExists(providerId, zipCode).result)
   }
 
-  def getInternalProvidersUnique: Future[Seq[UserProvider]] = {
+  def getInternalProvidersUnique()(
+    implicit
+    db: Database
+  ): Future[Seq[UserProvider]] = {
     db.run(UserProviderDAO.getUniqueInternalProviders.result)
   }
 
-  def getProvidersUnique: Future[Seq[String]] = {
+  def getProvidersUnique()(
+    implicit
+    db: Database
+  ): Future[Seq[String]] = {
     db.run(UserProviderDAO.getUniqueProviders.result)
   }
 
-  def addUserProvider(userProvider: UserProvider): Future[UserProvider] = {
+  def addUserProvider(userProvider: UserProvider)(
+    implicit
+    db: Database
+  ): Future[UserProvider] = {
     db.run((UserProviderTable.table returning UserProviderTable.table) += userProvider)
   }
 

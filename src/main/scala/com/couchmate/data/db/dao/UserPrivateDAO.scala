@@ -8,17 +8,21 @@ import com.couchmate.data.models.UserPrivate
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class UserPrivateDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait UserPrivateDAO {
 
-  def getUserPrivate(userId: UUID): Future[Option[UserPrivate]] = {
+  def getUserPrivate(userId: UUID)(
+    implicit
+    db: Database
+  ): Future[Option[UserPrivate]] = {
     db.run(UserPrivateDAO.getUserPrivate(userId).result.headOption)
   }
 
-  def upsertUserPrivate(userPrivate: UserPrivate) =
+  def upsertUserPrivate(userPrivate: UserPrivate)(
+    implicit
+    db: Database
+  ) = {
     db.run((UserPrivateTable.table returning UserPrivateTable.table).insertOrUpdate(userPrivate))
+  }
 
 }
 

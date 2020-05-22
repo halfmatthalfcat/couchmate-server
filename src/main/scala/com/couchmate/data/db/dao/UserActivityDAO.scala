@@ -6,12 +6,12 @@ import com.couchmate.data.models.UserActivity
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class UserActivityDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait UserActivityDAO {
 
-  def addUserActivity(userActivity: UserActivity): Future[UserActivity] = {
+  def addUserActivity(userActivity: UserActivity)(
+    implicit
+    db: Database
+  ): Future[UserActivity] = {
     db.run((UserActivityTable.table returning UserActivityTable.table) += userActivity)
   }
 

@@ -6,7 +6,6 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.stream.scaladsl.{Sink, Source}
 import com.couchmate.api.models.grid.Grid
-import com.couchmate.data.db.CMDatabase
 import com.couchmate.external.gracenote.GracenoteService
 import com.couchmate.external.gracenote.provider.ProviderIngestor
 import com.couchmate.util.DateUtils

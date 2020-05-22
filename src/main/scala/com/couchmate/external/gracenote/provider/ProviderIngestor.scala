@@ -3,7 +3,6 @@ package com.couchmate.external.gracenote.provider
 import akka.NotUsed
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
-import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.models.Provider
 import com.couchmate.external.gracenote.GracenoteService
 import com.couchmate.external.gracenote.models.GracenoteProvider

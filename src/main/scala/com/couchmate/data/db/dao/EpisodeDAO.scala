@@ -1,5 +1,8 @@
 package com.couchmate.data.db.dao
 
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.{EpisodeTable, SeriesTable, ShowTable}
 import com.couchmate.data.models.{Episode, Series, Show}
@@ -8,29 +11,53 @@ import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class EpisodeDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait EpisodeDAO {
 
-  def getEpisode(episodeId: Long): Future[Option[Episode]] = {
-    db.run(EpisodeDAO.getEpisode(episodeId).result.headOption)
+  def getEpisode(episodeId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[Episode]] =
+    db.run(EpisodeDAO.getEpisode(episodeId))
+
+  def getEpisode$()(
+    implicit
+    session: SlickSession
+  ): Flow[Long, Option[Episode], NotUsed] =
+    Slick.flowWithPassThrough(EpisodeDAO.getEpisode)
+
+  def upsertEpisode(episode: Episode)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Episode] =
+    db.run(EpisodeDAO.upsertEpisode(episode))
+
+  def upsertEpisode$()(
+    implicit
+    ec: ExecutionContext,
+    session: SlickSession
+  ): Flow[Episode, Episode, NotUsed] =
+    Slick.flowWithPassThrough(EpisodeDAO.upsertEpisode)
+}
+
+object EpisodeDAO {
+  private[this] lazy val getEpisodeQuery = Compiled { (episodeId: Rep[Long]) =>
+    EpisodeTable.table.filter(_.episodeId === episodeId)
   }
 
-  def upsertEpisode(episode: Episode): Future[Episode] = db.run(
+  private[dao] def getEpisode(episodeId: Long): DBIO[Option[Episode]] =
+    getEpisodeQuery(episodeId).result.headOption
+
+  private[dao] def upsertEpisode(episode: Episode)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Episode] =
     episode.episodeId.fold[DBIO[Episode]](
       (EpisodeTable.table returning EpisodeTable.table) += episode
     ) { (episodeId: Long) => for {
       _ <- EpisodeTable.table.update(episode)
-      updated <- EpisodeDAO.getEpisode(episodeId).result.head
-    } yield updated}.transactionally
-  )
-}
-
-object EpisodeDAO {
-  private[dao] lazy val getEpisode = Compiled { (episodeId: Rep[Long]) =>
-    EpisodeTable.table.filter(_.episodeId === episodeId)
-  }
+      updated <- EpisodeDAO.getEpisode(episodeId)
+    } yield updated.get}
 
   private[dao] def getShowFromGracenoteEpisode(program: GracenoteProgram)(
     implicit

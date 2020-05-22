@@ -5,7 +5,6 @@ import com.couchmate.data.models.{CMError, UserMeta, UserPrivate, UserProvider, 
 import com.couchmate.api.models.User
 import com.couchmate.api.models.signup.SignupError.{EmailExists, UsernameExists}
 import com.couchmate.api.models.signup.{AnonSignup, EmailSignup, ValidateSignup}
-import com.couchmate.data.db.CMDatabase
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.github.t3hnar.bcrypt._
 import com.typesafe.config.Config

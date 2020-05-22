@@ -5,7 +5,6 @@ import java.time.{LocalDateTime, ZoneId}
 import akka.stream.FlowShape
 import akka.stream.scaladsl.{Broadcast, Flow, GraphDSL, Merge, Partition, Sink}
 import akka.{Done, NotUsed}
-import com.couchmate.data.db.CMDatabase
 import com.couchmate.data.models.{Lineup, Provider, ProviderChannel}
 import com.couchmate.external.gracenote.GracenoteService
 import com.couchmate.external.gracenote.models.{GracenoteAiring, GracenoteChannelAiring}

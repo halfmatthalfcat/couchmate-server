@@ -2,6 +2,9 @@ package com.couchmate.data.db.dao
 
 import java.time.LocalDateTime
 
+import akka.NotUsed
+import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
+import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ListingCacheTable
 import com.couchmate.data.models.ListingCache
@@ -10,33 +13,103 @@ import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class ListingCacheDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait ListingCacheDAO {
 
-  def getListingCache(providerCacheId: Long, startTime: LocalDateTime): Future[Option[ListingCache]] = {
-    db.run(ListingCacheDAO.getListingCache(providerCacheId, startTime).result.headOption)
+  def getListingCache(
+    providerCacheId: Long,
+    startTime: LocalDateTime
+  )(
+    implicit
+    db: Database
+  ): Future[Option[ListingCache]] =
+    db.run(ListingCacheDAO.getListingCache(providerCacheId, startTime))
+
+  def getListingCache$()(
+    implicit
+    session: SlickSession
+  ): Flow[(Long, LocalDateTime), Option[ListingCache], NotUsed] =
+    Slick.flowWithPassThrough(
+      (ListingCacheDAO.getListingCache _).tupled
+    )
+
+  def upsertListingCache(listingCache: ListingCache)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[ListingCache] =
+    db.run(ListingCacheDAO.upsertListingCache(listingCache))
+
+  def upsertListingCache$()(
+    implicit
+    ec: ExecutionContext,
+    session: SlickSession
+  ): Flow[ListingCache, ListingCache, NotUsed] =
+    Slick.flowWithPassThrough(ListingCacheDAO.upsertListingCache)
+
+  def getOrAddListingCache(
+    providerChannelId: Long,
+    startTime: LocalDateTime,
+    airings: Seq[GracenoteAiring]
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[ListingCache] =
+    db.run(ListingCacheDAO.getOrAddListingCache(
+      providerChannelId,
+      startTime,
+      airings
+    ))
+
+  def getOrAddListingCache$()(
+    implicit
+    ec: ExecutionContext,
+    session: SlickSession
+  ): Flow[(Long, LocalDateTime, Seq[GracenoteAiring]), ListingCache, NotUsed] =
+    Slick.flowWithPassThrough(
+      (ListingCacheDAO.getOrAddListingCache _).tupled
+    )
+
+}
+
+object ListingCacheDAO {
+  private[this] lazy val getListingCacheQuery= Compiled {
+    (providerChannelId: Rep[Long], startTime: Rep[LocalDateTime]) =>
+      ListingCacheTable.table.filter { lc =>
+        lc.providerChannelId === providerChannelId &&
+        lc.startTime === startTime
+      }
   }
 
-  def upsertListingCache(listingCache: ListingCache): Future[ListingCache] = db.run(
+  private[dao] def getListingCache(
+    providerCacheId: Long,
+    startTime: LocalDateTime
+  ): DBIO[Option[ListingCache]] =
+    getListingCacheQuery(providerCacheId, startTime).result.headOption
+
+  private[dao] def upsertListingCache(listingCache: ListingCache)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[ListingCache] =
     listingCache.listingCacheId.fold[DBIO[ListingCache]](
       (ListingCacheTable.table returning ListingCacheTable.table) += listingCache
     ) { (listingCacheId: Long) => for {
       _ <- ListingCacheTable.table.update(listingCache)
       updated <- ListingCacheDAO.getListingCache(listingCacheId, listingCache.startTime).result.head
-    } yield updated}.transactionally
-  )
+    } yield updated}
 
-  def getOrAddListingCache(
+  private[dao] def getOrAddListingCache(
     providerChannelId: Long,
     startTime: LocalDateTime,
-    airings: Seq[GracenoteAiring],
-  ): Future[ListingCache] = db.run((for {
+    airings: Seq[GracenoteAiring]
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[ListingCache] = for {
     exists <- ListingCacheDAO.getListingCache(
       providerChannelId,
       startTime,
-    ).result.headOption
+    )
     cache <- exists.fold[DBIO[ListingCache]](
       (ListingCacheTable.table returning ListingCacheTable.table) += ListingCache(
         listingCacheId = None,
@@ -45,16 +118,5 @@ class ListingCacheDAO(db: Database)(
         airings = airings,
       )
     )(DBIO.successful)
-  } yield cache).transactionally)
-
-}
-
-object ListingCacheDAO {
-  private[dao] lazy val getListingCache = Compiled {
-    (providerChannelId: Rep[Long], startTime: Rep[LocalDateTime]) =>
-      ListingCacheTable.table.filter { lc =>
-        lc.providerChannelId === providerChannelId &&
-        lc.startTime === startTime
-      }
-  }
+  } yield cache
 }

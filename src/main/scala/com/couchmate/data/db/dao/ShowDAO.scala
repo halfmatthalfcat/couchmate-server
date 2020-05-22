@@ -7,20 +7,27 @@ import com.couchmate.external.gracenote.models.GracenoteProgram
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class ShowDAO(db: Database)(
-  implicit
-  ec: ExecutionContext,
-) {
+trait ShowDAO {
 
-  def getShow(showId: Long): Future[Option[Show]] = {
+  def getShow(showId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[Show]] = {
     db.run(ShowDAO.getShow(showId).result.headOption)
   }
 
-  def getShowByExt(extId: Long): Future[Option[Show]] = {
+  def getShowByExt(extId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[Show]] = {
     db.run(ShowDAO.getShowByExt(extId).result.headOption)
   }
 
-  def upsertShow(show: Show): Future[Show] = db.run(
+  def upsertShow(show: Show)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Show] = db.run(
     show.showId.fold[DBIO[Show]](
       (ShowTable.table returning ShowTable.table) += show
     ) { (showId: Long) => for {
@@ -32,6 +39,10 @@ class ShowDAO(db: Database)(
   def getShowFromGracenoteProgram(
     program: GracenoteProgram,
     orgFn: (Long, Option[Long]) => Future[SportOrganization],
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext
   ): Future[Show] = db.run(
     ShowDAO.getShowFromGracenoteProgram(program, orgFn).transactionally
   )
