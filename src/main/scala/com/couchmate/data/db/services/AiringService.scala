@@ -19,46 +19,93 @@ object AiringService extends AiringDAO {
   val Group: ServiceKey[Command] =
     ServiceKey[Command]("airing-service")
 
-  sealed trait Command
+  sealed trait Command {
+    val senderRef: ActorRef[AiringResult]
+  }
+  sealed trait AiringResult
+  sealed trait AiringResultSuccess[T] extends AiringResult {
+    val result: T
+  }
+  sealed trait AiringResultFailure extends AiringResult {
+    val err: Throwable
+  }
+
   final case class GetAiring(
     airingId: UUID,
     senderRef: ActorRef[AiringResult]
   ) extends Command
+  final case class GetAiringSuccess(
+    result: Option[Airing]
+  ) extends AiringResultSuccess[Option[Airing]]
+  final case class GetAiringError(
+    err: Throwable
+  ) extends AiringResultFailure
+
   final case class GetAiringsByStart(
     startTime: LocalDateTime,
     senderRef: ActorRef[AiringResult]
   ) extends Command
+  final case class GetAiringsByStartSuccess(
+    result: Seq[Airing]
+  ) extends AiringResultSuccess[Seq[Airing]]
+  final case class GetAiringsByStartFailure(
+    err: Throwable
+  ) extends AiringResultFailure
+
   final case class GetAiringsByEnd(
     endTime: LocalDateTime,
     senderRef: ActorRef[AiringResult]
   ) extends Command
+  final case class GetAiringsByEndSuccess(
+    result: Seq[Airing]
+  ) extends AiringResultSuccess[Seq[Airing]]
+  final case class GetAiringsByEndFailure(
+    err: Throwable
+  ) extends AiringResultFailure
+
   final case class GetAiringsByStartAndDuration(
     startTime: LocalDateTime,
     duration: Int,
     senderRef: ActorRef[AiringResult]
   ) extends Command
+  final case class GetAiringsByStartAndDurationSuccess(
+    result: Seq[Airing]
+  ) extends AiringResultSuccess[Seq[Airing]]
+  final case class GetAiringsByStartAndDurationFailure(
+    err: Throwable
+  ) extends AiringResultFailure
+
   final case class UpsertAiring(
     airing: Airing,
     senderRef: ActorRef[AiringResult]
   ) extends Command
+  final case class UpsertAiringSuccess(
+    result: Airing
+  ) extends AiringResultSuccess[Airing]
+  final case class UpsertAiringFailure(
+    err: Throwable
+  ) extends AiringResultFailure
+
   final case class GetAiringFromGracenote(
     showId: Long,
     airing: GracenoteAiring,
     senderRef: ActorRef[AiringResult]
   ) extends Command
+  final case class GetAiringFromGracenoteSuccess(
+    result: Airing
+  ) extends AiringResultSuccess[Airing]
+  final case class GetAiringFromGracenoteFailure(
+    err: Throwable
+  ) extends AiringResultFailure
 
-  private case class InternalResult[T](
-    result: T,
-    actorRef: ActorRef[AiringResult]
+  private final case class InternalSuccess[T](
+    result: AiringResultSuccess[T],
+    senderRef: ActorRef[AiringResult]
   ) extends Command
-  private case class InternalError(
-    err: Throwable,
-    actorRef: ActorRef[AiringResult]
+  private final case class InternalFailure(
+    err: AiringResultFailure,
+    senderRef: ActorRef[AiringResult]
   ) extends Command
-
-  sealed trait AiringResult
-  final case class Result[T](result: T) extends AiringResult
-  final case class Error(err: Throwable) extends AiringResult
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     implicit val ec: ExecutionContext = ctx.executionContext
@@ -67,47 +114,47 @@ object AiringService extends AiringDAO {
     ctx.system.receptionist ! Receptionist.Register(Group, ctx.self)
 
     def run(): Behavior[Command] = Behaviors.receiveMessage {
-      case InternalResult(result, senderRef) =>
-        senderRef ! Result(result)
+      case InternalSuccess(result, senderRef) =>
+        senderRef ! result
         Behaviors.same
-      case InternalError(err, senderRef) =>
-        senderRef ! Error(err)
+      case InternalFailure(err, senderRef) =>
+        senderRef ! err
         Behaviors.same
 
       case GetAiring(airingId, senderRef) =>
         ctx.pipeToSelf(getAiring(airingId)) {
-          case Success(value) => InternalResult(value, senderRef)
-          case Failure(exception) => InternalError(exception, senderRef)
+          case Success(value) => InternalSuccess(GetAiringSuccess(value), senderRef)
+          case Failure(exception) => InternalFailure(GetAiringError(exception), senderRef)
         }
         Behaviors.same
       case GetAiringsByStart(startTime, senderRef) =>
         ctx.pipeToSelf(getAiringsByStart(startTime)) {
-          case Success(value) => InternalResult(value, senderRef)
-          case Failure(exception) => InternalError(exception, senderRef)
+          case Success(value) => InternalSuccess(GetAiringsByStartSuccess(value), senderRef)
+          case Failure(exception) => InternalFailure(GetAiringsByStartFailure(exception), senderRef)
         }
         Behaviors.same
       case GetAiringsByEnd(endTime, senderRef) =>
         ctx.pipeToSelf(getAiringsByEnd(endTime)) {
-          case Success(value) => InternalResult(value, senderRef)
-          case Failure(exception) => InternalError(exception, senderRef)
+          case Success(value) => InternalSuccess(GetAiringsByEndSuccess(value), senderRef)
+          case Failure(exception) => InternalFailure(GetAiringsByEndFailure(exception), senderRef)
         }
         Behaviors.same
       case GetAiringsByStartAndDuration(startTime, duration, senderRef) =>
         ctx.pipeToSelf(getAiringsByStartAndDuration(startTime, duration)) {
-          case Success(value) => InternalResult(value, senderRef)
-          case Failure(exception) => InternalError(exception, senderRef)
+          case Success(value) => InternalSuccess(GetAiringsByStartAndDurationSuccess(value), senderRef)
+          case Failure(exception) => InternalFailure(GetAiringsByStartAndDurationFailure(exception), senderRef)
         }
         Behaviors.same
       case UpsertAiring(airing, senderRef) =>
         ctx.pipeToSelf(upsertAiring(airing)) {
-          case Success(value) => InternalResult(value, senderRef)
-          case Failure(exception) => InternalError(exception, senderRef)
+          case Success(value) => InternalSuccess(UpsertAiringSuccess(value), senderRef)
+          case Failure(exception) => InternalFailure(UpsertAiringFailure(exception), senderRef)
         }
         Behaviors.same
       case GetAiringFromGracenote(showId, airing, senderRef) =>
         ctx.pipeToSelf(getAiringFromGracenote(showId, airing)) {
-          case Success(value) => InternalResult(value, senderRef)
-          case Failure(exception) => InternalError(exception, senderRef)
+          case Success(value) => InternalSuccess(GetAiringFromGracenoteSuccess(value), senderRef)
+          case Failure(exception) => InternalFailure(GetAiringFromGracenoteFailure(exception), senderRef)
         }
         Behaviors.same
     }
