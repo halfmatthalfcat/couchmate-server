@@ -1,8 +1,8 @@
 package com.couchmate.data.db.services
 
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
-import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.{Behaviors, PoolRouter, Routers}
+import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import com.couchmate.data.db.dao.LineupDAO
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.models.{Airing, Lineup, ProviderChannel}
@@ -134,4 +134,9 @@ object LineupService extends LineupDAO {
 
     run()
   }
+
+  def pool(size: Int): PoolRouter[Command] =
+    Routers.pool(size)(
+      Behaviors.supervise(apply()).onFailure[Exception](SupervisorStrategy.restart)
+    )
 }

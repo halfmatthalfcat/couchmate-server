@@ -3,8 +3,8 @@ package com.couchmate.data.db.services
 import java.time.LocalDateTime
 
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
-import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.{Behaviors, PoolRouter, Routers}
+import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import com.couchmate.api.models.grid.Grid
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.GridDAO
@@ -78,4 +78,8 @@ object GridService extends GridDAO {
     run()
   }
 
+  def pool(size: Int): PoolRouter[Command] =
+    Routers.pool(size)(
+      Behaviors.supervise(apply()).onFailure[Exception](SupervisorStrategy.restart)
+    )
 }
