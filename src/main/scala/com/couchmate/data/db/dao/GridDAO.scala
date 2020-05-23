@@ -9,12 +9,16 @@ import com.couchmate.util.DateUtils
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class GridDAO {
+trait GridDAO {
 
   def getGrid(
     providerId: Long,
     startTime: LocalDateTime,
     duration: Int,
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
   ): Future[Grid] = {
     val endTime: LocalDateTime = startTime.plusMinutes(duration)
     db.run(GridDAO.getGrid(

@@ -1,8 +1,8 @@
 package com.couchmate.data.db.services
 
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
-import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.scaladsl.{Behaviors, PoolRouter, Routers}
 import com.couchmate.data.models.Channel
 import com.couchmate.external.gracenote.models.GracenoteChannelAiring
 import com.couchmate.data.db.PgProfile.api._
@@ -121,4 +121,9 @@ object ChannelService extends ChannelDAO {
 
     run()
   }
+
+  def pool(size: Int): PoolRouter[Command] =
+    Routers.pool(size)(
+      Behaviors.supervise(apply()).onFailure[Exception](SupervisorStrategy.restart)
+    )
 }
