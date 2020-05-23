@@ -11,7 +11,7 @@ import com.couchmate.data.models.{RoomActivity, RoomActivityType}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class RoomActivityDAO {
+trait RoomActivityDAO {
 
   def getRoomCount(airingId: UUID)(
     implicit
