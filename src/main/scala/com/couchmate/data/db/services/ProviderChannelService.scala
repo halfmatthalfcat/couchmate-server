@@ -13,7 +13,7 @@ import scala.util.{Failure, Success}
 
 object ProviderChannelService extends ProviderChannelDAO {
   val Group: ServiceKey[Command] =
-    ServiceKey[Command]("TBD")
+    ServiceKey[Command]("provider-channel-service")
 
   sealed trait Command {
     val senderRef: ActorRef[ProviderChannelResult]

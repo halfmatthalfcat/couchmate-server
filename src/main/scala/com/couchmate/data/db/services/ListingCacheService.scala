@@ -15,7 +15,7 @@ import scala.util.{Failure, Success}
 
 object ListingCacheService extends ListingCacheDAO {
   val Group: ServiceKey[Command] =
-    ServiceKey[Command]("listing-cache")
+    ServiceKey[Command]("listing-cache-service")
 
   sealed trait Command {
     val senderRef: ActorRef[ListingCacheResult]
