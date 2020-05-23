@@ -12,7 +12,7 @@ import scala.util.{Failure, Success}
 
 object SportOrganizationService extends SportOrganizationDAO {
   val Group: ServiceKey[Command] =
-    ServiceKey[Command]("TBD")
+    ServiceKey[Command]("sport-organization-service")
 
   sealed trait Command {
     val senderRef: ActorRef[SportOrganizationResult]
