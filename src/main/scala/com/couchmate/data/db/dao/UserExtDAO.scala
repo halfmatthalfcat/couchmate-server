@@ -28,7 +28,8 @@ trait UserExtDAO {
   def upsertUserExt(userExt: UserExt)(
     implicit
     db: Database
-  ) = db.run(UserExtDAO.upsertUserExt(userExt))
+  ): Future[UserExt] =
+    db.run(UserExtDAO.upsertUserExt(userExt))
 
   def upsertUserExt$()(
     implicit
@@ -44,6 +45,6 @@ object UserExtDAO {
   private[dao] def getUserExt(userId: UUID): DBIO[Option[UserExt]] =
     getUserExtQuery(userId).result.headOption
 
-  private[dao] def upsertUserExt(userExt: UserExt) =
+  private[dao] def upsertUserExt(userExt: UserExt): DBIO[UserExt] =
     (UserExtTable.table returning UserExtTable.table).insertOrUpdate(userExt)
 }
