@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import akka.actor.typed.scaladsl.{Behaviors, PoolRouter, Routers}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
+import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.ListingCacheDAO
 import com.couchmate.data.models.ListingCache
@@ -76,7 +77,7 @@ object ListingCacheService extends ListingCacheDAO {
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     implicit val ec: ExecutionContext = ctx.executionContext
-    implicit lazy val db: Database = Database.forConfig("db")
+    implicit val db: Database = DatabaseExtension(ctx.system).db
 
     ctx.system.receptionist ! Receptionist.Register(Group, ctx.self)
 
