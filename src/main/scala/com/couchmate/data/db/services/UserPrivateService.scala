@@ -44,8 +44,8 @@ object UserPrivateService extends UserPrivateDAO {
     senderRef: ActorRef[UserPrivateResult]
   ) extends Command
   final case class UpsertUserPrivateSuccess(
-    result: UserPrivate
-  ) extends UserPrivateResultSuccess[UserPrivate]
+    result: Option[UserPrivate]
+  ) extends UserPrivateResultSuccess[Option[UserPrivate]]
   final case class UpsertUserPrivateFailure(
     err: Throwable
   ) extends UserPrivateResultFailure

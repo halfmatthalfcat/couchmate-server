@@ -64,6 +64,19 @@ object AiringService extends AiringDAO {
     err: Throwable
   ) extends AiringResultFailure
 
+  final case class GetAiringByShowStartAndEnd(
+    showId: Long,
+    startTime: LocalDateTime,
+    endTime: LocalDateTime,
+    senderRef: ActorRef[AiringResult]
+  ) extends Command
+  final case class GetAiringByShowStartAndEndSuccess(
+    result: Option[Airing]
+  ) extends AiringResultSuccess[Option[Airing]]
+  final case class GetAiringByShowStartAndEndFailure(
+    err: Throwable
+  ) extends AiringResultFailure
+
   final case class GetAiringsByStartAndDuration(
     startTime: LocalDateTime,
     duration: Int,
@@ -84,18 +97,6 @@ object AiringService extends AiringDAO {
     result: Airing
   ) extends AiringResultSuccess[Airing]
   final case class UpsertAiringFailure(
-    err: Throwable
-  ) extends AiringResultFailure
-
-  final case class GetAiringFromGracenote(
-    showId: Long,
-    airing: GracenoteAiring,
-    senderRef: ActorRef[AiringResult]
-  ) extends Command
-  final case class GetAiringFromGracenoteSuccess(
-    result: Airing
-  ) extends AiringResultSuccess[Airing]
-  final case class GetAiringFromGracenoteFailure(
     err: Throwable
   ) extends AiringResultFailure
 
@@ -140,6 +141,12 @@ object AiringService extends AiringDAO {
           case Failure(exception) => InternalFailure(GetAiringsByEndFailure(exception), senderRef)
         }
         Behaviors.same
+      case GetAiringByShowStartAndEnd(showId, startTime, endTime, senderRef) =>
+        ctx.pipeToSelf(getAiringByShowStartAndEnd(showId, startTime, endTime)) {
+          case Success(value) => InternalSuccess(GetAiringByShowStartAndEndSuccess(value), senderRef)
+          case Failure(exception) => InternalFailure(GetAiringByShowStartAndEndFailure(exception), senderRef)
+        }
+        Behaviors.same
       case GetAiringsByStartAndDuration(startTime, duration, senderRef) =>
         ctx.pipeToSelf(getAiringsByStartAndDuration(startTime, duration)) {
           case Success(value) => InternalSuccess(GetAiringsByStartAndDurationSuccess(value), senderRef)
@@ -150,12 +157,6 @@ object AiringService extends AiringDAO {
         ctx.pipeToSelf(upsertAiring(airing)) {
           case Success(value) => InternalSuccess(UpsertAiringSuccess(value), senderRef)
           case Failure(exception) => InternalFailure(UpsertAiringFailure(exception), senderRef)
-        }
-        Behaviors.same
-      case GetAiringFromGracenote(showId, airing, senderRef) =>
-        ctx.pipeToSelf(getAiringFromGracenote(showId, airing)) {
-          case Success(value) => InternalSuccess(GetAiringFromGracenoteSuccess(value), senderRef)
-          case Failure(exception) => InternalFailure(GetAiringFromGracenoteFailure(exception), senderRef)
         }
         Behaviors.same
     }

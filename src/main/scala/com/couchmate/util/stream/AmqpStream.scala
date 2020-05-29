@@ -11,7 +11,6 @@ import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.typed.scaladsl.{ActorSink, ActorSource}
 import akka.util.ByteString
 import com.couchmate.data.wire._
-import com.couchmate.util.AmqpProvider
 import com.rabbitmq.client.Envelope
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging

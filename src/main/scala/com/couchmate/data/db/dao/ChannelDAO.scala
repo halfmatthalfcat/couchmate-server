@@ -6,7 +6,6 @@ import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ChannelTable
 import com.couchmate.data.models.Channel
-import com.couchmate.external.gracenote.models.GracenoteChannelAiring
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -50,22 +49,6 @@ trait ChannelDAO {
     session: SlickSession
   ): Flow[Channel, Channel, NotUsed] =
     Slick.flowWithPassThrough(ChannelDAO.upsertChannel)
-
-  def getChannelFromGracenote(
-    channelAiring: GracenoteChannelAiring,
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Channel] =
-    db.run(ChannelDAO.getChannelFromGracenote(channelAiring))
-
-  def getChannelFromGracenote$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[GracenoteChannelAiring, Channel, NotUsed] =
-    Slick.flowWithPassThrough(ChannelDAO.getChannelFromGracenote)
 }
 
 object ChannelDAO {
@@ -93,21 +76,4 @@ object ChannelDAO {
       _ <- ChannelTable.table.update(channel)
       updated <- getChannel(channelId)
     } yield updated.get}
-
-  private[dao] def getChannelFromGracenote(
-    channelAiring: GracenoteChannelAiring
-  )(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[Channel] = for {
-    exists <- getChannelForExt(channelAiring.stationId)
-    channel <- exists.fold[DBIO[Channel]](
-      (ChannelTable.table returning ChannelTable.table) += Channel(
-        channelId = None,
-        channelAiring.stationId,
-        channelAiring.affiliateCallSign
-                     .getOrElse(channelAiring.callSign)
-      )
-    )(DBIO.successful)
-  } yield channel
 }

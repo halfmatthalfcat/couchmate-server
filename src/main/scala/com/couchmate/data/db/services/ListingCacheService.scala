@@ -9,7 +9,6 @@ import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.ListingCacheDAO
 import com.couchmate.data.models.ListingCache
-import com.couchmate.external.gracenote.models.GracenoteAiring
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -30,7 +29,7 @@ object ListingCacheService extends ListingCacheDAO {
   }
 
   final case class GetListingCache(
-    providerCacheId: Long,
+    providerChannelId: Long,
     startTime: LocalDateTime,
     senderRef: ActorRef[ListingCacheResult]
   ) extends Command
@@ -49,19 +48,6 @@ object ListingCacheService extends ListingCacheDAO {
     result: ListingCache
   ) extends ListingCacheResultSuccess[ListingCache]
   final case class UpsertListingCacheFailure(
-    err: Throwable
-  ) extends ListingCacheResultFailure
-
-  final case class GetOrAddListingCache(
-    providerChannelId: Long,
-    startTime: LocalDateTime,
-    airings: Seq[GracenoteAiring],
-    senderRef: ActorRef[ListingCacheResult]
-  ) extends Command
-  final case class GetOrAddListingCacheSuccess(
-    result: ListingCache
-  ) extends ListingCacheResultSuccess[ListingCache]
-  final case class GetOrAddListingCacheFailure(
     err: Throwable
   ) extends ListingCacheResultFailure
 
@@ -89,8 +75,8 @@ object ListingCacheService extends ListingCacheDAO {
         senderRef ! err
         Behaviors.same
 
-      case GetListingCache(providerCacheId, startTime, senderRef) =>
-        ctx.pipeToSelf(getListingCache(providerCacheId, startTime)) {
+      case GetListingCache(providerChannelId, startTime, senderRef) =>
+        ctx.pipeToSelf(getListingCache(providerChannelId, startTime)) {
           case Success(value) => InternalSuccess(GetListingCacheSuccess(value), senderRef)
           case Failure(exception) => InternalFailure(GetListingCacheFailure(exception), senderRef)
         }
@@ -99,12 +85,6 @@ object ListingCacheService extends ListingCacheDAO {
         ctx.pipeToSelf(upsertListingCache(listingCache)) {
           case Success(value) => InternalSuccess(UpsertListingCacheSuccess(value), senderRef)
           case Failure(exception) => InternalFailure(UpsertListingCacheFailure(exception), senderRef)
-        }
-        Behaviors.same
-      case GetOrAddListingCache(providerChannelId, startTime, airings, senderRef) =>
-        ctx.pipeToSelf(getOrAddListingCache(providerChannelId, startTime, airings)) {
-          case Success(value) => InternalSuccess(GetOrAddListingCacheSuccess(value), senderRef)
-          case Failure(exception) => InternalFailure(GetOrAddListingCacheFailure(exception), senderRef)
         }
         Behaviors.same
     }

@@ -44,8 +44,8 @@ object UserExtService extends UserExtDAO {
     senderRef: ActorRef[UserExtResult]
   ) extends Command
   final case class UpsertUserExtSuccess(
-    result: UserExt
-  ) extends UserExtResultSuccess[UserExt]
+    result: Option[UserExt]
+  ) extends UserExtResultSuccess[Option[UserExt]]
   final case class UpsertUserExtFailure(
     err: Throwable
   ) extends UserExtResultFailure

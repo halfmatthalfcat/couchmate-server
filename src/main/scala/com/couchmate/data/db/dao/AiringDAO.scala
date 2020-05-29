@@ -9,7 +9,6 @@ import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.AiringTable
 import com.couchmate.data.models.Airing
-import com.couchmate.external.gracenote.models.GracenoteAiring
 import slick.lifted.{Compiled, Rep}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -55,6 +54,20 @@ trait AiringDAO {
   ): Flow[LocalDateTime, Seq[Airing], NotUsed] =
     Slick.flowWithPassThrough(AiringDAO.getAiringsByEnd)
 
+  def getAiringByShowStartAndEnd(showId: Long, startTime: LocalDateTime, endTime: LocalDateTime)(
+    implicit
+    db: Database
+  ): Future[Option[Airing]] =
+    db.run(AiringDAO.getAiringByShowStartAndEnd(showId, startTime, endTime))
+
+  def getAiringByShowStartAndEnd$()(
+    implicit
+    session: SlickSession
+  ): Flow[(Long, LocalDateTime, LocalDateTime), Option[Airing], NotUsed] =
+    Slick.flowWithPassThrough(
+      (AiringDAO.getAiringByShowStartAndEnd _).tupled
+    )
+
   def getAiringsByStartAndDuration(startTime: LocalDateTime, duration: Int)(
     implicit
     db: Database
@@ -86,24 +99,6 @@ trait AiringDAO {
     session: SlickSession
   ): Flow[Airing, Airing, NotUsed] =
     Slick.flowWithPassThrough(AiringDAO.upsertAiring)
-
-  def getAiringFromGracenote(
-    showId: Long,
-    airing: GracenoteAiring,
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Airing] =
-    db.run(AiringDAO.getAiringFromGracenote(showId, airing))
-
-  def getAiringFromGracenote$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[(Long, GracenoteAiring), Airing, NotUsed] =
-    Slick.flowWithPassThrough((AiringDAO.getAiringFromGracenote _).tupled)
-
 }
 
 object AiringDAO {
@@ -171,27 +166,4 @@ object AiringDAO {
     _ <- AiringTable.table.update(airing)
     updated <- AiringDAO.getAiring(airingId)
   } yield updated.get}
-
-  private[dao] def getAiringFromGracenote(
-    showId: Long,
-    airing: GracenoteAiring
-  )(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[Airing] = for {
-    exists <- AiringDAO.getAiringByShowStartAndEnd(
-      showId,
-      airing.startTime,
-      airing.endTime,
-    )
-    airing <- exists.fold[DBIO[Airing]](
-      (AiringTable.table returning AiringTable.table) += Airing(
-        airingId = Some(UUID.randomUUID()),
-        showId = showId,
-        startTime = airing.startTime,
-        endTime = airing.endTime,
-        duration = airing.duration,
-      )
-    )(DBIO.successful)
-  } yield airing
 }

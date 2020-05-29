@@ -7,7 +7,6 @@ import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.ProviderDAO
 import com.couchmate.data.models.{Provider, ProviderOwner}
-import com.couchmate.external.gracenote.models.GracenoteProvider
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -61,19 +60,6 @@ object ProviderService extends ProviderDAO {
     err: Throwable
   ) extends ProviderResultFailure
 
-  final case class GetProviderFromGracenote(
-    provider: GracenoteProvider,
-    owner: ProviderOwner,
-    country: Option[String],
-    senderRef: ActorRef[ProviderResult]
-  ) extends Command
-  final case class GetProviderFromGracenoteSuccess(
-    result: Provider
-  ) extends ProviderResultSuccess[Provider]
-  final case class GetProviderFromGracenoteFailure(
-    err: Throwable
-  ) extends ProviderResultFailure
-
   private final case class InternalSuccess[T](
     result: ProviderResultSuccess[T],
     senderRef: ActorRef[ProviderResult]
@@ -114,12 +100,6 @@ object ProviderService extends ProviderDAO {
         ctx.pipeToSelf(upsertProvider(provider)) {
           case Success(value) => InternalSuccess(UpsertProviderSuccess(value), senderRef)
           case Failure(exception) => InternalFailure(UpsertProviderFailure(exception), senderRef)
-        }
-        Behaviors.same
-      case GetProviderFromGracenote(provider, owner, country, senderRef) =>
-        ctx.pipeToSelf(getProviderFromGracenote(provider, owner, country)) {
-          case Success(value) => InternalSuccess(GetProviderFromGracenoteSuccess(value), senderRef)
-          case Failure(exception) => InternalFailure(GetProviderFromGracenoteFailure(exception), senderRef)
         }
         Behaviors.same
     }

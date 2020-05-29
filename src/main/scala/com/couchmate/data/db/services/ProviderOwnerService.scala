@@ -7,7 +7,6 @@ import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.ProviderOwnerDAO
 import com.couchmate.data.models.ProviderOwner
-import com.couchmate.external.gracenote.models.GracenoteProvider
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -71,18 +70,6 @@ object ProviderOwnerService extends ProviderOwnerDAO {
     err: Throwable
   ) extends ProviderOwnerResultFailure
 
-  final case class GetProviderOwnerFromGracenote(
-    gracenoteProvider: GracenoteProvider,
-    country: Option[String],
-    senderRef: ActorRef[ProviderOwnerResult]
-  ) extends Command
-  final case class GetProviderOwnerFromGracenoteSuccess(
-    result: ProviderOwner
-  ) extends ProviderOwnerResultSuccess[ProviderOwner]
-  final case class GetProviderOwnerFromGracenoteFailure(
-    err: Throwable
-  ) extends ProviderOwnerResultFailure
-
   private final case class InternalSuccess[T](
       result: ProviderOwnerResultSuccess[T],
       senderRef: ActorRef[ProviderOwnerResult]
@@ -129,12 +116,6 @@ object ProviderOwnerService extends ProviderOwnerDAO {
         ctx.pipeToSelf(upsertProviderOwner(providerOwner)) {
           case Success(value) => InternalSuccess(UpsertProviderOwnerSuccess(value), senderRef)
           case Failure(exception) => InternalFailure(UpsertProviderOwnerFailure(exception), senderRef)
-        }
-        Behaviors.same
-      case GetProviderOwnerFromGracenote(gracenoteProvider, country, senderRef) =>
-        ctx.pipeToSelf(getProviderOwnerFromGracenote(gracenoteProvider, country)) {
-          case Success(value) => InternalSuccess(GetProviderOwnerFromGracenoteSuccess(value), senderRef)
-          case Failure(exception) => InternalFailure(GetProviderOwnerFromGracenoteFailure(exception), senderRef)
         }
         Behaviors.same
     }

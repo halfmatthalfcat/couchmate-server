@@ -6,7 +6,6 @@ import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ProviderChannelTable
 import com.couchmate.data.models.{Channel, ProviderChannel}
-import com.couchmate.external.gracenote.models.GracenoteChannelAiring
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -52,26 +51,6 @@ trait ProviderChannelDAO {
     session: SlickSession
   ): Flow[ProviderChannel, ProviderChannel, NotUsed] =
     Slick.flowWithPassThrough(ProviderChannelDAO.upsertProviderChannel)
-
-  def getProviderChannelFromGracenote(
-    channel: Channel,
-    channelAiring: GracenoteChannelAiring,
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[ProviderChannel] =
-    db.run(ProviderChannelDAO.getProviderChannelFromGracenote(channel, channelAiring))
-
-  def getProviderChannelFromGracenote$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[(Channel, GracenoteChannelAiring), ProviderChannel, NotUsed] =
-    Slick.flowWithPassThrough(
-      (ProviderChannelDAO.getProviderChannelFromGracenote _).tupled
-    )
-
 }
 
 object ProviderChannelDAO {
@@ -106,25 +85,4 @@ object ProviderChannelDAO {
       _ <- ProviderChannelTable.table.update(providerChannel)
       updated <- ProviderChannelDAO.getProviderChannel(providerChannelId)
     } yield updated.get}
-
-  private[dao] def getProviderChannelFromGracenote(
-    channel: Channel,
-    channelAiring: GracenoteChannelAiring
-  )(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[ProviderChannel] = for {
-    exists <- getProviderChannelForProviderAndChannel(
-      channelAiring.providerId.get,
-      channel.channelId.get,
-    )
-    pc <- exists.fold[DBIO[ProviderChannel]](
-      (ProviderChannelTable.table returning ProviderChannelTable.table) += ProviderChannel(
-        providerChannelId = None,
-        channelAiring.providerId.get,
-        channel.channelId.get,
-        channelAiring.channel,
-      )
-    )(DBIO.successful)
-  } yield pc
 }

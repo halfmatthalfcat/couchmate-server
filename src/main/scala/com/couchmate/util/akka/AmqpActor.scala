@@ -1,20 +1,14 @@
-package com.couchmate.util.stream
+package com.couchmate.util.akka
 
-/**
- * AMQP Actor
- * Handles all of the message routing and failure semantics
- * internally, letting the spawning (parent) actor assume it
- * will always reliably deliver messages
- */
-
-import akka.{Done, NotUsed}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
+import akka.stream.OverflowStrategy
 import akka.stream.alpakka.amqp.{AmqpCachedConnectionProvider, AmqpConnectionProvider, AmqpCredentials, AmqpDetailsConnectionProvider}
 import akka.stream.scaladsl.Sink
-import akka.stream.{CompletionStrategy, OverflowStrategy}
 import akka.stream.typed.scaladsl.ActorSource
+import akka.{Done, NotUsed}
 import com.couchmate.data.wire.{IncomingAmqpMessage, OutgoingAmqpMessage, Route}
+import com.couchmate.util.stream.AmqpStream
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging
 

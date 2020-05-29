@@ -6,7 +6,6 @@ import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ProviderOwnerTable
 import com.couchmate.data.models.ProviderOwner
-import com.couchmate.external.gracenote.models.GracenoteProvider
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -61,25 +60,6 @@ trait ProviderOwnerDAO {
     session: SlickSession
   ): Flow[ProviderOwner, ProviderOwner, NotUsed] =
     Slick.flowWithPassThrough(ProviderOwnerDAO.upsertProviderOwner)
-
-  def getProviderOwnerFromGracenote(
-    gracenoteProvider: GracenoteProvider,
-    country: Option[String],
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[ProviderOwner] =
-    db.run(ProviderOwnerDAO.getProviderOwnerFromGracenote(gracenoteProvider, country))
-
-  def getProviderOwnerFromGracenote$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[(GracenoteProvider, Option[String]), ProviderOwner, NotUsed] =
-    Slick.flowWithPassThrough(
-      (ProviderOwnerDAO.getProviderOwnerFromGracenote _).tupled
-    )
 }
 
 object ProviderOwnerDAO {
@@ -114,25 +94,4 @@ object ProviderOwnerDAO {
       _ <- ProviderOwnerTable.table.update(providerOwner)
       updated <- ProviderOwnerDAO.getProviderOwner(providerOwnerId)
     } yield updated.get}
-
-  private[dao] def getProviderOwnerFromGracenote(
-    gracenoteProvider: GracenoteProvider,
-    country: Option[String]
-  )(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[ProviderOwner] = for {
-    exists <- ProviderOwnerDAO.getProviderOwnerForExt(
-      gracenoteProvider.mso.map(_.id).getOrElse(
-        gracenoteProvider.getName(country)
-      )
-    )
-    owner <- exists.fold[DBIO[ProviderOwner]](
-      (ProviderOwnerTable.table returning ProviderOwnerTable.table) += ProviderOwner(
-        providerOwnerId = None,
-        extProviderOwnerId = Some(gracenoteProvider.mso.get.id),
-        name = gracenoteProvider.getOwnerName,
-      )
-    )(DBIO.successful)
-  } yield owner
 }

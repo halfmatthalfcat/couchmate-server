@@ -7,7 +7,6 @@ import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.ProviderChannelDAO
 import com.couchmate.data.models.{Channel, ProviderChannel}
-import com.couchmate.external.gracenote.models.GracenoteChannelAiring
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -61,18 +60,6 @@ object ProviderChannelService extends ProviderChannelDAO {
     err: Throwable
   ) extends ProviderChannelResultFailure
 
-  final case class GetProviderChannelFromGracenote(
-    channel: Channel,
-    channelAiring: GracenoteChannelAiring,
-    senderRef: ActorRef[ProviderChannelResult]
-  ) extends Command
-  final case class GetProviderChannelFromGracenoteSuccess(
-    result: ProviderChannel
-  ) extends ProviderChannelResultSuccess[ProviderChannel]
-  final case class GetProviderChannelFromGracenoteFailure(
-    err: Throwable
-  ) extends ProviderChannelResultFailure
-
   private final case class InternalSuccess[T](
     result: ProviderChannelResultSuccess[T],
     senderRef: ActorRef[ProviderChannelResult]
@@ -113,12 +100,6 @@ object ProviderChannelService extends ProviderChannelDAO {
         ctx.pipeToSelf(upsertProviderChannel(providerChannel)) {
           case Success(value) => InternalSuccess(UpsertProviderChannelSuccess(value), senderRef)
           case Failure(exception) => InternalFailure(UpsertProviderChannelFailure(exception), senderRef)
-        }
-        Behaviors.same
-      case GetProviderChannelFromGracenote(channel, channelAiring, senderRef) =>
-        ctx.pipeToSelf(getProviderChannelFromGracenote(channel, channelAiring)) {
-          case Success(value) => InternalSuccess(GetProviderChannelFromGracenoteSuccess(value), senderRef)
-          case Failure(exception) => InternalFailure(GetProviderChannelFromGracenoteFailure(exception), senderRef)
         }
         Behaviors.same
     }

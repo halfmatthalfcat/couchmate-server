@@ -7,7 +7,6 @@ import akka.actor.{ActorSystem => ClassicActorSystem}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import com.couchmate.Server
-import com.couchmate.util.AmqpProvider
 import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsRoute._
 
@@ -21,7 +20,7 @@ class ApiServer(
   implicit
   val system: ActorSystem[Nothing],
   val ec: ExecutionContext,
-  val ctx: ActorContext[Server.Command],
+  val context: ActorContext[Server.Command],
 ) extends Routes
   with ApiMetrics {
   private[this] implicit val actorSystem: ClassicActorSystem =
@@ -47,7 +46,7 @@ object ApiServer {
     implicit
     system: ActorSystem[Nothing],
     ec: ExecutionContext,
-    ctx: ActorContext[Server.Command],
+    context: ActorContext[Server.Command],
   ): Future[Http.ServerBinding] = new ApiServer(
     host,
     port,

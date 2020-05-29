@@ -5,7 +5,6 @@ import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import akka.actor.typed.scaladsl.{Behaviors, PoolRouter, Routers}
 import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.models.Channel
-import com.couchmate.external.gracenote.models.GracenoteChannelAiring
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.ChannelDAO
 
@@ -60,17 +59,6 @@ object ChannelService extends ChannelDAO {
     err: Throwable
   ) extends ChannelResultFailure
 
-  final case class GetChannelFromGracenote(
-    channelAiring: GracenoteChannelAiring,
-    senderRef: ActorRef[ChannelResult]
-  ) extends Command
-  final case class GetChannelFromGracenoteSuccess(
-    result: Channel
-  ) extends ChannelResultSuccess[Channel]
-  final case class GetChannelFromGracenoteFailure(
-    err: Throwable
-  ) extends ChannelResultFailure
-
   private final case class InternalSuccess[T](
     result: ChannelResultSuccess[T],
     senderRef: ActorRef[ChannelResult]
@@ -110,12 +98,6 @@ object ChannelService extends ChannelDAO {
         ctx.pipeToSelf(upsertChannel(channel)) {
           case Success(value) => InternalSuccess(UpsertChannelSuccess(value), senderRef)
           case Failure(exception) => InternalFailure(UpsertChannelFailure(exception), senderRef)
-        }
-        Behaviors.same
-      case GetChannelFromGracenote(channelAiring, senderRef) =>
-        ctx.pipeToSelf(getChannelFromGracenote(channelAiring)) {
-          case Success(value) => InternalSuccess(GetChannelFromGracenoteSuccess(value), senderRef)
-          case Failure(exception) => InternalFailure(GetChannelFromGracenoteFailure(exception), senderRef)
         }
         Behaviors.same
     }

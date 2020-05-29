@@ -8,7 +8,6 @@ import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ListingCacheTable
 import com.couchmate.data.models.ListingCache
-import com.couchmate.external.gracenote.models.GracenoteAiring
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -16,13 +15,13 @@ import scala.concurrent.{ExecutionContext, Future}
 trait ListingCacheDAO {
 
   def getListingCache(
-    providerCacheId: Long,
+    providerChannelId: Long,
     startTime: LocalDateTime
   )(
     implicit
     db: Database
   ): Future[Option[ListingCache]] =
-    db.run(ListingCacheDAO.getListingCache(providerCacheId, startTime))
+    db.run(ListingCacheDAO.getListingCache(providerChannelId, startTime))
 
   def getListingCache$()(
     implicit
@@ -45,31 +44,6 @@ trait ListingCacheDAO {
     session: SlickSession
   ): Flow[ListingCache, ListingCache, NotUsed] =
     Slick.flowWithPassThrough(ListingCacheDAO.upsertListingCache)
-
-  def getOrAddListingCache(
-    providerChannelId: Long,
-    startTime: LocalDateTime,
-    airings: Seq[GracenoteAiring]
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[ListingCache] =
-    db.run(ListingCacheDAO.getOrAddListingCache(
-      providerChannelId,
-      startTime,
-      airings
-    ))
-
-  def getOrAddListingCache$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[(Long, LocalDateTime, Seq[GracenoteAiring]), ListingCache, NotUsed] =
-    Slick.flowWithPassThrough(
-      (ListingCacheDAO.getOrAddListingCache _).tupled
-    )
-
 }
 
 object ListingCacheDAO {
@@ -95,28 +69,6 @@ object ListingCacheDAO {
       (ListingCacheTable.table returning ListingCacheTable.table) += listingCache
     ) { (listingCacheId: Long) => for {
       _ <- ListingCacheTable.table.update(listingCache)
-      updated <- ListingCacheDAO.getListingCache(listingCacheId, listingCache.startTime).result.head
-    } yield updated}
-
-  private[dao] def getOrAddListingCache(
-    providerChannelId: Long,
-    startTime: LocalDateTime,
-    airings: Seq[GracenoteAiring]
-  )(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[ListingCache] = for {
-    exists <- ListingCacheDAO.getListingCache(
-      providerChannelId,
-      startTime,
-    )
-    cache <- exists.fold[DBIO[ListingCache]](
-      (ListingCacheTable.table returning ListingCacheTable.table) += ListingCache(
-        listingCacheId = None,
-        providerChannelId = providerChannelId,
-        startTime = startTime,
-        airings = airings,
-      )
-    )(DBIO.successful)
-  } yield cache
+      updated <- ListingCacheDAO.getListingCache(listingCacheId, listingCache.startTime)
+    } yield updated.get}
 }

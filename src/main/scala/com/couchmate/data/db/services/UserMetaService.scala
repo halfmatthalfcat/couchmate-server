@@ -55,8 +55,8 @@ object UserMetaService extends UserMetaDAO {
     senderRef: ActorRef[UserMetaResult]
   ) extends Command
   final case class UpsertUserMetaSuccess(
-    result: UserMeta
-  ) extends UserMetaResultSuccess[UserMeta]
+    result: Option[UserMeta]
+  ) extends UserMetaResultSuccess[Option[UserMeta]]
   final case class UpsertUserMetaFailure(
     err: Throwable
   ) extends UserMetaResultFailure

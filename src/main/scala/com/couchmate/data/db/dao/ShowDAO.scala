@@ -7,7 +7,6 @@ import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.SportEventDAO.GetSportOrgFn
 import com.couchmate.data.db.table.ShowTable
 import com.couchmate.data.models.{Show, SportOrganization}
-import com.couchmate.external.gracenote.models.GracenoteProgram
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -50,26 +49,6 @@ trait ShowDAO {
     session: SlickSession
   ): Flow[Show, Show, NotUsed] =
     Slick.flowWithPassThrough(ShowDAO.upsertShow)
-
-  def getShowFromGracenoteProgram(
-    program: GracenoteProgram,
-    orgFn: (Long, Option[Long]) => Future[SportOrganization],
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Show] = db.run(
-    ShowDAO.getShowFromGracenoteProgram(program, orgFn).transactionally
-  )
-
-  def getShowFromGracenoteProgram$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[(GracenoteProgram, GetSportOrgFn), Show, NotUsed] =
-    Slick.flowWithPassThrough(
-      (ShowDAO.getShowFromGracenoteProgram _).tupled
-    )
 }
 
 object ShowDAO {
@@ -97,38 +76,4 @@ object ShowDAO {
       _ <- ShowTable.table.update(show)
       updated <- ShowDAO.getShow(showId)
     } yield updated.get}
-
-  private[dao] def getShowFromGracenoteProgram(
-    program: GracenoteProgram,
-    orgFn: GetSportOrgFn,
-  )(
-    implicit
-    ec: ExecutionContext,
-  ): DBIO[Show] = for {
-    exists <- getShowByExt(program.rootId)
-    show <- exists.fold(
-      if (program.isSport) {
-        SportEventDAO.getShowFromGracenoteSport(
-          program,
-          orgFn,
-        )
-      } else if (program.isSeries) {
-        EpisodeDAO.getShowFromGracenoteEpisode(program)
-      } else {
-        (ShowTable.table returning ShowTable.table) += Show(
-          showId = None,
-          extId = program.rootId,
-          `type` = "show",
-          episodeId = None,
-          sportEventId = None,
-          title = program.title,
-          description = program
-            .shortDescription
-            .orElse(program.longDescription)
-            .getOrElse("N/A"),
-          originalAirDate = program.origAirDate
-        )
-      }
-    )(DBIO.successful)
-  } yield show
 }

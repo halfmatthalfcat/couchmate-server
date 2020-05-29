@@ -1,5 +1,7 @@
 package com.couchmate.data.db.services
 
+import java.util.UUID
+
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import akka.actor.typed.scaladsl.{Behaviors, PoolRouter, Routers}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
@@ -7,7 +9,6 @@ import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.dao.LineupDAO
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.models.{Airing, Lineup, ProviderChannel}
-import com.couchmate.external.gracenote.models.GracenoteAiring
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -60,27 +61,15 @@ object LineupService extends LineupDAO {
     err: Throwable
   ) extends LineupResultFailure
 
-  final case class GetLineupFromGracenote(
-    providerChannel: ProviderChannel,
-    airing: Airing,
+  final case class GetLineupForProviderChannelAndAiring(
+    providerChannelId: Long,
+    airingId: UUID,
     senderRef: ActorRef[LineupResult]
   ) extends Command
-  final case class GetLineupFromGracenoteSuccess(
-    result: Lineup
-  ) extends LineupResultSuccess[Lineup]
-  final case class GetLineupFromGracenoteFailure(
-    err: Throwable
-  ) extends LineupResultFailure
-
-  final case class DisableFromGracenote(
-    providerChannel: ProviderChannel,
-    gnAiring: GracenoteAiring,
-    senderRef: ActorRef[LineupResult]
-  ) extends Command
-  final case class DisableFromGracenoteSuccess(
-    result: Unit
-  ) extends LineupResultSuccess[Unit]
-  final case class DisableFromGracenoteFailure(
+  final case class GetLineupForProviderChannelAndAiringSuccess(
+    result: Option[Lineup]
+  ) extends LineupResultSuccess[Option[Lineup]]
+  final case class GetLineupForProviderChannelAndAiringFailure(
     err: Throwable
   ) extends LineupResultFailure
 
@@ -123,12 +112,6 @@ object LineupService extends LineupDAO {
         ctx.pipeToSelf(upsertLineup(lineup)) {
           case Success(value) => InternalSuccess(UpsertLineupSuccess(value), senderRef)
           case Failure(exception) => InternalFailure(UpsertLineupFailure(exception), senderRef)
-        }
-        Behaviors.same
-      case GetLineupFromGracenote(providerChannel, airing, senderRef) =>
-        ctx.pipeToSelf(getLineupFromGracenote(providerChannel, airing)) {
-          case Success(value) => InternalSuccess(GetLineupFromGracenoteSuccess(value), senderRef)
-          case Failure(exception) => InternalFailure(GetLineupFromGracenoteFailure(exception), senderRef)
         }
         Behaviors.same
     }
