@@ -84,15 +84,14 @@ object Server {
     val config: Config =
       ConfigFactory.load()
 
-    val system: ActorSystem[Nothing] =
-      ActorSystem(
-        Server(
-          "0.0.0.0",
-          8080,
-          config,
-        ),
-        "couchmate",
-      )
+    ActorSystem(
+      Server(
+        "0.0.0.0",
+        8080,
+        config,
+      ),
+      "couchmate",
+    )
   }
 
 }

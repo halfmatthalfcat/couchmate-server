@@ -17,13 +17,13 @@ object WSClient extends AkkaUtils {
       case SocketConnected(actorRef) =>
         Behaviors.receiveMessage(compose(
           internal(ctx),
-          new Connected(ctx, actorRef).run()
+          new Connected(ctx, actorRef).run
         ))
       case _ => Behaviors.ignore
     }
   }
 
-  def internal(ctx: ActorContext[Command]): PartialFunction[Command, Behavior[Command]] = {
+  def internal(ctx: ActorContext[Command]): PartialCommand = {
     case Closed | Complete =>
       ctx.log.debug("Connecting closing")
       Behaviors.stopped

@@ -3,10 +3,10 @@ package com.couchmate.external.gracenote.listing
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import com.couchmate.data.db.PgProfile.api._
-import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.dao.{AiringDAO, LineupDAO, ShowDAO}
 import com.couchmate.data.models.{Airing, Lineup, ProviderChannel, Show}
 import com.couchmate.external.gracenote.models.GracenoteAiring
+import com.couchmate.util.akka.extensions.DatabaseExtension
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}

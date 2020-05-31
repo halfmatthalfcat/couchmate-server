@@ -9,6 +9,7 @@ import akka.http.scaladsl.server.Route
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.couchmate.Server
 import com.couchmate.api.ws.WSClient
+import com.couchmate.api.ws.protocol.Protocol
 import com.couchmate.util.akka.WSActor
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
@@ -37,12 +38,13 @@ trait Routes
       },
       path("ws") {
         handleWebSocketMessages(
-          WSActor(
+          WSActor[Command, Protocol](
             WSClient(),
             SocketConnected,
-            Incoming,
             Complete,
             ConnFailure,
+            { p: Protocol => Incoming(p) },
+            { case Outgoing(p) => p }
           )
         )
       }

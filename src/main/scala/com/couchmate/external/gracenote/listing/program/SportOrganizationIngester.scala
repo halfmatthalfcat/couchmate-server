@@ -6,12 +6,12 @@ import akka.http.scaladsl.model.ResponseEntity
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.Materializer
-import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.SportOrganizationDAO
 import com.couchmate.data.models.SportOrganization
 import com.couchmate.external.gracenote.makeGracenoteRequest
 import com.couchmate.external.gracenote.models.{GracenoteAiring, GracenoteSportOrganization, GracenoteSportResponse}
+import com.couchmate.util.akka.extensions.DatabaseExtension
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 

@@ -1,5 +1,6 @@
 package com.couchmate.external.gracenote.models
 
+import com.couchmate.data.models.CountryCode
 import play.api.libs.json.{Json, OFormat}
 
 case class GracenoteProvider(
@@ -20,11 +21,11 @@ case class GracenoteProvider(
     }
   }
 
-  def getName(country: Option[String]): String = {
+  def getName(countryCode: CountryCode): String = {
     if (
       location != "None" &&
       location.isDefined &&
-      country.getOrElse("") != location.getOrElse("")
+      countryCode.entryName != location.getOrElse("")
     ) {
       if (name.toLowerCase.contains("digital")) {
         s"${cleanName(name)} Digital (${location.get})"

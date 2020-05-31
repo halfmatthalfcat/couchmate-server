@@ -4,35 +4,32 @@ package com.couchmate.api
  * WS Protocol
  */
 
-import akka.actor.typed.ActorRef
-import com.couchmate.data.wire.{IncomingWireMessage, OutgoingWSMessage, OutgoingWireMessage}
+import akka.actor.typed.{ActorRef, Behavior}
+import com.couchmate.api.ws.protocol.Protocol
 
 package object ws {
   sealed trait Command
-  case class SocketConnected(actorRef: ActorRef[OutgoingWSMessage]) extends Command
+  type PartialCommand = PartialFunction[Command, Behavior[Command]]
+
+  case class SocketConnected(actorRef: ActorRef[Command]) extends Command
 
   /**
    * Common Commands
    */
 
-  sealed trait Common extends Command
-
-  case class Incoming(message: IncomingWireMessage) extends Common
-  case class Outgoing(message: OutgoingWireMessage) extends Common
+  case class Incoming(message: Protocol) extends Command
+  case class Outgoing(message: Protocol) extends Command
 
   /**
    * Internal Commands
    */
-  sealed trait Internal extends Command
 
-  case object Closed                      extends Internal
-  case object Complete                    extends Internal
-  case class  ConnFailure(ex: Throwable)  extends Internal
-  case class  Failed(ex: Throwable)       extends Internal
+  case object Closed                      extends Command
+  case object Complete                    extends Command
+  case class  ConnFailure(ex: Throwable)  extends Command
+  case class  Failed(ex: Throwable)       extends Command
 
   /**
    * Initialized Commands
    */
-
-  sealed trait Initialized extends Common
 }

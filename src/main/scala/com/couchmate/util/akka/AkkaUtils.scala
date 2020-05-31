@@ -11,4 +11,6 @@ trait AkkaUtils {
       case Seq(head, tail @ _*) => head.applyOrElse(command, compose(tail: _*))
     }
 
+  def chain[T](behaviors: PartialFunction[T, Behavior[T]]*): PartialFunction[T, Behavior[T]] =
+    behaviors.fold(PartialFunction.empty)(_ orElse _)
 }

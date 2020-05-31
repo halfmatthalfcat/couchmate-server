@@ -7,7 +7,8 @@ import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.{UserExtTable, UserMetaTable, UserTable}
-import com.couchmate.data.models.{User, UserExtType}
+import com.couchmate.data.models.{User, UserExtType, UserMeta, UserPrivate, UserProvider, UserRole}
+import com.github.t3hnar.bcrypt._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -64,6 +65,34 @@ trait UserDAO {
     session: SlickSession
   ): Flow[User, User, NotUsed] =
     Slick.flowWithPassThrough(UserDAO.upsertUser)
+
+  def createEmailAccount(
+    email: String,
+    username: String,
+    password: String,
+    zipCode: String,
+    providerId: Long,
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[User] =
+    db.run(UserDAO.createEmailAccount(
+      email,
+      username,
+      password,
+      zipCode,
+      providerId
+    ))
+
+  def createEmailAccount$()(
+    implicit
+    session: SlickSession,
+    ec: ExecutionContext
+  ): Flow[(String, String, String, String, Long), User, NotUsed] =
+    Slick.flowWithPassThrough(
+      (UserDAO.createEmailAccount _).tupled
+    )
 
   def usernameExists(username: String)(
     implicit
@@ -133,4 +162,37 @@ object UserDAO {
       _ <- UserTable.table.update(user)
       updated <- UserDAO.getUser(userId)
     } yield updated.get}
+
+  private[dao] def createEmailAccount(
+    email: String,
+    username: String,
+    password: String,
+    zipCode: String,
+    providerId: Long,
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[User] = (for {
+    user <- upsertUser(User(
+      userId = None,
+      username = username,
+      active = true,
+      verified = false,
+      role = UserRole.Registered
+    ))
+    _ <- UserMetaDAO.upsertUserMeta(UserMeta(
+      userId = user.userId.get,
+      email = email
+    ))
+    hashedPw <- DBIO.from(Future.fromTry(password.bcryptSafe(10)))
+    _ <- UserPrivateDAO.upsertUserPrivate(UserPrivate(
+      userId = user.userId.get,
+      password = hashedPw
+    ))
+    _ <- UserProviderDAO.addUserProvider(UserProvider(
+      userId = user.userId.get,
+      zipCode = zipCode,
+      providerId = providerId
+    ))
+  } yield user).transactionally
  }

@@ -4,11 +4,11 @@ import java.time.LocalDateTime
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
-import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.{ChannelDAO, ListingCacheDAO, ProviderChannelDAO, ProviderDAO}
 import com.couchmate.data.models.{Channel, ListingCache, ProviderChannel}
 import com.couchmate.external.gracenote.models.{GracenoteAiring, GracenoteChannelAiring}
+import com.couchmate.util.akka.extensions.DatabaseExtension
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}

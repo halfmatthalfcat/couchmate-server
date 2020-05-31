@@ -4,13 +4,12 @@ import java.util.UUID
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
-import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.{AiringDAO, LineupDAO}
-import com.couchmate.data.db.services.DataServices
 import com.couchmate.data.models.{Airing, Lineup, ProviderChannel, Show}
 import com.couchmate.external.gracenote.listing.program.{EpisodeIngester, ShowIngester, SportIngester}
 import com.couchmate.external.gracenote.models.GracenoteAiring
+import com.couchmate.util.akka.extensions.DatabaseExtension
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}

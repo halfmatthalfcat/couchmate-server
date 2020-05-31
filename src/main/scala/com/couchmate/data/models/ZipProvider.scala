@@ -1,12 +1,13 @@
 package com.couchmate.data.models
 
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.json.{Json, Format}
 
 case class ZipProvider(
   zipCode: String,
+  countryCode: CountryCode,
   providerId: Long,
-) extends Product with Serializable
+)
 
 object ZipProvider extends JsonConfig {
-  implicit val format: OFormat[ZipProvider] = Json.format[ZipProvider]
+  implicit val format: Format[ZipProvider] = Json.format[ZipProvider]
 }

@@ -49,6 +49,7 @@ trait PgProfile
     implicit val userActivityTypeMapper = enumMappedColumn(UserActivityType)
     implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
     implicit val gnProgramTypeMapper = enumMappedColumn(GracenoteProgramType)
+    implicit val countryCodeTypeMapper = enumMappedColumn(CountryCode)
 
     implicit val playJsonArrayTypeMapper =
       new AdvancedArrayJdbcType[JsValue](

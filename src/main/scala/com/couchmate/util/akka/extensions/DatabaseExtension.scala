@@ -1,9 +1,10 @@
-package com.couchmate.data.db
+package com.couchmate.util.akka.extensions
 
 import akka.Done
 import akka.actor.CoordinatedShutdown
 import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
 import akka.stream.alpakka.slick.scaladsl.SlickSession
+import com.couchmate.data.db.PgProfile
 import com.couchmate.data.db.PgProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}

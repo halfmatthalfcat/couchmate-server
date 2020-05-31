@@ -60,6 +60,20 @@ trait ProviderOwnerDAO {
     session: SlickSession
   ): Flow[ProviderOwner, ProviderOwner, NotUsed] =
     Slick.flowWithPassThrough(ProviderOwnerDAO.upsertProviderOwner)
+
+  def getOrAddProviderOwner(providerOwner: ProviderOwner)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[ProviderOwner] =
+    db.run(ProviderOwnerDAO.getOrAddProviderOwner(providerOwner))
+
+  def getOrAddProviderOwner$()(
+    implicit
+    ec: ExecutionContext,
+    session: SlickSession
+  ): Flow[ProviderOwner, ProviderOwner, NotUsed] =
+    Slick.flowWithPassThrough(ProviderOwnerDAO.getOrAddProviderOwner)
 }
 
 object ProviderOwnerDAO {
@@ -94,4 +108,18 @@ object ProviderOwnerDAO {
       _ <- ProviderOwnerTable.table.update(providerOwner)
       updated <- ProviderOwnerDAO.getProviderOwner(providerOwnerId)
     } yield updated.get}
+
+  private[dao] def getOrAddProviderOwner(providerOwner: ProviderOwner)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[ProviderOwner] = (providerOwner match {
+    case ProviderOwner(Some(providerOwnerId), _, _) =>
+      getProviderOwnerQuery(providerOwnerId).result.head
+    case ProviderOwner(None, Some(extProviderOwnerId), _) => for {
+      exists <- getProviderOwnerForExt(extProviderOwnerId)
+      po <- exists.fold(upsertProviderOwner(providerOwner))(DBIO.successful)
+    } yield po
+    case _ =>
+      (ProviderOwnerTable.table returning ProviderOwnerTable.table) += providerOwner
+  }).transactionally
 }

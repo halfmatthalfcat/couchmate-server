@@ -2,12 +2,11 @@ package com.couchmate.external.gracenote.listing.program
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
-import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.ShowDAO
-import com.couchmate.data.db.services.DataServices
 import com.couchmate.data.models.{Show, SportEvent, SportOrganization}
 import com.couchmate.external.gracenote.models.GracenoteAiring
+import com.couchmate.util.akka.extensions.DatabaseExtension
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
 import scala.concurrent.ExecutionContext

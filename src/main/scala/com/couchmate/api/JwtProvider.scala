@@ -6,7 +6,7 @@ import java.util.{Date, UUID}
 import com.nimbusds.jose.{JOSEException, JWSAlgorithm, JWSHeader}
 import com.nimbusds.jose.crypto.{MACSigner, MACVerifier}
 import com.nimbusds.jwt.{JWTClaimsSet, SignedJWT}
-import com.typesafe.config.Config
+import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.util.{Failure, Success, Try}
 
@@ -18,19 +18,20 @@ object JwtProvider {
 trait JwtProvider {
   import JwtProvider._
 
-  val config: Config
+  private[this] lazy val config: Config =
+    ConfigFactory.load()
 
-  private[this] val secret =
+  private[this] lazy val secret =
     config.getString("jwt.secret")
-  private[this] val issuer =
+  private[this] lazy val issuer =
     config.getString("jwt.issuer")
-  private[this] val expiry =
+  private[this] lazy val expiry =
     config.getDuration("jwt.expiry")
 
-  private[this] val signer: MACSigner =
+  private[this] lazy val signer: MACSigner =
     new MACSigner(this.secret)
 
-  private[this] val verifier: MACVerifier =
+  private[this] lazy val verifier: MACVerifier =
     new MACVerifier(this.secret)
 
   def create(
@@ -74,7 +75,8 @@ trait JwtProvider {
         .getExpirationTime
         .after(
           Date.from(
-            LocalDateTime.now(ZoneId.of("UTC")).toInstant(ZoneOffset.UTC)
+            LocalDateTime.now(ZoneId.of("UTC"))
+                         .toInstant(ZoneOffset.UTC)
           )
         )
 

@@ -5,28 +5,25 @@ import java.time.{LocalDateTime, ZoneId}
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
-import akka.http.scaladsl.model.ResponseEntity
+import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.Materializer
-import com.couchmate.api.models.grid.Grid
-import com.couchmate.data.db.DatabaseExtension
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.{GridDAO, ProviderDAO}
 import com.couchmate.data.models.Provider
 import com.couchmate.external.gracenote._
-import com.couchmate.external.gracenote.models.{GracenoteAiring, GracenoteChannelAiring}
+import com.couchmate.external.gracenote.models.GracenoteChannelAiring
 import com.couchmate.util.DateUtils
+import com.couchmate.util.akka.extensions.DatabaseExtension
 import com.typesafe.config.{Config, ConfigFactory}
-import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 object ListingJob
-  extends LazyLogging
-  with PlayJsonSupport
+  extends PlayJsonSupport
   with GridDAO
   with ProviderDAO {
   sealed trait Command
@@ -64,7 +61,7 @@ object ListingJob
     initiate: ActorRef[Command],
     parent: ActorRef[Command],
   ): Behavior[Command] = Behaviors.setup { ctx =>
-    logger.debug(s"Starting job $providerId")
+    ctx.log.debug(s"Starting job $providerId")
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val mat: Materializer = Materializer(ctx)
     implicit val db: Database = DatabaseExtension(ctx.system).db
@@ -164,7 +161,8 @@ object ListingJob
             )
           )
         ))
-        channelAirings <- Unmarshal(response.entity).to[Seq[GracenoteChannelAiring]]
+        decoded = Gzip.decodeMessage(response)
+        channelAirings <- Unmarshal(decoded.entity).to[Seq[GracenoteChannelAiring]]
       } yield channelAirings
 
     run(JobState(
