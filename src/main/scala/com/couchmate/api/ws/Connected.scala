@@ -8,6 +8,8 @@ import com.couchmate.api.ws.protocol._
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.{UserDAO, UserMetaDAO, UserPrivateDAO, UserProviderDAO}
 import com.couchmate.data.models.CountryCode
+import com.couchmate.external.gracenote.listing.ListingCoordinator.RequestListing
+import com.couchmate.external.gracenote.listing.{ListingCoordinator, ListingJob}
 import com.couchmate.external.gracenote.provider.{ProviderCoordinator, ProviderJob}
 import com.couchmate.util.akka.AkkaUtils
 import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
@@ -32,18 +34,16 @@ class Connected private[ws] (
   implicit val db: Database = DatabaseExtension(ctx.system).db
   val providerCoordinator: ActorRef[ProviderCoordinator.Command] =
     SingletonExtension(ctx.system).providerCoordinator
+  val listingCoordinator: ActorRef[ListingCoordinator.Command] =
+    SingletonExtension(ctx.system).listingCoordinator
 
   val providerAdapter: ActorRef[ProviderJob.Command] = ctx.messageAdapter[ProviderJob.Command] {
     case ProviderJob.JobEnded(_, _, providers) => Outgoing(GetProvidersResponse(providers))
   }
 
-  providerCoordinator ! ProviderCoordinator.RequestProviders(
-    "11105",
-    CountryCode.USA,
-    providerAdapter
-  )
-
-  ws ! Outgoing(AppendMessage("Connected"))
+  val listingAdapter: ActorRef[ListingJob.Command] = ctx.messageAdapter[ListingJob.Command] {
+    case ListingJob.JobEnded(_, grid) => Outgoing(GetGridResponse(grid))
+  }
 
   def run: PartialCommand =
     chain(internal, incoming, outgoing)
@@ -73,6 +73,19 @@ class Connected private[ws] (
           CreateNewAccountError.UnknownError
         ))
       }
+      Behaviors.same
+    case Incoming(GetProviders(zipCode, country)) =>
+      providerCoordinator ! ProviderCoordinator.RequestProviders(
+        zipCode,
+        country,
+        providerAdapter
+      )
+      Behaviors.same
+    case Incoming(GetGrid(providerId)) =>
+      listingCoordinator ! ListingCoordinator.RequestListing(
+        providerId,
+        listingAdapter
+      )
       Behaviors.same
   }
 

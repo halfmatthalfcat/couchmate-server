@@ -15,6 +15,7 @@ object Migrations extends LazyLogging {
       ProviderOwnerTable,
       ProviderTable,
       UserProviderTable,
+      ChannelOwnerTable,
       ChannelTable,
       ProviderChannelTable,
       SeriesTable,

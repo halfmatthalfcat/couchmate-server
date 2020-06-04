@@ -8,7 +8,7 @@ import slick.migration.api._
 
 class EpisodeTable(tag: Tag) extends Table[Episode](tag, "episode") {
   def episodeId: Rep[Long] = column[Long]("episode_id", O.PrimaryKey, O.AutoInc)
-  def seriesId: Rep[Long] = column[Long]("series_id")
+  def seriesId: Rep[Option[Long]] = column[Option[Long]]("series_id")
   def season: Rep[Option[Long]] = column[Option[Long]]("season")
   def episode: Rep[Option[Long]] = column[Option[Long]]("episode")
   def * = (

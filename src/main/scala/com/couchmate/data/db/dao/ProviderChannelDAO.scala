@@ -5,7 +5,8 @@ import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ProviderChannelTable
-import com.couchmate.data.models.{Channel, ProviderChannel}
+import com.couchmate.data.models.{Channel, ChannelOwner, ProviderChannel, ProviderOwner}
+import slick.dbio.DBIOAction
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -51,6 +52,23 @@ trait ProviderChannelDAO {
     session: SlickSession
   ): Flow[ProviderChannel, ProviderChannel, NotUsed] =
     Slick.flowWithPassThrough(ProviderChannelDAO.upsertProviderChannel)
+
+  def getOrAddChannel(
+    providerId: Long,
+    channelNumber: String,
+    channelOwner: Option[ChannelOwner],
+    channel: Channel
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[ProviderChannel] =
+    db.run(ProviderChannelDAO.getOrAddChannel(
+      providerId,
+      channelNumber,
+      channelOwner,
+      channel
+    ))
 }
 
 object ProviderChannelDAO {
@@ -82,7 +100,40 @@ object ProviderChannelDAO {
     providerChannel.providerChannelId.fold[DBIO[ProviderChannel]](
       (ProviderChannelTable.table returning ProviderChannelTable.table) += providerChannel
     ) { (providerChannelId: Long) => for {
-      _ <- ProviderChannelTable.table.update(providerChannel)
+      _ <- ProviderChannelTable
+        .table
+        .filter(_.providerChannelId === providerChannelId)
+        .update(providerChannel)
       updated <- ProviderChannelDAO.getProviderChannel(providerChannelId)
     } yield updated.get}
+
+  private[dao] def getOrAddChannel(
+    providerId: Long,
+    channelNumber: String,
+    channelOwner: Option[ChannelOwner],
+    channel: Channel
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[ProviderChannel] = (for {
+    cO <- channelOwner
+      .fold[DBIOAction[Option[ChannelOwner], NoStream, Effect.All]](
+        DBIO.successful(Option.empty[ChannelOwner])
+      )(owner =>
+        ChannelOwnerDAO
+          .getOrAddChannelOwner(owner)
+          .map(o => Option(o))
+      )
+    c <- cO.fold(ChannelDAO.getOrAddChannel(channel))(owner =>
+      ChannelDAO.getOrAddChannel(channel.copy(
+        channelOwnerId = owner.channelOwnerId
+      )))
+    pcExists <- getProviderChannelForProviderAndChannel(providerId, c.channelId.get)
+    pc <- pcExists.fold(upsertProviderChannel(ProviderChannel(
+      providerChannelId = None,
+      providerId = providerId,
+      channelId = c.channelId.get,
+      channel = channelNumber
+    )))(DBIO.successful)
+  } yield pc).transactionally
 }

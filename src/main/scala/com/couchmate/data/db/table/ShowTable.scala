@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.{PgProfile, Slickable}
-import com.couchmate.data.models.Show
+import com.couchmate.data.models.{Show, ShowType}
 import com.couchmate.external.gracenote.models.GracenoteProgramType
 import slick.lifted.Tag
 import slick.migration.api._
@@ -12,7 +12,7 @@ import slick.migration.api._
 class ShowTable(tag: Tag) extends Table[Show](tag, "show") {
   def showId: Rep[Long] = column[Long]("show_id", O.PrimaryKey, O.AutoInc)
   def extId: Rep[Long] = column[Long]("ext_id")
-  def `type`: Rep[String] = column[String]("type")
+  def `type`: Rep[ShowType] = column[ShowType]("type")
   def episodeId: Rep[Option[Long]] = column[Option[Long]]("episode_id")
   def sportEventId: Rep[Option[Long]] = column[Option[Long]]("sport_event_id")
   def title: Rep[String] = column[String]("title")

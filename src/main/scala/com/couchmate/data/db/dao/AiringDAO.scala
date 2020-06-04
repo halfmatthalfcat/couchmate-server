@@ -161,9 +161,14 @@ object AiringDAO {
     implicit
     ec: ExecutionContext
   ): DBIO[Airing] = airing.airingId.fold[DBIO[Airing]](
-    (AiringTable.table returning AiringTable.table) += airing
+    (AiringTable.table returning AiringTable.table) += airing.copy(
+      airingId = Some(UUID.randomUUID())
+    )
   ) { (airingId: UUID) => for {
-    _ <- AiringTable.table.update(airing)
+    _ <- AiringTable
+      .table
+      .filter(_.airingId === airingId)
+      .update(airing)
     updated <- AiringDAO.getAiring(airingId)
-  } yield updated.get}
+  } yield updated.get}.transactionally
 }

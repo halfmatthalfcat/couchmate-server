@@ -75,7 +75,10 @@ object SeriesDAO {
     series.seriesId.fold[DBIO[Series]](
       (SeriesTable.table returning SeriesTable.table) += series
     ) { (seriesId: Long) => for {
-      _ <- SeriesTable.table.update(series)
+      _ <- SeriesTable
+        .table
+        .filter(_.seriesId === seriesId)
+        .update(series)
       updated <- SeriesDAO.getSeries(seriesId)
     } yield updated.get}
 }

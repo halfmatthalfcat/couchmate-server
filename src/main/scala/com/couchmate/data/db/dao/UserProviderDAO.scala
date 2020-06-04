@@ -110,7 +110,7 @@ object UserProviderDAO {
     (providerId: Rep[Long], zipCode: Rep[String]) =>
       UserProviderTable.table.filter { up =>
         up.providerId === providerId &&
-          up.zipCode === zipCode
+        up.zipCode === zipCode
       }.exists
   }
 

@@ -50,6 +50,26 @@ trait SportEventDAO {
     session: SlickSession
   ): Flow[SportEvent, SportEvent, NotUsed] =
     Slick.flowWithPassThrough(SportEventDAO.upsertSportEvent)
+
+  def getOrAddSportEvent(
+    show: Show,
+    sportOrganization: SportOrganization,
+    sportEvent: SportEvent
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Show] =
+    db.run(SportEventDAO.getOrAddSportEvent(show, sportOrganization, sportEvent))
+
+  def getOrAddSportEvent$()(
+    implicit
+    ec: ExecutionContext,
+    session: SlickSession
+  ): Flow[(Show, SportOrganization, SportEvent), Show, NotUsed] =
+    Slick.flowWithPassThrough(
+      (SportEventDAO.getOrAddSportEvent _).tupled
+    )
 }
 
 object SportEventDAO {
@@ -83,7 +103,42 @@ object SportEventDAO {
     sportEvent.sportEventId.fold[DBIO[SportEvent]](
       (SportEventTable.table returning SportEventTable.table) += sportEvent
     ) { (sportEventId: Long) => for {
-      _ <- SportEventTable.table.update(sportEvent)
+      _ <- SportEventTable
+        .table
+        .filter(_.sportEventId === sportEventId)
+        .update(sportEvent)
       updated <- SportEventDAO.getSportEvent(sportEventId)
     } yield updated.get}
+
+  private[dao] def getOrAddSportEvent(
+    show: Show,
+    sportOrganization: SportOrganization,
+    sportEvent: SportEvent
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Show] = (ShowDAO.getShowByShow(show) flatMap {
+    case Some(show) => DBIO.successful(show)
+    case None => for {
+      sportOrgExists <- SportOrganizationDAO.getSportOrganizationBySportAndOrg(
+        sportOrganization.extSportId,
+        sportOrganization.extOrgId
+      )
+      sportOrg <- sportOrgExists.fold(
+        SportOrganizationDAO.upsertSportOrganization(sportOrganization)
+      )(DBIO.successful)
+      sportEventExists <- SportEventDAO.getSportEventByNameAndOrg(
+        sportEvent.sportEventTitle,
+        sportOrg.sportOrganizationId.get,
+      )
+      sportEvent <- sportEventExists.fold(
+        upsertSportEvent(sportEvent.copy(
+          sportOrganizationId = sportOrg.sportOrganizationId
+        ))
+      )(DBIO.successful)
+      s <- ShowDAO.upsertShow(show.copy(
+        sportEventId = sportEvent.sportEventId
+      ))
+    } yield s
+  }).transactionally
 }

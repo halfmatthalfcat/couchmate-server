@@ -8,7 +8,7 @@ import play.api.libs.json.{Json, OFormat}
 case class Show(
   showId: Option[Long],
   extId: Long,
-  `type`: String,
+  `type`: ShowType,
   episodeId: Option[Long],
   sportEventId: Option[Long],
   title: String,

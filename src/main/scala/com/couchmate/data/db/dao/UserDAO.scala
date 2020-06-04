@@ -159,7 +159,10 @@ object UserDAO {
     user.userId.fold[DBIO[User]](
       (UserTable.table returning UserTable.table) += user.copy(userId = Some(UUID.randomUUID()))
     ) { (userId: UUID) => for {
-      _ <- UserTable.table.update(user)
+      _ <- UserTable
+        .table
+        .filter(_.userId === userId)
+        .update(user)
       updated <- UserDAO.getUser(userId)
     } yield updated.get}
 

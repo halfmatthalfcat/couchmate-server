@@ -20,7 +20,10 @@ trait GridDAO {
     ec: ExecutionContext,
     db: Database
   ): Future[Grid] = {
-    val endTime: LocalDateTime = startTime.plusMinutes(duration)
+    val endTime: LocalDateTime =
+      DateUtils.roundNearestHour(
+        startTime.plusMinutes(duration)
+      )
     db.run(GridDAO.getGrid(
       providerId,
       DateUtils.roundNearestHour(startTime),
@@ -28,7 +31,7 @@ trait GridDAO {
     )) map { airings: Seq[GridAiring] =>
       Grid(
         providerId,
-        startTime,
+        DateUtils.roundNearestHour(startTime),
         endTime,
         duration,
         airings,

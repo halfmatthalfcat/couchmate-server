@@ -73,7 +73,27 @@ object ChannelDAO {
     channel.channelId.fold[DBIO[Channel]](
       (ChannelTable.table returning ChannelTable.table) += channel
     ) { (channelId: Long) => for {
-      _ <- ChannelTable.table.update(channel)
+      _ <- ChannelTable
+        .table
+        .filter(_.channelId === channelId)
+        .update(channel)
       updated <- getChannel(channelId)
     } yield updated.get}
+
+  private[dao] def getOrAddChannel(channel: Channel)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Channel] = (channel match {
+    case Channel(Some(channelId), extId, _, _) => for {
+      exists <- getChannel(channelId) flatMap {
+        case Some(c) => DBIO.successful(Some(c))
+        case None => getChannelForExt(extId)
+      }
+      c <- exists.fold(upsertChannel(channel))(DBIO.successful)
+    } yield c
+    case Channel(None, extId, _, _) => for {
+      exists <- getChannelForExt(extId)
+      c <- exists.fold(upsertChannel(channel))(DBIO.successful)
+    } yield c
+  }).transactionally
 }

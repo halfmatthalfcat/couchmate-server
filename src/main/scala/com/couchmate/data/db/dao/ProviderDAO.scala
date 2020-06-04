@@ -81,7 +81,10 @@ object ProviderDAO {
     provider.providerId.fold[DBIO[Provider]](
       (ProviderTable.table returning ProviderTable.table) += provider
     ) { (providerId: Long) => for {
-      _ <- ProviderTable.table.update(provider)
+      _ <- ProviderTable
+        .table
+        .filter(_.providerId === providerId)
+        .update(provider)
       updated <- ProviderDAO.getProvider(providerId)
     } yield updated.get}
 }

@@ -37,6 +37,26 @@ trait EpisodeDAO {
     session: SlickSession
   ): Flow[Episode, Episode, NotUsed] =
     Slick.flowWithPassThrough(EpisodeDAO.upsertEpisode)
+
+  def getOrAddEpisode(
+    show: Show,
+    series: Series,
+    episode: Episode
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Show] =
+    db.run(EpisodeDAO.getOrAddEpisode(show, series, episode))
+
+  def getOrAddEpisode$()(
+    implicit
+    ec: ExecutionContext,
+    session: SlickSession
+  ): Flow[(Show, Series, Episode), Show, NotUsed] =
+    Slick.flowWithPassThrough(
+      (EpisodeDAO.getOrAddEpisode _).tupled
+    )
 }
 
 object EpisodeDAO {
@@ -47,6 +67,24 @@ object EpisodeDAO {
   private[dao] def getEpisode(episodeId: Long): DBIO[Option[Episode]] =
     getEpisodeQuery(episodeId).result.headOption
 
+  private[this] lazy val getEpisodeForSeriesQuery = Compiled {
+    (seriesId: Rep[Long], season: Rep[Option[Long]], episode: Rep[Option[Long]]) => for {
+      s <- SeriesTable.table if s.seriesId === seriesId
+      e <- EpisodeTable.table if (
+        e.season === season &&
+        e.episode === episode &&
+        e.seriesId === s.seriesId
+      )
+    } yield e
+  }
+
+  private[dao] def getEpisodeForSeries(
+    seriesId: Long,
+    season: Option[Long],
+    episode: Option[Long]
+  ): DBIO[Option[Episode]] =
+    getEpisodeForSeriesQuery(seriesId, season, episode).result.headOption
+
   private[dao] def upsertEpisode(episode: Episode)(
     implicit
     ec: ExecutionContext
@@ -54,7 +92,42 @@ object EpisodeDAO {
     episode.episodeId.fold[DBIO[Episode]](
       (EpisodeTable.table returning EpisodeTable.table) += episode
     ) { (episodeId: Long) => for {
-      _ <- EpisodeTable.table.update(episode)
+      _ <- EpisodeTable
+        .table
+        .filter(_.episodeId === episodeId)
+        .update(episode)
       updated <- EpisodeDAO.getEpisode(episodeId)
     } yield updated.get}
+
+  private[dao] def getOrAddEpisode(
+    show: Show,
+    series: Series,
+    episode: Episode
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Show] = (ShowDAO.getShowByShow(show) flatMap {
+    case Some(show) => DBIO.successful(show)
+    case None => for {
+      seriesExists <- series match {
+        case Series(Some(seriesId), _, _, _, _) =>
+          SeriesDAO.getSeries(seriesId)
+        case Series(None, extSeriesId, _, _, _) =>
+          SeriesDAO.getSeriesByExt(extSeriesId)
+        case _ => DBIO.successful(Option.empty[Series])
+      }
+      s <- seriesExists.fold(SeriesDAO.upsertSeries(series))(DBIO.successful)
+      eExists <- getEpisodeForSeries(
+        s.seriesId.get,
+        episode.season,
+        episode.season
+      )
+      e <- eExists.fold(upsertEpisode(episode.copy(
+        seriesId = s.seriesId
+      )))(DBIO.successful)
+      s <- ShowDAO.upsertShow(show.copy(
+        episodeId = e.episode
+      ))
+    } yield s
+  }).transactionally
 }

@@ -9,12 +9,24 @@ import slick.migration.api._
 class ChannelTable(tag: Tag) extends Table[Channel](tag, "channel") {
   def channelId: Rep[Long] = column[Long]("channel_id", O.PrimaryKey, O.AutoInc)
   def extId: Rep[Long] = column[Long]("ext_id")
+  def channelOwnerId: Rep[Option[Long]] = column[Option[Long]]("channel_owner_id")
   def callsign: Rep[String] = column[String]("callsign")
   def * = (
     channelId.?,
     extId,
+    channelOwnerId,
     callsign,
   ) <> ((Channel.apply _).tupled, Channel.unapply)
+
+  def channelOwnerIdFk = foreignKey(
+    "channel_channel_owner_fk",
+    channelOwnerId,
+    ChannelOwnerTable.table,
+  )(
+    _.channelOwnerId,
+    onUpdate = ForeignKeyAction.Cascade,
+    onDelete = ForeignKeyAction.Restrict
+  )
 }
 
 object ChannelTable extends Slickable[ChannelTable] {
@@ -27,6 +39,10 @@ object ChannelTable extends Slickable[ChannelTable] {
     .addColumns(
       _.channelId,
       _.extId,
+      _.channelOwnerId,
       _.callsign
+    )
+    .addForeignKeys(
+      _.channelOwnerIdFk
     )
 }

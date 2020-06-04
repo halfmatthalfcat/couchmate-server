@@ -5,6 +5,7 @@ import play.api.libs.json.{Json, OFormat}
 case class Channel(
   channelId: Option[Long],
   extId: Long,
+  channelOwnerId: Option[Long],
   callsign: String,
 ) extends Product with Serializable
 

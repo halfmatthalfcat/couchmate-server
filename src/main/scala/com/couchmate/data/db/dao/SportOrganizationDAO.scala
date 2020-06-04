@@ -81,7 +81,10 @@ object SportOrganizationDAO {
     sportOrganization.sportOrganizationId.fold[DBIO[SportOrganization]](
       (SportOrganizationTable.table returning SportOrganizationTable.table) += sportOrganization
     ) { (sportOrganizationId: Long) => for {
-      _ <- SportOrganizationTable.table.update(sportOrganization)
+      _ <- SportOrganizationTable
+        .table
+        .filter(_.sportOrganizationId === sportOrganizationId)
+        .update(sportOrganization)
       updated <- SportOrganizationDAO.getSportOrganization(sportOrganizationId)
     } yield updated.get}
 }

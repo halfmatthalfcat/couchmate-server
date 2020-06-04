@@ -8,12 +8,13 @@ import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.typed.scaladsl.{ActorSink, ActorSource}
 import akka.{Done, NotUsed}
 import com.couchmate.Server
+import com.typesafe.scalalogging.LazyLogging
 import play.api.libs.json.{Format, Json}
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
-object WSActor {
+object WSActor extends LazyLogging {
   def apply[T, F: Format](
     behavior: Behavior[T],
     connected: ActorRef[T] => T,
@@ -35,7 +36,12 @@ object WSActor {
       .map(text => Try(
         Json.parse(text).as[F]
       ))
-      .collect { case Success(msg) => msg }
+      .collect {
+        case Success(msg) => msg
+        case Failure(exception) =>
+          logger.error("Parse error", exception)
+          throw exception
+      }
       .collect(incoming)
       .to(ActorSink.actorRef(
         actorRef,

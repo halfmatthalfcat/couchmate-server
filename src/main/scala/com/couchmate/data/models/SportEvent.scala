@@ -4,7 +4,7 @@ import play.api.libs.json.{Json, OFormat}
 
 case class SportEvent(
   sportEventId: Option[Long],
-  sportOrganizationId: Long,
+  sportOrganizationId: Option[Long],
   sportEventTitle: String,
 ) extends Product with Serializable
 

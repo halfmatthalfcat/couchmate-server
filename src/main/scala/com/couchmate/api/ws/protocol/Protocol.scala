@@ -1,5 +1,6 @@
 package com.couchmate.api.ws.protocol
 
+import com.couchmate.api.models.grid.Grid
 import com.couchmate.api.models.{Provider, User}
 import com.couchmate.data.models.CountryCode
 import julienrf.json.derived
@@ -41,6 +42,13 @@ case class GetProviders(
 ) extends Protocol
 case class GetProvidersResponse(
   providers: Seq[Provider]
+) extends Protocol
+
+case class GetGrid(
+  providerId: Long
+) extends Protocol
+case class GetGridResponse(
+  grid: Grid
 ) extends Protocol
 
 case class AppendMessage(message: String) extends Protocol

@@ -7,7 +7,8 @@ import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.{LineupTable, ProviderChannelTable}
-import com.couchmate.data.models.{Airing, Lineup, ProviderChannel}
+import com.couchmate.data.models.{Airing, Lineup, ProviderChannel, Show}
+import com.couchmate.external.gracenote.models.GracenoteAiring
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -68,6 +69,36 @@ trait LineupDAO {
     session: SlickSession
   ): Flow[Lineup, Lineup, NotUsed] =
     Slick.flowWithPassThrough(LineupDAO.upsertLineup)
+
+  def getOrAddLineup(
+    providerChannelId: Long,
+    show: Show,
+    airing: Airing,
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Lineup] =
+    db.run(LineupDAO.getOrAddLineup(providerChannelId, show, airing))
+
+  def getOrAddLineup$()(
+    implicit
+    ec: ExecutionContext,
+    session: SlickSession
+  ): Flow[(Long, Show, Airing), Lineup, NotUsed] =
+    Slick.flowWithPassThrough(
+      (LineupDAO.getOrAddLineup _).tupled
+    )
+
+  def disableLineup(
+    providerChannelId: Long,
+    gracenoteAiring: GracenoteAiring,
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Lineup] =
+    db.run(LineupDAO.disableLineup(providerChannelId, gracenoteAiring))
 }
 
 object LineupDAO {
@@ -114,8 +145,71 @@ object LineupDAO {
   ): DBIO[Lineup] =
     lineup.lineupId.fold[DBIO[Lineup]](
       (LineupTable.table returning LineupTable.table) += lineup
-    ) { (lineupId: Long) => for {
-      _ <- LineupTable.table.update(lineup)
-      updated <- LineupDAO.getLineup(lineupId)
-    } yield updated.get}
+    ) { (lineupId: Long) => {
+      for {
+        _ <- LineupTable
+          .table
+          .filter(_.lineupId === lineupId)
+          .update(lineup)
+        updated <- LineupDAO.getLineup(lineupId)
+      } yield updated.get
+    }}.transactionally
+
+
+  private[dao] def getOrAddLineup(
+    providerChannelId: Long,
+    show: Show,
+    airing: Airing,
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Lineup] = (for {
+    airingExists <- AiringDAO.getAiringByShowStartAndEnd(
+      showId = show.showId.get,
+      startTime = airing.startTime,
+      endTime = airing.endTime,
+    )
+    a <- airingExists
+      .map(DBIO.successful)
+      .getOrElse(AiringDAO.upsertAiring(airing))
+    lineupExists <- getLineupForProviderChannelAndAiring(
+      providerChannelId,
+      a.airingId.get
+    )
+    lineup <- lineupExists
+        .fold(upsertLineup(Lineup(
+          lineupId = None,
+          providerChannelId = providerChannelId,
+          airingId = a.airingId.get,
+          active = true
+        )))(DBIO.successful)
+  } yield lineup).transactionally
+
+  private[dao] def disableLineup(
+    providerChannelId: Long,
+    gracenoteAiring: GracenoteAiring,
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Lineup] =
+    (for {
+      showExists <- ShowDAO
+        .getShowByExt(gracenoteAiring.program.rootId)
+      show = showExists.get
+      airingExists <- AiringDAO
+        .getAiringByShowStartAndEnd(
+          show.showId.get,
+          gracenoteAiring.startTime,
+          gracenoteAiring.endTime
+        )
+      airing = airingExists.get
+      lineupExists <- getLineupForProviderChannelAndAiring(
+        providerChannelId,
+        airing.airingId.get
+      )
+      lineup = lineupExists.get
+      updated <- upsertLineup(lineup.copy(
+        active = false
+      ))
+    } yield updated).transactionally
 }

@@ -12,7 +12,16 @@ case class GracenoteAiring(
   endTime: LocalDateTime,
   duration: Int,
   program: GracenoteProgram,
-)
+) {
+  override def equals(obj: Any): Boolean = obj match {
+    case GracenoteAiring(startTime, endTime, _, program) => (
+      program.rootId == this.program.rootId &&
+      startTime.isEqual(this.startTime) &&
+      endTime.isEqual(this.endTime)
+    )
+    case _ => super.equals(obj)
+  }
+}
 
 object GracenoteAiring {
   implicit val reads: Reads[GracenoteAiring] = (

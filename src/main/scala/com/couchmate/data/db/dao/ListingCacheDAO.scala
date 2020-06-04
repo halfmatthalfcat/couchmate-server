@@ -8,6 +8,8 @@ import akka.stream.scaladsl.Flow
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.ListingCacheTable
 import com.couchmate.data.models.ListingCache
+import com.couchmate.external.gracenote.models.{GracenoteAiring, GracenoteAiringPlan}
+import com.typesafe.scalalogging.LazyLogging
 import slick.lifted.Compiled
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -44,9 +46,24 @@ trait ListingCacheDAO {
     session: SlickSession
   ): Flow[ListingCache, ListingCache, NotUsed] =
     Slick.flowWithPassThrough(ListingCacheDAO.upsertListingCache)
+
+  def upsertListingCacheWithDiff(
+    providerChannelId: Long,
+    startTime: LocalDateTime,
+    airings: Seq[GracenoteAiring]
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[GracenoteAiringPlan] =
+    db.run(ListingCacheDAO.upsertListingCacheWithDiff(
+      providerChannelId,
+      startTime,
+      airings
+    ))
 }
 
-object ListingCacheDAO {
+object ListingCacheDAO extends LazyLogging {
   private[this] lazy val getListingCacheQuery= Compiled {
     (providerChannelId: Rep[Long], startTime: Rep[LocalDateTime]) =>
       ListingCacheTable.table.filter { lc =>
@@ -68,7 +85,50 @@ object ListingCacheDAO {
     listingCache.listingCacheId.fold[DBIO[ListingCache]](
       (ListingCacheTable.table returning ListingCacheTable.table) += listingCache
     ) { (listingCacheId: Long) => for {
-      _ <- ListingCacheTable.table.update(listingCache)
+      _ <- ListingCacheTable
+        .table
+        .filter(_.listingCacheId === listingCacheId)
+        .update(listingCache)
       updated <- ListingCacheDAO.getListingCache(listingCacheId, listingCache.startTime)
     } yield updated.get}
+
+  private[dao] def upsertListingCacheWithDiff(
+    providerChannelId: Long,
+    startTime: LocalDateTime,
+    airings: Seq[GracenoteAiring]
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[GracenoteAiringPlan] = for {
+    cacheExists <- getListingCache(providerChannelId, startTime)
+    cache = cacheExists.map(_.airings).getOrElse(Seq.empty)
+    _ <- upsertListingCache(ListingCache(
+      listingCacheId = None,
+      providerChannelId = providerChannelId,
+      startTime = startTime,
+      airings = airings,
+    ))
+  } yield {
+    // New airings that don't exist in the previous cache
+    val add: Seq[GracenoteAiring] =
+      airings.filterNot(airing => cache.exists(_.equals(airing)))
+
+    // Airings that were cached but not in the latest pull
+    val remove: Seq[GracenoteAiring] =
+      cache.filterNot(airing => airings.exists(_.equals(airing)))
+
+    // Airings that exist in both the cache and the new pull
+    val skip: Seq[GracenoteAiring] =
+      cache
+        .filterNot(airing => remove.exists(_.equals(airing)))
+        .filter(airing => airings.exists(_.equals(airing)))
+
+    GracenoteAiringPlan(
+      providerChannelId,
+      startTime,
+      add,
+      remove,
+      skip
+    )
+  }
 }

@@ -10,7 +10,7 @@ import sbt.Resolver
 lazy val tsSettings = Seq(
   tsEnable := true,
   tsIncludeTypes := Seq(
-    "com\\.couchmate\\.api\\.models".r
+    "com\\.couchmate\\.api\\.ws\\.protocol".r
   ),
   tsSealedTypesMapping := SealedTypesMapping.AsUnionString,
   tsOutDir := s"${(target in Compile).value}/typescript",
