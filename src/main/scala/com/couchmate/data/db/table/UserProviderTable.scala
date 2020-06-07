@@ -8,13 +8,13 @@ import com.couchmate.data.models.UserProvider
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class UserProviderTable(tag: Tag) extends Table[UserProvider](tag, "user_provider") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey)
-  def zipCode: Rep[String] = column[String]("zip_code")
   def providerId: Rep[Long] = column[Long]("provider_id")
   def * = (
     userId,
-    zipCode,
     providerId,
   ) <> ((UserProvider.apply _).tupled, UserProvider.unapply)
 
@@ -48,10 +48,12 @@ object UserProviderTable extends Slickable[UserProviderTable] {
     .create
     .addColumns(
       _.userId,
-      _.zipCode,
       _.providerId,
     ).addForeignKeys(
       _.userFk,
       _.providerFk,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

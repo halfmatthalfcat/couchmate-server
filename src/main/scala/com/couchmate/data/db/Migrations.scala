@@ -60,8 +60,9 @@ object Migrations extends LazyLogging {
     implicit
     db: Database,
   ): Future[Unit] = for {
-    _ <- dropSchema()
-    _ <- applySchema()
+    _ <- dropSchema
+    _ <- applySchema
+    _ <- seed
   } yield ()
 
   private[this] def truncateSchema()(
@@ -73,6 +74,19 @@ object Migrations extends LazyLogging {
         db.run(table.schema.truncate)
       }
     )
+  }
+
+  private[this] def seed()(
+    implicit
+    db: Database,
+  ): Future[Unit] = {
+    Future.sequence(
+      tables
+        .map(_.seed)
+        .collect {
+          case Some(s) => db.run(s)
+        }
+    ).map(_ => ())
   }
 
   def main(args: Array[String]): Unit = {

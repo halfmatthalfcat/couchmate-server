@@ -81,24 +81,24 @@ object ProviderOwnerDAO {
     ProviderOwnerTable.table.filter(_.providerOwnerId === providerOwnerId)
   }
 
-  private[dao] def getProviderOwner(providerOwnerId: Long): DBIO[Option[ProviderOwner]] =
+  private[db] def getProviderOwner(providerOwnerId: Long): DBIO[Option[ProviderOwner]] =
     getProviderOwnerQuery(providerOwnerId).result.headOption
 
   private[this] lazy val getProviderOwnerForNameQuery = Compiled { (name: Rep[String]) =>
     ProviderOwnerTable.table.filter(_.name === name)
   }
 
-  private[dao] def getProviderOwnerForName(name: String): DBIO[Option[ProviderOwner]] =
+  private[db] def getProviderOwnerForName(name: String): DBIO[Option[ProviderOwner]] =
     getProviderOwnerForNameQuery(name).result.headOption
 
   private[this] lazy val getProviderOwnerForExtQuery = Compiled { (extProviderOwnerId: Rep[String]) =>
     ProviderOwnerTable.table.filter(_.extProviderOwnerId === extProviderOwnerId)
   }
 
-  private[dao] def getProviderOwnerForExt(extProviderOwnerId: String): DBIO[Option[ProviderOwner]] =
+  private[db] def getProviderOwnerForExt(extProviderOwnerId: String): DBIO[Option[ProviderOwner]] =
     getProviderOwnerForExtQuery(extProviderOwnerId).result.headOption
 
-  private[dao] def upsertProviderOwner(providerOwner: ProviderOwner)(
+  private[db] def upsertProviderOwner(providerOwner: ProviderOwner)(
     implicit
     ec: ExecutionContext
   ): DBIO[ProviderOwner] =
@@ -112,7 +112,7 @@ object ProviderOwnerDAO {
       updated <- ProviderOwnerDAO.getProviderOwner(providerOwnerId)
     } yield updated.get}
 
-  private[dao] def getOrAddProviderOwner(providerOwner: ProviderOwner)(
+  private[db] def getOrAddProviderOwner(providerOwner: ProviderOwner)(
     implicit
     ec: ExecutionContext
   ): DBIO[ProviderOwner] = (providerOwner match {

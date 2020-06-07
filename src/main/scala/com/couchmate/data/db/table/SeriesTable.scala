@@ -6,6 +6,8 @@ import com.couchmate.data.models.Series
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class SeriesTable(tag: Tag) extends Table[Series](tag, "series") {
   def seriesId: Rep[Long] = column[Long]("series_id", O.PrimaryKey, O.AutoInc)
   def extId: Rep[Long] = column[Long]("ext_id")
@@ -35,4 +37,7 @@ object SeriesTable extends Slickable[SeriesTable] {
       _.totalSeasons,
       _.totalEpisodes,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

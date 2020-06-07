@@ -70,17 +70,17 @@ object ShowDAO {
     ShowTable.table.filter(_.showId === showId)
   }
 
-  private[dao] def getShow(showId: Long): DBIO[Option[Show]] =
+  private[db] def getShow(showId: Long): DBIO[Option[Show]] =
     getShowQuery(showId).result.headOption
 
   private[this] lazy val getShowByExtQuery = Compiled { (extId: Rep[Long]) =>
     ShowTable.table.filter(_.extId === extId)
   }
 
-  private[dao] def getShowByExt(extId: Long): DBIO[Option[Show]] =
+  private[db] def getShowByExt(extId: Long): DBIO[Option[Show]] =
     getShowByExtQuery(extId).result.headOption
 
-  private[dao] def getShowByShow(show: Show): DBIO[Option[Show]] =
+  private[db] def getShowByShow(show: Show): DBIO[Option[Show]] =
     show match {
       case Show(Some(showId), _, _, _, _, _, _, _) =>
         getShow(showId)
@@ -89,7 +89,7 @@ object ShowDAO {
       case _ => DBIO.successful(Option.empty)
     }
 
-  private[dao] def upsertShow(show: Show)(
+  private[db] def upsertShow(show: Show)(
     implicit
     ec: ExecutionContext
   ): DBIO[Show] =
@@ -103,7 +103,7 @@ object ShowDAO {
       updated <- ShowDAO.getShow(showId)
     } yield updated.get}
 
-  private[dao] def getOrAddShow(show: Show)(
+  private[db] def getOrAddShow(show: Show)(
     implicit
     ec: ExecutionContext
   ): DBIO[Show] = (getShowByShow(show) flatMap {

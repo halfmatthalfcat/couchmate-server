@@ -12,7 +12,7 @@ import akka.stream.scaladsl.Source
 import com.couchmate.api.models.grid.Grid
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.{GridDAO, ProviderDAO}
-import com.couchmate.data.models.Provider
+import com.couchmate.data.models.{Lineup, Provider}
 import com.couchmate.external.gracenote._
 import com.couchmate.external.gracenote.models.{GracenoteChannelAiring, GracenoteSport}
 import com.couchmate.util.akka.extensions.DatabaseExtension
@@ -121,30 +121,34 @@ object ListingJob
           listings(
             state.provider.extId,
             _
-          )
-        )
-        .flatMapConcat(slotAiring =>
-          channel(
-            state.provider.providerId.get,
-            slotAiring.channelAiring,
-            slotAiring.slot
-          )
-        )
-        .flatMapConcat(plan => {
-          Source.fromIterator(() => (plan.add.map(airing =>
-            lineup(
-              plan.providerChannelId,
-              airing,
-              state.sports
+          ).flatMapConcat(slotAiring =>
+            channel(
+              state.provider.providerId.get,
+              slotAiring.channelAiring,
+              slotAiring.slot
             )
-          ) ++ plan.remove.map(airing =>
-            disable(
-              plan.providerChannelId,
-              airing
-            )
-          )).iterator)
-        })
-        .flatMapMerge(10, identity)
+          )
+           .flatMapConcat(plan => {
+             Source
+               .fromIterator(() => (plan.add.map(airing =>
+                 lineup(
+                   plan.providerChannelId,
+                   airing,
+                   state.sports
+                 )
+               ) ++ plan.remove.map(airing =>
+                 disable(
+                   plan.providerChannelId,
+                   airing
+                 )
+               )).iterator)
+               .flatMapMerge(10, identity)
+               .fold(1L)((acc: Long, _: Lineup) => {
+                 acc + 1L
+               })
+               .log(s"${plan.providerChannelId}|${plan.startTime}")
+           })
+        )
         .run
         .flatMap(_ => getGrid(providerId, LocalDateTime.now(ZoneId.of("UTC")), 60))
         .onComplete {

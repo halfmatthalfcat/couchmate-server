@@ -9,6 +9,8 @@ import com.couchmate.external.gracenote.models.GracenoteAiring
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class ListingCacheTable(tag: Tag) extends Table[ListingCache](tag, "listing_cache") {
   def listingCacheId: Rep[Long] = column[Long]("listing_cache_id", O.PrimaryKey, O.AutoInc)
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
@@ -47,4 +49,7 @@ object ListingCacheTable extends Slickable[ListingCacheTable] {
     ).addForeignKeys(
       _.providerChannelFk,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

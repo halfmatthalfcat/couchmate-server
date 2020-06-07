@@ -1,12 +1,13 @@
-package com.couchmate.external.gracenote.provider
+package com.couchmate.services
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import com.couchmate.api.models.Provider
-import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.ZipProviderDAO
-import com.couchmate.data.models.{CountryCode, ZipProvider}
+import com.couchmate.data.db.PgProfile.api._
+import com.couchmate.external.gracenote.provider.ProviderJob
 import com.couchmate.util.akka.extensions.DatabaseExtension
+import com.neovisionaries.i18n.CountryCode
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -81,7 +82,7 @@ object ProviderCoordinator
             val job: ActorRef[ProviderJob.Command] =
               ctx.spawn(
                 ProviderJob(zipCode, country, actorRef, jobMapper),
-                s"$zipCode-${country.entryName}"
+                s"$zipCode-${country.getAlpha3}"
               )
 
             run(state.copy(

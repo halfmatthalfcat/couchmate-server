@@ -66,45 +66,29 @@ trait UserDAO {
   ): Flow[User, User, NotUsed] =
     Slick.flowWithPassThrough(UserDAO.upsertUser)
 
-  def createEmailAccount(
+  def activateAccount(
     email: String,
     username: String,
     password: String,
-    zipCode: String,
-    providerId: Long,
   )(
     implicit
     db: Database,
     ec: ExecutionContext
   ): Future[User] =
-    db.run(UserDAO.createEmailAccount(
+    db.run(UserDAO.activateAccount(
       email,
       username,
       password,
-      zipCode,
-      providerId
     ))
 
   def createEmailAccount$()(
     implicit
     session: SlickSession,
     ec: ExecutionContext
-  ): Flow[(String, String, String, String, Long), User, NotUsed] =
+  ): Flow[(String, String, String), User, NotUsed] =
     Slick.flowWithPassThrough(
-      (UserDAO.createEmailAccount _).tupled
+      (UserDAO.activateAccount _).tupled
     )
-
-  def usernameExists(username: String)(
-    implicit
-    db: Database
-  ): Future[Boolean] =
-    db.run(UserDAO.usernameExists(username))
-
-  def usernameExists$()(
-    implicit
-    session: SlickSession
-  ): Flow[String, Boolean, NotUsed] =
-    Slick.flowWithPassThrough(UserDAO.usernameExists)
 }
 
 object UserDAO {
@@ -112,7 +96,7 @@ object UserDAO {
     UserTable.table.filter(_.userId === userId)
   }
 
-  private[dao] def getUser(userId: UUID): DBIO[Option[User]] =
+  private[db] def getUser(userId: UUID): DBIO[Option[User]] =
     getUserQuery(userId).result.headOption
 
   private[this] lazy val getUserByEmailQuery = Compiled { (email: Rep[String]) =>
@@ -125,7 +109,7 @@ object UserDAO {
     } yield u
   }
 
-  private[dao] def getUserByEmail(email: String): DBIO[Option[User]] =
+  private[db] def getUserByEmail(email: String): DBIO[Option[User]] =
     getUserByEmailQuery(email).result.headOption
 
   private[this] lazy val getUserByExtQuery = Compiled {
@@ -139,20 +123,13 @@ object UserDAO {
       } yield u
   }
 
-  private[dao] def getUserByExt(
+  private[db] def getUserByExt(
     extType: UserExtType,
     extId: String
   ): DBIO[Option[User]] =
     getUserByExtQuery(extType, extId).result.headOption
 
-  private[this] lazy val usernameExistsQuery = Compiled { (username: Rep[String]) =>
-    UserTable.table.filter(_.username === username).exists
-  }
-
-  private[dao] def usernameExists(username: String): DBIO[Boolean] =
-    usernameExistsQuery(username).result
-
-  private[dao] def upsertUser(user: User)(
+  private[db] def upsertUser(user: User)(
     implicit
     ec: ExecutionContext
   ): DBIO[User] =
@@ -166,36 +143,29 @@ object UserDAO {
       updated <- UserDAO.getUser(userId)
     } yield updated.get}
 
-  private[dao] def createEmailAccount(
+  private[db] def activateAccount(
     email: String,
     username: String,
     password: String,
-    zipCode: String,
-    providerId: Long,
   )(
     implicit
     ec: ExecutionContext
   ): DBIO[User] = (for {
     user <- upsertUser(User(
       userId = None,
-      username = username,
       active = true,
       verified = false,
       role = UserRole.Registered
     ))
     _ <- UserMetaDAO.upsertUserMeta(UserMeta(
       userId = user.userId.get,
-      email = email
+      email = email,
+      username = username
     ))
     hashedPw <- DBIO.from(Future.fromTry(password.bcryptSafe(10)))
     _ <- UserPrivateDAO.upsertUserPrivate(UserPrivate(
       userId = user.userId.get,
       password = hashedPw
-    ))
-    _ <- UserProviderDAO.addUserProvider(UserProvider(
-      userId = user.userId.get,
-      zipCode = zipCode,
-      providerId = providerId
     ))
   } yield user).transactionally
  }

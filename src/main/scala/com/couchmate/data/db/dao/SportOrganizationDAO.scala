@@ -57,7 +57,7 @@ object SportOrganizationDAO {
     SportOrganizationTable.table.filter(_.sportOrganizationId === sportOrganizationId)
   }
 
-  private[dao] def getSportOrganization(sportOrganizationId: Long): DBIO[Option[SportOrganization]] =
+  private[db] def getSportOrganization(sportOrganizationId: Long): DBIO[Option[SportOrganization]] =
     getSportOrganizationQuery(sportOrganizationId).result.headOption
 
   private[this] lazy val getSportOrganizationBySportAndOrgQuery = Compiled {
@@ -68,13 +68,13 @@ object SportOrganizationDAO {
       }
   }
 
-  private[dao] def getSportOrganizationBySportAndOrg(
+  private[db] def getSportOrganizationBySportAndOrg(
     extSportId: Long,
     extOrgId: Option[Long]
   ): DBIO[Option[SportOrganization]] =
     getSportOrganizationBySportAndOrgQuery(extSportId, extOrgId).result.headOption
 
-  private[dao] def upsertSportOrganization(sportOrganization: SportOrganization)(
+  private[db] def upsertSportOrganization(sportOrganization: SportOrganization)(
     implicit
     ec: ExecutionContext
   ): DBIO[SportOrganization] =

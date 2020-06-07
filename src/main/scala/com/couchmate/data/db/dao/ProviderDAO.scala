@@ -23,6 +23,12 @@ trait ProviderDAO {
   ): Flow[Long, Option[Provider], NotUsed] =
     Slick.flowWithPassThrough(ProviderDAO.getProvider)
 
+  def getProvidersForType(`type`: String)(
+    implicit
+    db: Database
+  ): Future[Seq[Provider]] =
+    db.run(ProviderDAO.getProvidersForType(`type`))
+
   def getProviderForExtAndOwner(extId: String, providerOwnerId: Option[Long])(
     implicit
     db: Database
@@ -57,8 +63,15 @@ object ProviderDAO {
     ProviderTable.table.filter(_.providerId === providerId)
   }
 
-  private[dao] def getProvider(providerId: Long): DBIO[Option[Provider]] =
+  private[db] def getProvider(providerId: Long): DBIO[Option[Provider]] =
     getProviderQuery(providerId).result.headOption
+
+  private[this] lazy val getProvidersForTypeQuery = Compiled { (`type`: Rep[String]) =>
+    ProviderTable.table.filter(_.`type` === `type`)
+  }
+
+  private[db] def getProvidersForType(`type`: String): DBIO[Seq[Provider]] =
+    getProvidersForTypeQuery(`type`).result
 
   private[this] lazy val getProviderForExtAndOwnerQuery = Compiled {
     (extId: Rep[String], providerOwnerId: Rep[Option[Long]]) =>
@@ -68,13 +81,13 @@ object ProviderDAO {
       }
   }
 
-  private[dao] def getProviderForExtAndOwner(
+  private[db] def getProviderForExtAndOwner(
     extId: String,
     providerOwnerId: Option[Long]
   ): DBIO[Option[Provider]] =
     getProviderForExtAndOwnerQuery(extId, providerOwnerId).result.headOption
 
-  private[dao] def upsertProvider(provider: Provider)(
+  private[db] def upsertProvider(provider: Provider)(
     implicit
     ec: ExecutionContext
   ): DBIO[Provider] =

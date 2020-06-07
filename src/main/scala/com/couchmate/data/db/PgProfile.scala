@@ -4,6 +4,7 @@ import com.couchmate.data.models._
 import com.couchmate.external.gracenote.models.{GracenoteAiring, GracenoteProgramType}
 import com.couchmate.util.slick.UUIDPlainImplicits
 import com.github.tminglei.slickpg._
+import com.neovisionaries.i18n.CountryCode
 import enumeratum.{Enum, EnumEntry, SlickEnumPlainSqlSupport, SlickEnumSupport}
 import play.api.libs.json.{JsValue, Json}
 import slick.basic.Capability
@@ -49,8 +50,13 @@ trait PgProfile
     implicit val userActivityTypeMapper = enumMappedColumn(UserActivityType)
     implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
     implicit val gnProgramTypeMapper = enumMappedColumn(GracenoteProgramType)
-    implicit val countryCodeTypeMapper = enumMappedColumn(CountryCode)
     implicit val showTypeMapper = enumMappedColumn(ShowType)
+
+    implicit val countryCodeMappedColumn: BaseColumnType[CountryCode] =
+      MappedColumnType.base[CountryCode, String](
+        { _.getAlpha3 },
+        { CountryCode.getByAlpha3Code }
+      )
 
     implicit val playJsonArrayTypeMapper =
       new AdvancedArrayJdbcType[JsValue](

@@ -9,10 +9,11 @@ import akka.stream.Materializer
 import com.couchmate.api.models.Provider
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.{ProviderChannelDAO, ProviderDAO, ProviderOwnerDAO, ZipProviderDAO}
-import com.couchmate.data.models.{CountryCode, ProviderOwner, ZipProvider, Provider => InternalProvider}
+import com.couchmate.data.models.{ProviderOwner, ZipProvider, Provider => InternalProvider}
 import com.couchmate.external.gracenote._
 import com.couchmate.external.gracenote.models.{GracenoteProvider, GracenoteProviderOwner}
 import com.couchmate.util.akka.extensions.DatabaseExtension
+import com.neovisionaries.i18n.CountryCode
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
@@ -104,7 +105,7 @@ object ProviderJob
           Seq("lineups"),
           Map(
             "postalCode" -> Some(zipCode),
-            "country" -> Some(countryCode.entryName),
+            "country" -> Some(countryCode.getAlpha3),
           )
         ))
         decoded = Gzip.decodeMessage(response)

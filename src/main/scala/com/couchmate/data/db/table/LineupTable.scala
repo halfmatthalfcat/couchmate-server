@@ -8,6 +8,8 @@ import com.couchmate.data.models.Lineup
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class LineupTable(tag: Tag) extends Table[Lineup](tag, "lineup") {
   def lineupId: Rep[Long] = column[Long]("lineup_id", O.AutoInc, O.PrimaryKey)
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id")
@@ -57,4 +59,7 @@ object LineupTable extends Slickable[LineupTable] {
       _.providerChannelFk,
       _.airingFk,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

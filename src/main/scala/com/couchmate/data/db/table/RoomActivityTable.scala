@@ -9,6 +9,8 @@ import com.couchmate.data.models.{RoomActivity, RoomActivityType}
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class RoomActivityTable(tag: Tag) extends Table[RoomActivity](tag, "room_activity") {
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.SqlType("uuid"))
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
@@ -65,4 +67,7 @@ object RoomActivityTable extends Slickable[RoomActivityTable] {
     ).addIndexes(
       _.roomActivityIdx,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

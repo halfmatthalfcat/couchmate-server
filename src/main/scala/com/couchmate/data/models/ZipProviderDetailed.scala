@@ -1,5 +1,6 @@
 package com.couchmate.data.models
 
+import com.neovisionaries.i18n.CountryCode
 import play.api.libs.json.{Format, Json}
 
 case class ZipProviderDetailed(

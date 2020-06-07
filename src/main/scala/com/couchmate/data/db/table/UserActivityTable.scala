@@ -9,6 +9,8 @@ import com.couchmate.data.models.{UserActivity, UserActivityType}
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class UserActivityTable(tag: Tag) extends Table[UserActivity](tag, "user_activity") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def action: Rep[UserActivityType] = column[UserActivityType]("action")
@@ -44,4 +46,7 @@ object UserActivityTable extends Slickable[UserActivityTable] {
     ).addForeignKeys(
       _.userFk,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

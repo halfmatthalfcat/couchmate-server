@@ -6,6 +6,8 @@ import com.couchmate.data.models.SportEvent
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class SportEventTable(tag: Tag) extends Table[SportEvent](tag, "sport_event") {
   def sportEventId: Rep[Long] = column[Long]("sport_event_id", O.PrimaryKey, O.AutoInc)
   def sportOrganizationId: Rep[Option[Long]] = column[Option[Long]]("sport_organization_id")
@@ -49,4 +51,7 @@ object SportEventTable extends Slickable[SportEventTable] {
     ).addIndexes(
       _.sportEventUniqueIdx,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

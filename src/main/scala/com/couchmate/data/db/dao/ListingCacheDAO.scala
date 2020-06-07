@@ -72,13 +72,13 @@ object ListingCacheDAO extends LazyLogging {
       }
   }
 
-  private[dao] def getListingCache(
+  private[db] def getListingCache(
     providerCacheId: Long,
     startTime: LocalDateTime
   ): DBIO[Option[ListingCache]] =
     getListingCacheQuery(providerCacheId, startTime).result.headOption
 
-  private[dao] def upsertListingCache(listingCache: ListingCache)(
+  private[db] def upsertListingCache(listingCache: ListingCache)(
     implicit
     ec: ExecutionContext
   ): DBIO[ListingCache] =
@@ -92,7 +92,7 @@ object ListingCacheDAO extends LazyLogging {
       updated <- ListingCacheDAO.getListingCache(listingCacheId, listingCache.startTime)
     } yield updated.get}
 
-  private[dao] def upsertListingCacheWithDiff(
+  private[db] def upsertListingCacheWithDiff(
     providerChannelId: Long,
     startTime: LocalDateTime,
     airings: Seq[GracenoteAiring]

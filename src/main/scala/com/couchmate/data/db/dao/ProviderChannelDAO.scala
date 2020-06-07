@@ -76,7 +76,7 @@ object ProviderChannelDAO {
     ProviderChannelTable.table.filter(_.providerChannelId === providerChannelId)
   }
 
-  private[dao] def getProviderChannel(providerChannelId: Long): DBIO[Option[ProviderChannel]] =
+  private[db] def getProviderChannel(providerChannelId: Long): DBIO[Option[ProviderChannel]] =
     getProviderChannelQuery(providerChannelId).result.headOption
 
   private[this] lazy val getProviderChannelForProviderAndChannelQuery = Compiled {
@@ -87,13 +87,13 @@ object ProviderChannelDAO {
       }
   }
 
-  private[dao] def getProviderChannelForProviderAndChannel(
+  private[db] def getProviderChannelForProviderAndChannel(
     providerId: Long,
     channelId: Long
   ): DBIO[Option[ProviderChannel]] =
     getProviderChannelForProviderAndChannelQuery(providerId, channelId).result.headOption
 
-  private[dao] def upsertProviderChannel(providerChannel: ProviderChannel)(
+  private[db] def upsertProviderChannel(providerChannel: ProviderChannel)(
     implicit
     ec: ExecutionContext
   ): DBIO[ProviderChannel] =
@@ -107,7 +107,7 @@ object ProviderChannelDAO {
       updated <- ProviderChannelDAO.getProviderChannel(providerChannelId)
     } yield updated.get}
 
-  private[dao] def getOrAddChannel(
+  private[db] def getOrAddChannel(
     providerId: Long,
     channelNumber: String,
     channelOwner: Option[ChannelOwner],

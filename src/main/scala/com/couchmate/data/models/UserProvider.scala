@@ -6,7 +6,6 @@ import play.api.libs.json.{Json, OFormat}
 
 case class UserProvider(
   userId: UUID,
-  zipCode: String,
   providerId: Long,
 ) extends Product with Serializable
 

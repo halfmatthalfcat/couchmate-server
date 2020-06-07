@@ -59,9 +59,9 @@ object RoomActivityDAO {
     } yield ra).length
   }
 
-  private[dao] def getRoomCount(airingId: UUID): DBIO[Int] =
+  private[db] def getRoomCount(airingId: UUID): DBIO[Int] =
     getRoomCountQuery(airingId).result
 
-  private[dao] def addRoomActivity(roomActivity: RoomActivity): DBIO[RoomActivity] =
+  private[db] def addRoomActivity(roomActivity: RoomActivity): DBIO[RoomActivity] =
     (RoomActivityTable.table returning RoomActivityTable.table) += roomActivity
 }

@@ -42,7 +42,7 @@ trait GridDAO {
 }
 
 object GridDAO {
-  private[dao] def getGrid(
+  private[db] def getGrid(
     providerId: Long,
     startTime: LocalDateTime,
     endTime: LocalDateTime,

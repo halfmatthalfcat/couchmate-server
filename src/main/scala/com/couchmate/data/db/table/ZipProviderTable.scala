@@ -2,9 +2,12 @@ package com.couchmate.data.db.table
 
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.{PgProfile, Slickable}
-import com.couchmate.data.models.{CountryCode, ZipProvider}
+import com.couchmate.data.models.ZipProvider
+import com.neovisionaries.i18n.CountryCode
 import slick.lifted.{PrimaryKey, Tag}
 import slick.migration.api._
+
+import scala.concurrent.ExecutionContext
 
 class ZipProviderTable(tag: Tag) extends Table[ZipProvider](tag, "zip_provider") {
   def zipCode: Rep[String] = column[String]("zip_code")
@@ -48,4 +51,7 @@ object ZipProviderTable extends Slickable[ZipProviderTable] {
     ).addForeignKeys(
       _.providerFk,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

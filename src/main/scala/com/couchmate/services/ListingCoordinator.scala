@@ -1,7 +1,8 @@
-package com.couchmate.external.gracenote.listing
+package com.couchmate.services
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
+import com.couchmate.external.gracenote.listing.{ListingJob, ListingPullType}
 import com.typesafe.scalalogging.LazyLogging
 
 object ListingCoordinator extends LazyLogging {

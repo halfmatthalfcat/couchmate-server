@@ -9,6 +9,8 @@ import com.couchmate.data.models.Airing
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class AiringTable(tag: Tag) extends Table[Airing](tag, "airing") {
   def airingId: Rep[UUID] = column[UUID]("airing_id", O.PrimaryKey, O.SqlType("uuid"))
   def showId: Rep[Long] = column[Long]("show_id")
@@ -70,4 +72,7 @@ object AiringTable extends Slickable[AiringTable] {
       _.startTimeIdx,
       _.endTimeIdx,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

@@ -8,6 +8,8 @@ import com.couchmate.data.models.{UserExt, UserExtType}
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class UserExtTable(tag: Tag) extends Table[UserExt](tag, "user_ext") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
   def extType: Rep[UserExtType] = column[UserExtType]("ext_type")
@@ -43,4 +45,7 @@ object UserExtTable extends Slickable[UserExtTable] {
     ).addForeignKeys(
       _.userFk,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

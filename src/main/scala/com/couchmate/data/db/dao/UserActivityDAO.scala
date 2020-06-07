@@ -27,7 +27,7 @@ trait UserActivityDAO {
 
 object UserActivityDAO {
 
-  private[dao] def addUserActivity(userActivity: UserActivity): DBIO[UserActivity] =
+  private[db] def addUserActivity(userActivity: UserActivity): DBIO[UserActivity] =
     (UserActivityTable.table returning UserActivityTable.table) += userActivity
 
 }

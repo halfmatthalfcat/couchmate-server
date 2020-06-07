@@ -3,8 +3,7 @@ package com.couchmate.util.akka.extensions
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Extension, ExtensionId, SupervisorStrategy}
 import akka.cluster.typed.{ClusterSingleton, SingletonActor}
-import com.couchmate.external.gracenote.listing.ListingCoordinator
-import com.couchmate.external.gracenote.provider.ProviderCoordinator
+import com.couchmate.services.{GridCoordinator, ListingCoordinator, ListingUpdater, ProviderCoordinator}
 
 class SingletonExtension(system: ActorSystem[_]) extends Extension {
   private[this] val singletonManager: ClusterSingleton = ClusterSingleton(system)
@@ -27,6 +26,26 @@ class SingletonExtension(system: ActorSystem[_]) extends Extension {
         ).onFailure[Exception](SupervisorStrategy.restart),
         "ProviderCoordinator",
       ),
+    )
+
+  val listingUpdater: ActorRef[ListingUpdater.Command] =
+    singletonManager.init(
+      SingletonActor(
+        Behaviors.supervise(
+          ListingUpdater(),
+        ).onFailure[Exception](SupervisorStrategy.restart),
+        "ListingUpdater"
+      )
+    )
+
+  val gridCoordinator: ActorRef[GridCoordinator.Command] =
+    singletonManager.init(
+      SingletonActor(
+        Behaviors.supervise(
+          GridCoordinator()
+        ).onFailure[Exception](SupervisorStrategy.restart),
+        "GridCoordinator"
+      )
     )
 }
 

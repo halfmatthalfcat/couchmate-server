@@ -42,9 +42,9 @@ object UserPrivateDAO {
     UserPrivateTable.table.filter(_.userId === userId)
   }
 
-  private[dao] def getUserPrivate(userId: UUID): DBIO[Option[UserPrivate]] =
+  private[db] def getUserPrivate(userId: UUID): DBIO[Option[UserPrivate]] =
     getUserPrivateQuery(userId).result.headOption
 
-  private[dao] def upsertUserPrivate(userPrivate: UserPrivate) =
+  private[db] def upsertUserPrivate(userPrivate: UserPrivate) =
     (UserPrivateTable.table returning UserPrivateTable.table).insertOrUpdate(userPrivate)
 }

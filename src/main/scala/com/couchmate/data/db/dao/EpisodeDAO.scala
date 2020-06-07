@@ -64,7 +64,7 @@ object EpisodeDAO {
     EpisodeTable.table.filter(_.episodeId === episodeId)
   }
 
-  private[dao] def getEpisode(episodeId: Long): DBIO[Option[Episode]] =
+  private[db] def getEpisode(episodeId: Long): DBIO[Option[Episode]] =
     getEpisodeQuery(episodeId).result.headOption
 
   private[this] lazy val getEpisodeForSeriesQuery = Compiled {
@@ -78,14 +78,14 @@ object EpisodeDAO {
     } yield e
   }
 
-  private[dao] def getEpisodeForSeries(
+  private[db] def getEpisodeForSeries(
     seriesId: Long,
     season: Option[Long],
     episode: Option[Long]
   ): DBIO[Option[Episode]] =
     getEpisodeForSeriesQuery(seriesId, season, episode).result.headOption
 
-  private[dao] def upsertEpisode(episode: Episode)(
+  private[db] def upsertEpisode(episode: Episode)(
     implicit
     ec: ExecutionContext
   ): DBIO[Episode] =
@@ -99,7 +99,7 @@ object EpisodeDAO {
       updated <- EpisodeDAO.getEpisode(episodeId)
     } yield updated.get}
 
-  private[dao] def getOrAddEpisode(
+  private[db] def getOrAddEpisode(
     show: Show,
     series: Series,
     episode: Episode

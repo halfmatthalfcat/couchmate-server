@@ -6,6 +6,8 @@ import com.couchmate.data.models.ProviderChannel
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class ProviderChannelTable(tag: Tag) extends Table[ProviderChannel](tag, "provider_channel") {
   def providerChannelId: Rep[Long] = column[Long]("provider_channel_id", O.PrimaryKey, O.AutoInc)
   def providerId: Rep[Long] = column[Long]("provider_id")
@@ -62,4 +64,7 @@ object ProviderChannelTable extends Slickable[ProviderChannelTable] {
     ).addIndexes(
       _.providerChannelIdx,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

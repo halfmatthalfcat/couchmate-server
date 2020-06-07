@@ -55,17 +55,17 @@ object ChannelOwnerDAO {
     ChannelOwnerTable.table.filter(_.channelOwnerId === channelOwnerId)
   }
 
-  private[dao] def getChannelOwner(channelOwnerId: Long): DBIO[Option[ChannelOwner]] =
+  private[db] def getChannelOwner(channelOwnerId: Long): DBIO[Option[ChannelOwner]] =
     getChannelOwnerQuery(channelOwnerId).result.headOption
 
   private[this] lazy val getChannelOwnerForExtQuery = Compiled { (extId: Rep[Long]) =>
     ChannelOwnerTable.table.filter(_.extId === extId)
   }
 
-  private[dao] def getChannelOwnerForExt(extId: Long): DBIO[Option[ChannelOwner]] =
+  private[db] def getChannelOwnerForExt(extId: Long): DBIO[Option[ChannelOwner]] =
     getChannelOwnerForExtQuery(extId).result.headOption
 
-  private[dao] def upsertChannelOwner(channelOwner: ChannelOwner)(
+  private[db] def upsertChannelOwner(channelOwner: ChannelOwner)(
     implicit
     ec: ExecutionContext
   ): DBIO[ChannelOwner] =
@@ -79,7 +79,7 @@ object ChannelOwnerDAO {
       updated <- getChannelOwner(channelOwnerId)
     } yield updated.get}.transactionally
 
-  private[dao] def getOrAddChannelOwner(channelOwner: ChannelOwner)(
+  private[db] def getOrAddChannelOwner(channelOwner: ChannelOwner)(
     implicit
     ec: ExecutionContext
   ): DBIO[ChannelOwner] = (channelOwner match {

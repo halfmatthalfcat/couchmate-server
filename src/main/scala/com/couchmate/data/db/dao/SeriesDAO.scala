@@ -58,17 +58,17 @@ object SeriesDAO {
     SeriesTable.table.filter(_.seriesId === seriesId)
   }
 
-  private[dao] def getSeries(seriesId: Long): DBIO[Option[Series]] =
+  private[db] def getSeries(seriesId: Long): DBIO[Option[Series]] =
     getSeriesQuery(seriesId).result.headOption
 
   private[this] lazy val getSeriesByExtQuery = Compiled { (extId: Rep[Long]) =>
     SeriesTable.table.filter(_.extId === extId)
   }
 
-  private[dao] def getSeriesByExt(extId: Long): DBIO[Option[Series]] =
+  private[db] def getSeriesByExt(extId: Long): DBIO[Option[Series]] =
     getSeriesByExtQuery(extId).result.headOption
 
-  private[dao] def upsertSeries(series: Series)(
+  private[db] def upsertSeries(series: Series)(
     implicit
     ec: ExecutionContext
   ): DBIO[Series] =

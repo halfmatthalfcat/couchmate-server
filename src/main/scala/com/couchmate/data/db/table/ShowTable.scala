@@ -9,6 +9,8 @@ import com.couchmate.external.gracenote.models.GracenoteProgramType
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class ShowTable(tag: Tag) extends Table[Show](tag, "show") {
   def showId: Rep[Long] = column[Long]("show_id", O.PrimaryKey, O.AutoInc)
   def extId: Rep[Long] = column[Long]("ext_id")
@@ -70,4 +72,7 @@ object ShowTable extends Slickable[ShowTable] {
       _.episodeFk,
       _.sportFk,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

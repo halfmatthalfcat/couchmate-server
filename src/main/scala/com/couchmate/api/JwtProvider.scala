@@ -34,7 +34,7 @@ trait JwtProvider {
   private[this] lazy val verifier: MACVerifier =
     new MACVerifier(this.secret)
 
-  def create(
+  def createToken(
     subject: String,
     claims: Map[String, String] = Map(),
     expiry: Duration = this.expiry,
@@ -66,7 +66,7 @@ trait JwtProvider {
     }
   }
 
-  def validate(token: String): Try[UUID] = {
+  def validateToken(token: String): Try[UUID] = {
     try {
       val signedJWT = SignedJWT.parse(token)
       val verified = signedJWT.verify(this.verifier)

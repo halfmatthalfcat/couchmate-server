@@ -41,9 +41,9 @@ object UserExtDAO {
     UserExtTable.table.filter(_.userId === userId)
   }
 
-  private[dao] def getUserExt(userId: UUID): DBIO[Option[UserExt]] =
+  private[db] def getUserExt(userId: UUID): DBIO[Option[UserExt]] =
     getUserExtQuery(userId).result.headOption
 
-  private[dao] def upsertUserExt(userExt: UserExt) =
+  private[db] def upsertUserExt(userExt: UserExt) =
     (UserExtTable.table returning UserExtTable.table).insertOrUpdate(userExt)
 }

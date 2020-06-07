@@ -8,8 +8,6 @@ case class User(
   userId: UUID,
   username: String,
   token: String,
-  zipCode: String,
-  providerId: Long,
 )
 
 object User {

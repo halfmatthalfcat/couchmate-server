@@ -57,6 +57,7 @@ lazy val server = (project in file("."))
       // Misc
       "io.underscore"               %%  "slickless"                     % "0.3.6",
       "io.github.nafg"              %%  "slick-migration-api"           % "0.7.0",
+      "com.liyaos"                  %%  "scala-forklift-slick"          % "0.3.2",
       "com.typesafe.play"           %%  "play-json"                     % "2.8.1",
       "org.julienrf"                %%  "play-json-derived-codecs"      % "7.0.0",
       "com.typesafe"                %   "config"                        % "1.4.0",
@@ -71,6 +72,7 @@ lazy val server = (project in file("."))
       "com.beachape"                %%  "enumeratum-slick"              % "1.5.16",
       "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1",
       "com.chuusai"                 %%  "shapeless"                     % "2.3.3",
+      "com.neovisionaries"          %   "nv-i18n"                       % "1.27"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     discoveredMainClasses in Compile := Seq(),

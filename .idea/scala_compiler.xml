@@ -8,7 +8,7 @@
         <parameter value="-encoding" />
         <parameter value="UTF-8" />
         <parameter value="-P:scala2ts:debug:false" />
-        <parameter value="-P:scala2ts:type:includes:com\.couchmate\.api\.models" />
+        <parameter value="-P:scala2ts:type:includes:com\.couchmate\.api\.ws\.protocol" />
         <parameter value="-P:scala2ts:sealedTypes:AsUnionString" />
         <parameter value="-P:scala2ts:outDir:/Users/matt/Code/Couchmate/server/target/typescript" />
         <parameter value="-P:scala2ts:outFileName:index.ts" />

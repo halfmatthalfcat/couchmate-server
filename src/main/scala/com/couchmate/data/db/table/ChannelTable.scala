@@ -6,6 +6,8 @@ import com.couchmate.data.models.Channel
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class ChannelTable(tag: Tag) extends Table[Channel](tag, "channel") {
   def channelId: Rep[Long] = column[Long]("channel_id", O.PrimaryKey, O.AutoInc)
   def extId: Rep[Long] = column[Long]("ext_id")
@@ -45,4 +47,7 @@ object ChannelTable extends Slickable[ChannelTable] {
     .addForeignKeys(
       _.channelOwnerIdFk
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

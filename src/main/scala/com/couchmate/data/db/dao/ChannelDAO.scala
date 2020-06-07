@@ -56,17 +56,17 @@ object ChannelDAO {
     ChannelTable.table.filter(_.channelId === channelId)
   }
 
-  private[dao] def getChannel(channelId: Long): DBIO[Option[Channel]] =
+  private[db] def getChannel(channelId: Long): DBIO[Option[Channel]] =
     getChannelQuery(channelId).result.headOption
 
   private[this] lazy val getChannelForExtQuery = Compiled { (extId: Rep[Long]) =>
     ChannelTable.table.filter(_.extId === extId)
   }
 
-  private[dao] def getChannelForExt(extId: Long): DBIO[Option[Channel]] =
+  private[db] def getChannelForExt(extId: Long): DBIO[Option[Channel]] =
     getChannelForExtQuery(extId).result.headOption
 
-  private[dao] def upsertChannel(channel: Channel)(
+  private[db] def upsertChannel(channel: Channel)(
     implicit
     ec: ExecutionContext
   ): DBIO[Channel] =
@@ -80,7 +80,7 @@ object ChannelDAO {
       updated <- getChannel(channelId)
     } yield updated.get}
 
-  private[dao] def getOrAddChannel(channel: Channel)(
+  private[db] def getOrAddChannel(channel: Channel)(
     implicit
     ec: ExecutionContext
   ): DBIO[Channel] = (channel match {

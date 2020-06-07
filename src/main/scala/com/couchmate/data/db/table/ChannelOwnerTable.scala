@@ -5,6 +5,8 @@ import com.couchmate.data.db.{PgProfile, Slickable}
 import com.couchmate.data.models.ChannelOwner
 import slick.migration.api.TableMigration
 
+import scala.concurrent.ExecutionContext
+
 class ChannelOwnerTable(tag: Tag) extends Table[ChannelOwner](tag, "channel_owner") {
   def channelOwnerId: Rep[Long] = column[Long]("channel_owner_id", O.PrimaryKey, O.AutoInc)
   def extId: Rep[Long] = column[Long]("ext_id")
@@ -29,4 +31,7 @@ object ChannelOwnerTable extends Slickable[ChannelOwnerTable] {
       _.extId,
       _.callsign
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

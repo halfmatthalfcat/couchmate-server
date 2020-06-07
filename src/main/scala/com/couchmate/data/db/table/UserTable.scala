@@ -8,15 +8,15 @@ import com.couchmate.data.models.{User, UserRole}
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class UserTable(tag: Tag) extends Table[User](tag, "user") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
-  def username: Rep[String] = column[String]("username")
   def role: Rep[UserRole] = column[UserRole]("role")
   def active: Rep[Boolean] = column[Boolean]("active", O.Default(true))
   def verified: Rep[Boolean] = column[Boolean]("verified", O.Default(false))
   def * = (
     userId.?,
-    username,
     role,
     active,
     verified,
@@ -32,9 +32,11 @@ object UserTable extends Slickable[UserTable] {
     .create
     .addColumns(
       _.userId,
-      _.username,
       _.role,
       _.active,
       _.verified,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }

@@ -106,7 +106,7 @@ object LineupDAO {
     LineupTable.table.filter(_.lineupId === lineupId)
   }
 
-  private[dao] def getLineup(lineupId: Long): DBIO[Option[Lineup]] =
+  private[db] def getLineup(lineupId: Long): DBIO[Option[Lineup]] =
     getLineupQuery(lineupId).result.headOption
 
   private[this] lazy val lineupsExistForProviderQuery = Compiled { (providerId: Rep[Long]) =>
@@ -119,7 +119,7 @@ object LineupDAO {
     } yield pc.providerId).exists
   }
 
-  private[dao] def lineupsExistForProvider(providerId: Long): DBIO[Boolean] =
+  private[db] def lineupsExistForProvider(providerId: Long): DBIO[Boolean] =
     lineupsExistForProviderQuery(providerId).result
 
   private[this] lazy val getLineupForProviderChannelAndAiringQuery = Compiled {
@@ -130,7 +130,7 @@ object LineupDAO {
       }
   }
 
-  private[dao] def getLineupForProviderChannelAndAiring(
+  private[db] def getLineupForProviderChannelAndAiring(
     providerChannelId: Long,
     airingId: UUID
   ): DBIO[Option[Lineup]] =
@@ -139,7 +139,7 @@ object LineupDAO {
       airingId
     ).result.headOption
 
-  private[dao] def upsertLineup(lineup: Lineup)(
+  private[db] def upsertLineup(lineup: Lineup)(
     implicit
     ec: ExecutionContext
   ): DBIO[Lineup] =
@@ -156,7 +156,7 @@ object LineupDAO {
     }}.transactionally
 
 
-  private[dao] def getOrAddLineup(
+  private[db] def getOrAddLineup(
     providerChannelId: Long,
     show: Show,
     airing: Airing,
@@ -185,7 +185,7 @@ object LineupDAO {
         )))(DBIO.successful)
   } yield lineup).transactionally
 
-  private[dao] def disableLineup(
+  private[db] def disableLineup(
     providerChannelId: Long,
     gracenoteAiring: GracenoteAiring,
   )(

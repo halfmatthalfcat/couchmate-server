@@ -5,7 +5,8 @@ import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.{Flow, Source}
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.table.{ProviderTable, ZipProviderTable}
-import com.couchmate.data.models.{CountryCode, Provider, ZipProvider, ZipProviderDetailed}
+import com.couchmate.data.models.{Provider, ZipProvider, ZipProviderDetailed}
+import com.neovisionaries.i18n.CountryCode
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -120,7 +121,7 @@ object ZipProviderDAO {
     }.exists
   }
 
-  private[dao] def zipProvidersExistForZipAndCode(zipCode: String, countryCode: CountryCode): DBIO[Boolean] =
+  private[db] def zipProvidersExistForZipAndCode(zipCode: String, countryCode: CountryCode): DBIO[Boolean] =
     zipProvidersExistForZipAndCodeQuery(zipCode, countryCode).result
 
   private[this] lazy val getZipProviderForZipAndCodeQuery = Compiled {
@@ -132,7 +133,7 @@ object ZipProviderDAO {
       }
   }
 
-  private[dao] def getZipProviderForZipAndCode(zipCode: String, countryCode: CountryCode, providerId: Long): DBIO[Option[ZipProvider]] =
+  private[db] def getZipProviderForZipAndCode(zipCode: String, countryCode: CountryCode, providerId: Long): DBIO[Option[ZipProvider]] =
     getZipProviderForZipAndCodeQuery(zipCode, countryCode, providerId).result.headOption
 
   private[this] lazy val getProvidersForZipAndCodeQuery = Compiled { (zipCode: Rep[String], countryCode: Rep[CountryCode]) =>
@@ -145,7 +146,7 @@ object ZipProviderDAO {
     } yield p
   }
 
-  private[dao] def getProvidersForZipAndCode(zipCode: String, countryCode: CountryCode): DBIO[Seq[Provider]] =
+  private[db] def getProvidersForZipAndCode(zipCode: String, countryCode: CountryCode): DBIO[Seq[Provider]] =
     getProvidersForZipAndCodeQuery(zipCode, countryCode).result
 
   private[this] lazy val getZipProvidersForZipAndCodeQuery = Compiled {
@@ -156,7 +157,7 @@ object ZipProviderDAO {
       }
   }
 
-  private[dao] def getZipProvidersForZipAndCode(
+  private[db] def getZipProvidersForZipAndCode(
     zipCode: String,
     countryCode: CountryCode
   ): DBIO[Seq[ZipProvider]] =
@@ -176,9 +177,9 @@ object ZipProviderDAO {
     )
   }
 
-  private[dao] def getZipMap: DBIO[Seq[(String, CountryCode, Long, String, String, Option[String])]] =
+  private[db] def getZipMap: DBIO[Seq[(String, CountryCode, Long, String, String, Option[String])]] =
     getZipMapQuery.result
 
-  private[dao] def addZipProvider(zipProvider: ZipProvider): DBIO[ZipProvider] =
+  private[db] def addZipProvider(zipProvider: ZipProvider): DBIO[ZipProvider] =
     (ZipProviderTable.table returning ZipProviderTable.table) += zipProvider
 }

@@ -106,7 +106,7 @@ object AiringDAO {
     AiringTable.table.filter(_.airingId === airingId)
   }
 
-  private[dao] def getAiring(airingId: UUID): DBIO[Option[Airing]] =
+  private[db] def getAiring(airingId: UUID): DBIO[Option[Airing]] =
     getAiringQuery(airingId).result.headOption
 
   private[this] lazy val getAiringByShowStartAndEndQuery = Compiled {
@@ -118,7 +118,7 @@ object AiringDAO {
       }
   }
 
-  private[dao] def getAiringByShowStartAndEnd(
+  private[db] def getAiringByShowStartAndEnd(
     showId: Long,
     startTime: LocalDateTime,
     endTime: LocalDateTime
@@ -129,14 +129,14 @@ object AiringDAO {
     AiringTable.table.filter(_.startTime === startTime)
   }
 
-  private[dao] def getAiringsByStart(startTime: LocalDateTime): DBIO[Seq[Airing]] =
+  private[db] def getAiringsByStart(startTime: LocalDateTime): DBIO[Seq[Airing]] =
     getAiringsByStartQuery(startTime).result
 
   private[this] lazy val getAiringsByEndQuery = Compiled { (endTime: Rep[LocalDateTime]) =>
     AiringTable.table.filter(_.endTime === endTime)
   }
 
-  private[dao] def getAiringsByEnd(endTime: LocalDateTime): DBIO[Seq[Airing]] =
+  private[db] def getAiringsByEnd(endTime: LocalDateTime): DBIO[Seq[Airing]] =
     getAiringsByEndQuery(endTime).result
 
   private[this] lazy val getAiringsBetweenStartAndEndQuery = Compiled {
@@ -151,13 +151,13 @@ object AiringDAO {
       }
   }
 
-  private[dao] def getAiringsBetweenStartAndEnd(
+  private[db] def getAiringsBetweenStartAndEnd(
     startTime: LocalDateTime,
     endTime: LocalDateTime
   ): DBIO[Seq[Airing]] =
     getAiringsBetweenStartAndEndQuery(startTime, endTime).result
 
-  private[dao] def upsertAiring(airing: Airing)(
+  private[db] def upsertAiring(airing: Airing)(
     implicit
     ec: ExecutionContext
   ): DBIO[Airing] = airing.airingId.fold[DBIO[Airing]](

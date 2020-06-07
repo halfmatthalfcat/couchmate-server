@@ -37,19 +37,17 @@ trait UserProviderDAO {
   ): Flow[UUID, Seq[Provider], NotUsed] =
     Slick.flowWithPassThrough(UserProviderDAO.getProviders)
 
-  def userProviderExists(providerId: Long, zipCode: String)(
+  def userProviderExists(providerId: Long)(
     implicit
     db: Database
   ): Future[Boolean] =
-    db.run(UserProviderDAO.userProviderExists(providerId, zipCode))
+    db.run(UserProviderDAO.userProviderExists(providerId))
 
   def userProviderExists$()(
     implicit
     session: SlickSession
-  ): Flow[(Long, String), Boolean, NotUsed] =
-    Slick.flowWithPassThrough(
-      (UserProviderDAO.userProviderExists _).tupled
-    )
+  ): Flow[Long, Boolean, NotUsed] =
+    Slick.flowWithPassThrough(UserProviderDAO.userProviderExists)
 
   def getUniqueInternalProviders()(
     implicit
@@ -93,7 +91,7 @@ object UserProviderDAO {
     UserProviderTable.table.filter(_.userId === userId)
   }
 
-  private[dao] def getUserProvider(userId: UUID): DBIO[Option[UserProvider]] =
+  private[db] def getUserProvider(userId: UUID): DBIO[Option[UserProvider]] =
     getUserProviderQuery(userId).result.headOption
 
   private[this] lazy val getProvidersQuery = Compiled { (userId: Rep[UUID]) =>
@@ -103,28 +101,24 @@ object UserProviderDAO {
     } yield p
   }
 
-  private[dao] def getProviders(userId: UUID): DBIO[Seq[Provider]] =
+  private[db] def getProviders(userId: UUID): DBIO[Seq[Provider]] =
     getProvidersQuery(userId).result
 
   private[this] lazy val userProviderExistsQuery = Compiled {
-    (providerId: Rep[Long], zipCode: Rep[String]) =>
+    (providerId: Rep[Long]) =>
       UserProviderTable.table.filter { up =>
-        up.providerId === providerId &&
-        up.zipCode === zipCode
+        up.providerId === providerId
       }.exists
   }
 
-  private[dao] def userProviderExists(
-    providerId: Long,
-    zipCode: String
-  ): DBIO[Boolean] =
-    userProviderExistsQuery(providerId, zipCode).result
+  private[db] def userProviderExists(providerId: Long): DBIO[Boolean] =
+    userProviderExistsQuery(providerId).result
 
   private[this] lazy val getUniqueInternalProvidersQuery = Compiled {
     UserProviderTable.table.distinct
   }
 
-  private[dao] def getUniqueInternalProviders: StreamingDBIO[Seq[UserProvider], UserProvider] =
+  private[db] def getUniqueInternalProviders: StreamingDBIO[Seq[UserProvider], UserProvider] =
     getUniqueInternalProvidersQuery.result
 
   private[this] lazy val getUniqueProvidersQuery = Compiled {
@@ -134,9 +128,9 @@ object UserProviderDAO {
     } yield p).distinct
   }
 
-  private[dao] def getUniqueProviders: StreamingDBIO[Seq[Provider], Provider] =
+  private[db] def getUniqueProviders: StreamingDBIO[Seq[Provider], Provider] =
     getUniqueProvidersQuery.result
 
-  private[dao] def addUserProvider(userProvider: UserProvider): DBIO[UserProvider] =
+  private[db] def addUserProvider(userProvider: UserProvider): DBIO[UserProvider] =
     (UserProviderTable.table returning UserProviderTable.table) += userProvider
 }

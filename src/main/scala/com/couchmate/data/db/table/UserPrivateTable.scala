@@ -8,6 +8,8 @@ import com.couchmate.data.models.UserPrivate
 import slick.lifted.Tag
 import slick.migration.api._
 
+import scala.concurrent.ExecutionContext
+
 class UserPrivateTable(tag: Tag) extends Table[UserPrivate](tag, "user_private") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
   def password: Rep[String] = column[String]("password")
@@ -40,4 +42,7 @@ object UserPrivateTable extends Slickable[UserPrivateTable] {
     ).addForeignKeys(
       _.userFk,
     )
+
+  private[db] def seed(implicit ec: ExecutionContext): Option[DBIO[_]] =
+    Option.empty
 }
