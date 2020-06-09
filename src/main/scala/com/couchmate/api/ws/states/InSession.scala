@@ -7,14 +7,17 @@ import com.couchmate.api.ws.protocol.{SetSession, UpdateGrid}
 import com.couchmate.api.ws.{GeoContext, SessionContext}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
-import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
+import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, SingletonExtension}
 
 class InSession private[ws] (
   session: SessionContext,
   geo: GeoContext,
   ctx: ActorContext[Command],
   ws: ActorRef[Command]
-) extends Connected(ctx, ws) {
+) extends BaseState(ctx, ws) {
+  val metrics: PromExtension =
+    PromExtension(ctx.system)
+
   val gridCoordinator: ActorRef[GridCoordinator.Command] =
     SingletonExtension(ctx.system).gridCoordinator
 
@@ -28,6 +31,13 @@ class InSession private[ws] (
     session.providerName,
     session.token
   ))
+
+  metrics.incSession(
+    session.providerId,
+    session.providerName,
+    geo.timezone,
+    geo.country
+  )
 
   gridCoordinator ! GridCoordinator.AddListener(
     session.providerId,

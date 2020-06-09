@@ -1,7 +1,5 @@
 package com.couchmate.api
 
-import java.util.UUID
-
 import akka.actor.typed.scaladsl.ActorContext
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
@@ -22,15 +20,12 @@ trait Routes
   with HttpMetricsDirectives {
   import com.couchmate.api.ws._
   implicit val ec: ExecutionContext
-  implicit val context: ActorContext[Server.Command]
+  implicit val ctx: ActorContext[Server.Command]
 
   def routes(
     registry: PrometheusRegistry,
   ): Route = cors() {
     concat(
-      path("healthcheck") {
-        complete(StatusCodes.OK)
-      },
       path("metrics") {
         get {
           metrics(registry)

@@ -9,13 +9,16 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
+import akka.stream.typed.scaladsl.ActorFlow
+import akka.util.Timeout
 import com.couchmate.api.models.grid.Grid
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.{GridDAO, ProviderDAO}
 import com.couchmate.data.models.{Lineup, Provider}
 import com.couchmate.external.gracenote._
-import com.couchmate.external.gracenote.models.{GracenoteChannelAiring, GracenoteSport}
-import com.couchmate.util.akka.extensions.DatabaseExtension
+import com.couchmate.external.gracenote.models.{GracenoteChannelAiring, GracenoteSlotAiring, GracenoteSport}
+import com.couchmate.services.GracenoteCoordinator
+import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
@@ -69,6 +72,10 @@ object ListingJob
     implicit val db: Database = DatabaseExtension(ctx.system).db
     implicit val http: HttpExt = Http(ctx.system)
     implicit val config: Config = ConfigFactory.load()
+    implicit val timeout: Timeout = 30 seconds
+
+    val gracenoteCoordinator: ActorRef[GracenoteCoordinator.Command] =
+      SingletonExtension(ctx.system).gracenoteCoordinator
 
     ctx.pipeToSelf(getProvider(providerId)) {
       case Success(Some(value)) => ProviderSuccess(value)
@@ -76,8 +83,9 @@ object ListingJob
       case Failure(exception) => ProviderFailure(exception)
     }
 
-    ctx.pipeToSelf(getSports) {
-      case Success(value) => SportsSuccess(value)
+    ctx.ask(gracenoteCoordinator, GracenoteCoordinator.GetSports) {
+      case Success(GracenoteCoordinator.GetSportsSuccess(sports)) => SportsSuccess(sports)
+      case Success(GracenoteCoordinator.GetSportsFailure(err)) => SportsFailure(err)
       case Failure(exception) => SportsFailure(exception)
     }
 
@@ -117,11 +125,26 @@ object ListingJob
       import ListingStreams._
 
       slots(pullType)
-        .flatMapConcat(
-          listings(
-            state.provider.extId,
-            _
-          ).flatMapConcat(slotAiring =>
+        .via(ActorFlow.ask[
+          LocalDateTime,
+          GracenoteCoordinator.Command,
+          GracenoteCoordinator.Command
+        ](
+          gracenoteCoordinator
+        )((slot, actorRef) => GracenoteCoordinator.GetListings(
+          state.provider.extId,
+          slot,
+          actorRef
+        ))
+        .flatMapConcat {
+          case GracenoteCoordinator.GetListingsSuccess(slot, listings) =>
+            Source.fromIterator(() => listings.map(GracenoteSlotAiring(
+              slot,
+              _
+            )).iterator)
+          case GracenoteCoordinator.GetListingsFailure(ex) =>
+            Source.failed(ex)
+        }.flatMapConcat(slotAiring =>
             channel(
               state.provider.providerId.get,
               slotAiring.channelAiring,
@@ -146,7 +169,7 @@ object ListingJob
                .fold(1L)((acc: Long, _: Lineup) => {
                  acc + 1L
                })
-               .log(s"${plan.providerChannelId}|${plan.startTime}")
+               .log(s"${providerId}|${plan.providerChannelId}|${plan.startTime}")
            })
         )
         .run
@@ -166,21 +189,6 @@ object ListingJob
 
       job(Seq(initiate))
     }
-
-    def getSports: Future[Seq[GracenoteSport]] =
-      for {
-        response <- http.singleRequest(makeGracenoteRequest(
-          config.getString("gracenote.host"),
-          config.getString("gracenote.apiKey"),
-          Seq("sports", "all"),
-          Map(
-            "includeOrg" -> Some("true"),
-            "officialOrg" -> Some("true")
-          )
-        ))
-        decoded <- Gzip.decodeMessage(response).toStrict(5 seconds)
-        sports <- Unmarshal(decoded.entity).to[Seq[GracenoteSport]]
-      } yield sports
 
     start(PreState())
   }

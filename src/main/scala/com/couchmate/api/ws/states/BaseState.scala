@@ -10,14 +10,13 @@ abstract class BaseState(
   ws: ActorRef[Command]
 ) extends AkkaUtils {
 
-  final def run: Behavior[Command] = Behaviors.logMessages(
+  final def run: Behavior[Command] =
     Behaviors.receiveMessage(compose(
       internal,
       incoming,
       outgoing,
       closing,
     ))
-  )
 
   private[this] final def outgoing: PartialCommand = {
     case outgoing: Outgoing =>

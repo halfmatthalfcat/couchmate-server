@@ -6,7 +6,7 @@ import akka.cluster.typed.{Cluster, Join}
 import akka.http.scaladsl.Http.ServerBinding
 import akka.util.Timeout
 import com.couchmate.api.ApiServer
-import com.couchmate.util.akka.extensions.SingletonExtension
+import com.couchmate.util.akka.extensions.{PromExtension, SingletonExtension}
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
@@ -69,12 +69,16 @@ object Server {
 
     SingletonExtension(ctx.system)
 
+    val metrics: PromExtension =
+      PromExtension(ctx.system)
+
     implicit val timeout: Timeout = 30 seconds
 
     ctx.pipeToSelf(ApiServer(
       host,
       port,
-      config,
+      metrics.registry,
+      metrics.settings
     )) {
       case Success(binding) => Started(binding)
       case Failure(ex) => StartFailed(ex)

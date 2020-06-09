@@ -5,28 +5,29 @@ import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.{ActorSystem => ClassicActorSystem}
 import akka.http.scaladsl.Http
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, Materializer}
 import com.couchmate.Server
 import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsRoute._
+import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsSettings
+import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
 
 import scala.concurrent.{ExecutionContext, Future}
 
 class ApiServer(
-  val host: String,
-  val port: Int,
-  val config: Config,
+  host: String,
+  port: Int,
+  registry: PrometheusRegistry,
+  settings: HttpMetricsSettings
 )(
   implicit
-  val system: ActorSystem[Nothing],
   val ec: ExecutionContext,
-  val context: ActorContext[Server.Command],
-) extends Routes
-  with ApiMetrics {
+  val ctx: ActorContext[Server.Command],
+) extends Routes {
   private[this] implicit val actorSystem: ClassicActorSystem =
-    system.toClassic
-  private[this] implicit val materializer: ActorMaterializer =
-    ActorMaterializer()(actorSystem)
+    ctx.system.toClassic
+  private[this] implicit val materializer: Materializer =
+    Materializer(ctx.system)
 
   val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
     routes(
@@ -41,15 +42,16 @@ object ApiServer {
   def apply(
     host: String,
     port: Int,
-    config: Config,
+    registry: PrometheusRegistry,
+    settings: HttpMetricsSettings
   )(
     implicit
-    system: ActorSystem[Nothing],
     ec: ExecutionContext,
-    context: ActorContext[Server.Command],
+    ctx: ActorContext[Server.Command],
   ): Future[Http.ServerBinding] = new ApiServer(
     host,
     port,
-    config,
+    registry,
+    settings
   ).httpServer
 }

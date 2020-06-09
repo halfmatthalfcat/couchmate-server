@@ -18,6 +18,7 @@ import com.typesafe.config.Config
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 
 object ListingStreams
   extends PlayJsonSupport
@@ -56,8 +57,9 @@ object ListingStreams
         )
       )
     ))
-    decoded = Gzip.decodeMessage(response)
+    decoded <- Gzip.decodeMessage(response).toStrict(10 seconds)
     channelAirings <- Unmarshal(decoded.entity).to[Seq[GracenoteChannelAiring]]
+    _ = decoded.discardEntityBytes()
   } yield channelAirings).mapConcat(identity).map(GracenoteSlotAiring(
     slot,
     _

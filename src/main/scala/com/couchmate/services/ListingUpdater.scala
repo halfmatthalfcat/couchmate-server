@@ -29,7 +29,7 @@ object ListingUpdater
     Behaviors.withTimers { timers =>
       timers.startTimerWithFixedDelay(StartUpdate, 1 day)
 
-      // ctx.self ! StartUpdate
+      ctx.self ! StartUpdate
 
       Behaviors.receiveMessage {
         case StartUpdate => ctx.pipeToSelf(getProviders) {
@@ -39,6 +39,7 @@ object ListingUpdater
           Behaviors.same
         case ProvidersSuccess(providers) =>
           providers.foreach { providerId: Long =>
+            ctx.log.debug(s"Starting listing pull for $providerId")
             listingCoordinator ! ListingCoordinator.RequestListing(
               providerId,
               ctx.system.ignoreRef
@@ -56,5 +57,5 @@ object ListingUpdater
   ): Future[Seq[Long]] = for {
     defaults <- getProvidersForType("Default")
     users <- getUniqueProviders()
-  } yield (defaults ++ users).map(_.providerId.get)
+  } yield (defaults ++ users).map(_.providerId.get).distinct
 }
