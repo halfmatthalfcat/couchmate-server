@@ -159,7 +159,7 @@ object UserDAO {
     ))
     _ <- UserMetaDAO.upsertUserMeta(UserMeta(
       userId = user.userId.get,
-      email = email,
+      email = Some(email),
       username = username
     ))
     hashedPw <- DBIO.from(Future.fromTry(password.bcryptSafe(10)))

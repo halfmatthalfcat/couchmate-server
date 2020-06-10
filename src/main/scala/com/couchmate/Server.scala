@@ -6,7 +6,7 @@ import akka.cluster.typed.{Cluster, Join}
 import akka.http.scaladsl.Http.ServerBinding
 import akka.util.Timeout
 import com.couchmate.api.ApiServer
-import com.couchmate.util.akka.extensions.{PromExtension, SingletonExtension}
+import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, SingletonExtension}
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
@@ -66,6 +66,8 @@ object Server {
     val cluster: Cluster = Cluster(system)
 
     cluster.manager ! Join(cluster.selfMember.address)
+
+    RoomExtension(ctx.system)
 
     SingletonExtension(ctx.system)
 

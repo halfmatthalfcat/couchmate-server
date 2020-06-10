@@ -7,6 +7,7 @@ import play.api.libs.json.{Json, OFormat}
 case class User(
   userId: UUID,
   username: String,
+  email: Option[String],
   token: String,
 )
 

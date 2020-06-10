@@ -51,13 +51,17 @@ trait UserMetaDAO {
 
   def upsertUserMeta(userMeta: UserMeta)(
     implicit
+    ec: ExecutionContext,
     db: Database
-  ) = db.run(UserMetaDAO.upsertUserMeta(userMeta))
+  ): Future[UserMeta] =
+    db.run(UserMetaDAO.upsertUserMeta(userMeta))
 
   def upsertUserMeta$()(
     implicit
+    ec: ExecutionContext,
     session: SlickSession
-  ) = Slick.flowWithPassThrough(UserMetaDAO.upsertUserMeta)
+  ): Flow[UserMeta, UserMeta, NotUsed] =
+    Slick.flowWithPassThrough(UserMetaDAO.upsertUserMeta)
 
 }
 
@@ -83,6 +87,13 @@ object UserMetaDAO {
   private[db] def emailExists(email: String): DBIO[Boolean] =
     emailExistsQuery(email).result
 
-  private[db] def upsertUserMeta(userMeta: UserMeta) =
-    (UserMetaTable.table returning UserMetaTable.table).insertOrUpdate(userMeta)
+  private[db] def upsertUserMeta(userMeta: UserMeta)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[UserMeta] = (for {
+    exists <- getUserMeta(userMeta.userId)
+    userMeta <- exists.fold[DBIO[UserMeta]](
+      (UserMetaTable.table returning UserMetaTable.table) += userMeta
+    )(_ => UserMetaTable.table.filter(_.userId === userMeta.userId).update(userMeta).map(_ => userMeta))
+  } yield userMeta).transactionally
 }

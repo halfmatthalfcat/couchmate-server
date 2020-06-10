@@ -9,12 +9,13 @@ import com.couchmate.api.ws.Commands.{Command, Incoming, Outgoing, PartialComman
 import com.couchmate.api.ws.{GeoContext, SessionContext, WSClient}
 import com.couchmate.api.ws.protocol._
 import com.couchmate.data.db.PgProfile.api._
-import com.couchmate.data.db.dao.{ProviderDAO, UserDAO, UserProviderDAO}
-import com.couchmate.data.models.{UserProvider, UserRole, User => InternalUser}
+import com.couchmate.data.db.dao.{ProviderDAO, UserDAO, UserMetaDAO, UserProviderDAO}
+import com.couchmate.data.models.{UserMeta, UserProvider, UserRole, User => InternalUser}
 import com.couchmate.external.gracenote.models.GracenoteDefaultProvider
 import com.couchmate.external.gracenote.provider.ProviderJob
 import com.couchmate.services.{ListingCoordinator, ProviderCoordinator}
 import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
+import com.github.halfmatthalfcat.moniker.Moniker
 import com.neovisionaries.i18n.CountryCode
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -65,8 +66,11 @@ class Connected private[ws] (
 object Connected
   extends JwtProvider
   with UserDAO
+  with UserMetaDAO
   with ProviderDAO
   with UserProviderDAO {
+
+  val moniker: Moniker = Moniker()
 
   def getDefaultProvider(context: GeoContext): GracenoteDefaultProvider = context match {
     case GeoContext("EST" | "EDT", Some(CountryCode.US)) =>
@@ -96,7 +100,7 @@ object Connected
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[SessionContext] = {
+  ): Future[SessionContext] = ({
     val defaultProvider: GracenoteDefaultProvider =
       getDefaultProvider(context)
 
@@ -106,6 +110,15 @@ object Connected
         role = UserRole.Anon,
         active = true,
         verified = false
+      ))
+      userMeta <- upsertUserMeta(UserMeta(
+        userId = user.userId.get,
+        username = moniker
+          .getRandom()
+          .split(" ")
+          .map(_.capitalize)
+          .mkString(" "),
+        email = None
       ))
       _ <- addUserProvider(UserProvider(
         userId = user.userId.get,
@@ -118,11 +131,15 @@ object Connected
         expiry = Duration.ofDays(365L)
       ))
     } yield SessionContext(
-      userId = user.userId.get,
-      role = user.role,
+      user = user,
+      userMeta = userMeta,
       providerId = provider.get.providerId.get,
       providerName = provider.get.name,
       token = token
     )
+  }) recoverWith {
+    case ex: Throwable =>
+      System.out.println(s"----- ERROR: ${ex.getMessage}")
+      Future.failed(ex)
   }
 }

@@ -4,7 +4,6 @@ import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
 import com.couchmate.util.metrics.PrometheusMetrics
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsSettings
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
-import io.prometheus.client.CollectorRegistry
 
 class PromExtension(system: ActorSystem[_])
   extends Extension

@@ -12,12 +12,12 @@ import scala.concurrent.ExecutionContext
 
 class UserMetaTable(tag: Tag) extends Table[UserMeta](tag, "user_meta") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.PrimaryKey, O.SqlType("uuid"))
-  def email: Rep[String] = column[String]("email")
+  def email: Rep[Option[String]] = column[Option[String]]("email")
   def username: Rep[String] = column[String]("username")
   def * = (
     userId,
-    email,
     username,
+    email,
   ) <> ((UserMeta.apply _).tupled, UserMeta.unapply)
 
   def userFk = foreignKey(
@@ -40,7 +40,8 @@ object UserMetaTable extends Slickable[UserMetaTable] {
     .create
     .addColumns(
       _.userId,
-      _.email,
+      _.username,
+      _.email
     ).addForeignKeys(
       _.userFk,
     )

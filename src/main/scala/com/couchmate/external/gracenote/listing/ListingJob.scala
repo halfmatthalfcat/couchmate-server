@@ -16,7 +16,7 @@ import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao.{GridDAO, ProviderDAO}
 import com.couchmate.data.models.{Lineup, Provider}
 import com.couchmate.external.gracenote._
-import com.couchmate.external.gracenote.models.{GracenoteChannelAiring, GracenoteSlotAiring, GracenoteSport}
+import com.couchmate.external.gracenote.models.{GracenoteAiringPlanResult, GracenoteChannelAiring, GracenoteSlotAiring, GracenoteSport}
 import com.couchmate.services.GracenoteCoordinator
 import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
 import com.typesafe.config.{Config, ConfigFactory}
@@ -145,32 +145,38 @@ object ListingJob
           case GracenoteCoordinator.GetListingsFailure(ex) =>
             Source.failed(ex)
         }.flatMapConcat(slotAiring =>
-            channel(
-              state.provider.providerId.get,
-              slotAiring.channelAiring,
-              slotAiring.slot
-            )
-          )
-           .flatMapConcat(plan => {
-             Source
-               .fromIterator(() => (plan.add.map(airing =>
-                 lineup(
-                   plan.providerChannelId,
-                   airing,
-                   state.sports
-                 )
-               ) ++ plan.remove.map(airing =>
-                 disable(
-                   plan.providerChannelId,
-                   airing
-                 )
-               )).iterator)
-               .flatMapMerge(10, identity)
-               .fold(1L)((acc: Long, _: Lineup) => {
-                 acc + 1L
-               })
-               .log(s"${providerId}|${plan.providerChannelId}|${plan.startTime}")
-           })
+          channel(
+            state.provider.providerId.get,
+            slotAiring.channelAiring,
+            slotAiring.slot
+          )).flatMapConcat(plan => {
+           Source
+             .fromIterator(() => (plan.add.map(airing =>
+               lineup(
+                 plan.providerChannelId,
+                 airing,
+                 state.sports
+               )
+             ) ++ plan.remove.map(airing =>
+               disable(
+                 plan.providerChannelId,
+                 airing
+               )
+             )).iterator)
+             .flatMapMerge(10, identity)
+             .fold(GracenoteAiringPlanResult(
+               plan.startTime,
+               0, 0, plan.skip.size
+             )) {
+               case (acc, lineup) if lineup.active => acc.copy(added = acc.added + 1)
+               case (acc, lineup) if !lineup.active => acc.copy(removed = acc.removed + 1)
+               case (acc, _) => acc
+             }
+           }).reduce((prev: GracenoteAiringPlanResult, curr: GracenoteAiringPlanResult) => prev.copy(
+             added = prev.added + curr.added,
+             removed = prev.removed + curr.removed,
+             skipped = prev.skipped + curr.skipped
+           )).log(s"${providerId}")
         )
         .run
         .flatMap(_ => getGrid(providerId, LocalDateTime.now(ZoneId.of("UTC")), 60))

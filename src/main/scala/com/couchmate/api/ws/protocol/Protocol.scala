@@ -30,8 +30,7 @@ case class RestoreSession(
   roomId: Option[UUID]
 ) extends Protocol
 case class SetSession(
-  userId: UUID,
-  role: UserRole,
+  user: User,
   provider: String,
   token: String
 ) extends Protocol
