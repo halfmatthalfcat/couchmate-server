@@ -36,6 +36,7 @@ object GridCoordinator
 
       def run(state: Map[Long, Seq[ActorRef[Command]]]): Behavior[Command] = Behaviors.receiveMessage {
         case AddListener(providerId, listener) =>
+          ctx.watchWith(listener, RemoveListener(providerId, listener))
           run(state + (providerId -> (state.getOrElse(providerId, Seq()) :+ listener)))
         case RemoveListener(providerId, listener) =>
           ctx.log.debug(s"Removing listener ${listener} from ${state.getOrElse(providerId, Seq())}")

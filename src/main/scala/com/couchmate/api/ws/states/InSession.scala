@@ -1,14 +1,16 @@
 package com.couchmate.api.ws.states
 
+import java.util.UUID
+
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.ActorContext
 import com.couchmate.api.models.User
-import com.couchmate.api.ws.Commands.{Command, Outgoing, PartialCommand}
+import com.couchmate.api.ws.Commands.{Command, InRoom, Outgoing, PartialCommand}
 import com.couchmate.api.ws.protocol.{SetSession, UpdateGrid}
 import com.couchmate.api.ws.{GeoContext, SessionContext}
-import com.couchmate.services.GridCoordinator
+import com.couchmate.services.{Chatroom, GridCoordinator}
 import com.couchmate.services.GridCoordinator.GridUpdate
-import com.couchmate.util.akka.extensions.{PromExtension, SingletonExtension}
+import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, SingletonExtension}
 
 class InSession private[ws](
   session: SessionContext,
@@ -18,12 +20,18 @@ class InSession private[ws](
 ) extends BaseState(ctx, ws) {
   val metrics: PromExtension =
     PromExtension(ctx.system)
+  val lobby: RoomExtension =
+    RoomExtension(ctx.system)
 
   val gridCoordinator: ActorRef[GridCoordinator.Command] =
     SingletonExtension(ctx.system).gridCoordinator
 
   val gridAdapter: ActorRef[GridCoordinator.Command] = ctx.messageAdapter {
     case GridUpdate(grid) => Outgoing(UpdateGrid(grid))
+  }
+
+  val lobbyAdapter: ActorRef[Chatroom.Command] = ctx.messageAdapter {
+    case Chatroom.RoomJoined => InRoom.RoomJoined
   }
 
   ws ! Outgoing(SetSession(
@@ -47,6 +55,12 @@ class InSession private[ws](
   gridCoordinator ! GridCoordinator.AddListener(
     session.providerId,
     gridAdapter,
+  )
+
+  lobby.join(
+    UUID.randomUUID(),
+    session.user,
+    lobbyAdapter
   )
 
   override protected def internal: PartialCommand =

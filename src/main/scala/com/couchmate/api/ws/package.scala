@@ -4,9 +4,8 @@ package com.couchmate.api
  * WS Protocol
  */
 
-import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.{ActorRef, Behavior}
-import com.couchmate.api.ws.protocol.{Protocol, SetSession}
+import com.couchmate.api.ws.protocol.Protocol
 
 package object ws {
   object Commands {
@@ -14,14 +13,6 @@ package object ws {
     type PartialCommand = PartialFunction[Command, Behavior[Command]]
 
     case class SocketConnected(actorRef: ActorRef[Command]) extends Command
-
-    case class BecomeConnected(actorRef: ActorRef[Command]) extends Command
-    case class BecomeInSession(
-      sessionContext: SessionContext,
-      geoContext: GeoContext,
-      ctx: ActorContext[Command],
-      ws: ActorRef[Command]
-    ) extends Command
 
     /**
      * Common Commands
@@ -45,6 +36,10 @@ package object ws {
         geo: GeoContext
       ) extends Command
       case class CreateNewSessionFailure(err: Throwable) extends Command
+    }
+
+    object InRoom {
+      case object RoomJoined extends Command
     }
   }
 }

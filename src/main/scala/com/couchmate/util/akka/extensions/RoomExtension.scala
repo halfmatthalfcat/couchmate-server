@@ -6,19 +6,19 @@ import akka.actor.typed.{ActorRef, ActorSystem, Extension, ExtensionId}
 import akka.cluster.sharding.typed.ShardingEnvelope
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
 import com.couchmate.data.models.User
-import com.couchmate.services.ChatLobby
-import com.couchmate.services.ChatLobby.JoinRoom
+import com.couchmate.services.Chatroom
+import com.couchmate.services.Chatroom.JoinRoom
 
 class RoomExtension(system: ActorSystem[_]) extends Extension {
   private[this] val sharding: ClusterSharding =
     ClusterSharding(system)
 
-  private[this] val shardRegion: ActorRef[ShardingEnvelope[ChatLobby.Command]] =
-    sharding.init(Entity(ChatLobby.TypeKey)(
-      context => ChatLobby(UUID.fromString(context.entityId)),
+  private[this] val shardRegion: ActorRef[ShardingEnvelope[Chatroom.Command]] =
+    sharding.init(Entity(Chatroom.TypeKey)(
+      context => Chatroom(UUID.fromString(context.entityId)),
     ))
 
-  def join(roomId: UUID, user: User, actorRef: ActorRef[ChatLobby.Command]): Unit = {
+  def join(roomId: UUID, user: User, actorRef: ActorRef[Chatroom.Command]): Unit = {
     shardRegion ! ShardingEnvelope(
       roomId.toString,
       JoinRoom(user, actorRef)
