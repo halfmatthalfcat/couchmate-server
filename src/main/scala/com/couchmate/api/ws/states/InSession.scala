@@ -3,13 +3,14 @@ package com.couchmate.api.ws.states
 import java.util.UUID
 
 import akka.actor.typed.ActorRef
-import akka.actor.typed.scaladsl.ActorContext
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import com.couchmate.api.models.User
 import com.couchmate.api.ws.Commands.{Command, InRoom, Outgoing, PartialCommand}
 import com.couchmate.api.ws.protocol.{SetSession, UpdateGrid}
 import com.couchmate.api.ws.{GeoContext, SessionContext}
-import com.couchmate.services.{Chatroom, GridCoordinator}
+import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
+import com.couchmate.services.room.Chatroom
 import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, SingletonExtension}
 
 class InSession private[ws](
@@ -31,7 +32,10 @@ class InSession private[ws](
   }
 
   val lobbyAdapter: ActorRef[Chatroom.Command] = ctx.messageAdapter {
-    case Chatroom.RoomJoined => InRoom.RoomJoined
+    case Chatroom.RoomJoined(roomId) => InRoom.RoomJoined(roomId)
+    case Chatroom.RoomParticipants(participants) => InRoom.SetParticipants(participants)
+    case Chatroom.ParticipantJoined(participant) => InRoom.AddParticipant(participant)
+    case Chatroom.ParticipantLeft(participant) => InRoom.RemoveParticipant(participant)
   }
 
   ws ! Outgoing(SetSession(
@@ -58,13 +62,26 @@ class InSession private[ws](
   )
 
   lobby.join(
-    UUID.randomUUID(),
-    session.user,
+    UUID.fromString("00000000-0000-0000-0000-000000000000"),
+    session.user.userId.get,
+    session.userMeta.username,
     lobbyAdapter
   )
 
-  override protected def internal: PartialCommand =
-    PartialFunction.empty
+  override protected def internal: PartialCommand = {
+    case InRoom.RoomJoined(roomId) =>
+      ctx.log.debug(s"Joined room ${roomId.toString}")
+      Behaviors.same
+    case InRoom.SetParticipants(participants) =>
+      ctx.log.debug(s"Setting participants: ${participants.mkString("\n")}")
+      Behaviors.same
+    case InRoom.AddParticipant(participant) =>
+      ctx.log.debug(s"Adding participant: ${participant.username}")
+      Behaviors.same
+    case InRoom.RemoveParticipant(participant) =>
+      ctx.log.debug(s"Removing participant: ${participant.username}")
+      Behaviors.same
+  }
 
   override protected def incoming: PartialCommand =
     PartialFunction.empty

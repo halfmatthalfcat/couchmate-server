@@ -12,5 +12,11 @@ object RoomActivityType
 
   case object Joined  extends RoomActivityType
   case object Left    extends RoomActivityType
-  case object Kicked  extends RoomActivityType
+
+  object Kicked {
+    case object Inactive  extends RoomActivityType
+    case object Expired   extends RoomActivityType
+    case object Voted     extends RoomActivityType
+    case object Forced    extends RoomActivityType
+  }
 }

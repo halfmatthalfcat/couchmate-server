@@ -4,8 +4,11 @@ package com.couchmate.api
  * WS Protocol
  */
 
+import java.util.UUID
+
 import akka.actor.typed.{ActorRef, Behavior}
 import com.couchmate.api.ws.protocol.Protocol
+import com.couchmate.services.room.RoomParticipant
 
 package object ws {
   object Commands {
@@ -39,7 +42,10 @@ package object ws {
     }
 
     object InRoom {
-      case object RoomJoined extends Command
+      case class RoomJoined(roomId: UUID)                             extends Command
+      case class SetParticipants(participants: Set[RoomParticipant])  extends Command
+      case class AddParticipant(participant: RoomParticipant)         extends Command
+      case class RemoveParticipant(participant: RoomParticipant)      extends Command
     }
   }
 }

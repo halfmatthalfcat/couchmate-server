@@ -40,6 +40,7 @@ lazy val server = (project in file("."))
       akka("stream-typed"),
       akka("cluster-typed"),
       akka("cluster-sharding-typed"),
+      akka("persistence-typed"),
       akka("cluster-metrics"),
       akka("cluster-tools"),
       akka("slf4j"),
@@ -72,7 +73,8 @@ lazy val server = (project in file("."))
       "com.beachape"                %%  "enumeratum-slick"              % "1.5.16",
       "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1",
       "com.chuusai"                 %%  "shapeless"                     % "2.3.3",
-      "com.neovisionaries"          %   "nv-i18n"                       % "1.27"
+      "com.neovisionaries"          %   "nv-i18n"                       % "1.27",
+      "org.fusesource.leveldbjni"   %  "leveldbjni-all"                 % "1.8"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     discoveredMainClasses in Compile := Seq(),
