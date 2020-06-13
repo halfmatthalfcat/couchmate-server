@@ -6,17 +6,18 @@ import akka.actor.typed.ActorRef
 import com.couchmate.services.room.Chatroom.Command
 import com.typesafe.config.ConfigFactory
 
-import scala.collection.immutable.ListSet
+import scala.collection.immutable.Queue
 
 final case class Room(
   roomId: UUID = UUID.randomUUID(),
-  participants: ListSet[RoomParticipant] = ListSet.empty
+  participants: Queue[RoomParticipant] = Queue.empty
 ) {
   private[this] val maxSize: Int =
     ConfigFactory.load().getInt("features.room.default-size")
 
   def add(participant: RoomParticipant): Room = this.copy(
-    participants = participants + participant
+    // We want a LIFO queue
+    participants = participants.enqueue(participant).reverse
   )
 
   def remove(userId: UUID): Room = this.copy(

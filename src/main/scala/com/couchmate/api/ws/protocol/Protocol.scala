@@ -3,6 +3,7 @@ package com.couchmate.api.ws.protocol
 import java.util.UUID
 
 import com.couchmate.api.models.grid.Grid
+import com.couchmate.api.models.room.Participant
 import com.couchmate.api.models.{Provider, User}
 import com.couchmate.data.models.{UserMeta, UserRole}
 import com.couchmate.util.json.CountryCodePlayJson
@@ -66,5 +67,20 @@ case class UpdateGrid(
   grid: Grid
 ) extends Protocol
 
+case class JoinRoom(
+  airingId: UUID
+) extends Protocol
+case class RoomJoined(
+  airingId: UUID
+) extends Protocol
+case class SetParticipants(
+  participants: Seq[Participant]
+) extends Protocol
+case class AddParticipant(
+  participant: Participant
+) extends Protocol
+case class RemoveParticipant(
+  participant: Participant
+) extends Protocol
 
 case class AppendMessage(message: String) extends Protocol

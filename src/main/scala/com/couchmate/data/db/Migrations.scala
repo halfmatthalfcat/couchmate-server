@@ -30,6 +30,7 @@ object Migrations extends LazyLogging {
       UserActivityTable,
       UserExtTable,
       UserPrivateTable,
+      UserMuteTable,
       ListingCacheTable,
       LineupTable,
     )

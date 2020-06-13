@@ -2,13 +2,13 @@ package com.couchmate.services.room
 
 import java.util.UUID
 
-import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 
-import scala.collection.immutable.{ListSet, SortedSet}
+import scala.collection.immutable.{Queue, SortedSet}
 
 object Chatroom {
   val TypeKey: EntityTypeKey[Command] =
@@ -23,14 +23,15 @@ object Chatroom {
   ) extends Command
   final case class LeaveRoom(
     roomId: UUID,
-    actorRef: ActorRef[Command]
+    participant: RoomParticipant
   ) extends Command
   final case class SendMessage(
     roomId: UUID,
-    actorRef: ActorRef[Command]
+    participant: RoomParticipant
   ) extends Command
 
   final case class RoomJoined(
+    airingId: UUID,
     roomId: UUID
   ) extends Command
   final case class RoomParticipants(
@@ -52,34 +53,48 @@ object Chatroom {
   ) extends Event
   private final case class LeftRoom(
     roomId: UUID,
-    actorRef: ActorRef[Command]
+    participant: RoomParticipant
   ) extends Event
 
-  final case class State(rooms: SortedSet[Room])
+  final case class State(
+    airingId: UUID,
+    rooms: SortedSet[Room]
+  )
 
   def apply(airingId: UUID, persistenceId: PersistenceId): Behavior[Command] = Behaviors.setup { ctx =>
     ctx.log.debug(s"Starting room for airing ${airingId.toString}")
 
     EventSourcedBehavior(
       persistenceId,
-      State(SortedSet(Room())),
-      commandHandler,
+      State(
+        airingId,
+        SortedSet(Room())
+      ),
+      commandHandler(ctx),
       eventHandler
     )
   }
 
-  private[this] val commandHandler: (State, Command) => Effect[Event, State] =
-    (state, command) => command match {
+  private[this] def commandHandler: (ActorContext[Command]) => (State, Command) => Effect[Event, State] =
+    (ctx: ActorContext[Command]) => (state, command) => command match {
       case JoinRoom(userId, username, actorRef) => Effect.persist(JoinedRoom(
         userId, username, actorRef
-      )).thenRun((s: State) => actorRef ! RoomJoined(s.rooms.head.roomId))
-        .thenRun((s: State) => actorRef ! RoomParticipants(s.rooms.head.participants.tail))
+      )).thenRun((s: State) => actorRef ! RoomJoined(s.airingId, s.rooms.head.roomId))
+        .thenRun((s: State) => actorRef ! RoomParticipants(s.rooms.head.participants.tail.toSet))
         .thenRun((s: State) => s.rooms.head.participants.tail.foreach(_.actorRef ! ParticipantJoined(
           s.rooms.head.participants.head
         )))
-      case LeaveRoom(roomId, actorRef) => Effect.persist(LeftRoom(
-        roomId, actorRef
-      ))
+        .thenRun((s: State) => ctx.watchWith(
+          s.rooms.head.participants.head.actorRef,
+          LeaveRoom(
+            s.rooms.head.roomId,
+            s.rooms.head.participants.head,
+          )
+        ))
+      case LeaveRoom(roomId, participant) => Effect.persist(LeftRoom(
+        roomId,
+        participant
+      )).thenRun((s: State) => s.rooms.head.participants.foreach(_.actorRef ! ParticipantLeft(participant)))
     }
 
   private[this] val eventHandler: (State, Event) => State =
@@ -88,7 +103,7 @@ object Chatroom {
         if (state.rooms.head.isFull) {
           state.copy(
             rooms = state.rooms + Room(
-              participants = ListSet(RoomParticipant(
+              participants = Queue(RoomParticipant(
                 userId,
                 username,
                 actorRef
@@ -105,7 +120,7 @@ object Chatroom {
           )
         }
 
-      case LeftRoom(roomId, actorRef) =>
+      case LeftRoom(roomId, participant) =>
         state.copy(
           rooms = state
             .rooms
@@ -114,7 +129,7 @@ object Chatroom {
               .rooms
               .find(_.roomId == roomId)
               .get
-              .remove(actorRef)
+              .remove(participant.actorRef)
         )
 
     }

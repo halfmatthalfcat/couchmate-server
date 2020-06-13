@@ -42,7 +42,7 @@ package object ws {
     }
 
     object InRoom {
-      case class RoomJoined(roomId: UUID)                             extends Command
+      case class RoomJoined(airingId: UUID, roomId: UUID)                             extends Command
       case class SetParticipants(participants: Set[RoomParticipant])  extends Command
       case class AddParticipant(participant: RoomParticipant)         extends Command
       case class RemoveParticipant(participant: RoomParticipant)      extends Command
