@@ -83,4 +83,11 @@ case class RemoveParticipant(
   participant: Participant
 ) extends Protocol
 
-case class AppendMessage(message: String) extends Protocol
+case class SendMessage(
+  message: String
+) extends Protocol
+case class AppendMessage(
+  participant: Participant,
+  isSelf: Boolean,
+  message: String,
+) extends Protocol

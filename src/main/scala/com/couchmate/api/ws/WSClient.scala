@@ -3,14 +3,17 @@ package com.couchmate.api.ws
 import java.time.Duration
 import java.util.UUID
 
+import akka.Done
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
+import akka.stream.{Materializer, OverflowStrategy, QueueOfferResult}
+import akka.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
 import com.couchmate.Server
 import com.couchmate.api.JwtProvider
 import com.couchmate.api.models.User
 import com.couchmate.api.models.room.Participant
 import com.couchmate.api.ws.Commands.Connected.{CreateNewSessionFailure, CreateNewSessionSuccess}
-import com.couchmate.api.ws.protocol.{AddParticipant, GetProvidersResponse, InitSession, JoinRoom, RemoveParticipant, RoomJoined, SetParticipants, SetSession, UpdateGrid}
+import com.couchmate.api.ws.protocol.{AddParticipant, AppendMessage, GetProvidersResponse, InitSession, JoinRoom, RemoveParticipant, RoomJoined, SendMessage, SetParticipants, SetSession, UpdateGrid}
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao._
 import com.couchmate.data.models.{UserMeta, UserProvider, UserRole, User => InternalUser}
@@ -18,13 +21,15 @@ import com.couchmate.external.gracenote.models.GracenoteDefaultProvider
 import com.couchmate.external.gracenote.provider.ProviderJob
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
-import com.couchmate.services.room.Chatroom
+import com.couchmate.services.room.{Chatroom, RoomId}
 import com.couchmate.util.akka.AkkaUtils
 import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, RoomExtension, SingletonExtension}
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.neovisionaries.i18n.CountryCode
+import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 object WSClient
@@ -44,7 +49,9 @@ object WSClient
     ec: ExecutionContext,
     context: ActorContext[Server.Command]
   ): Behavior[Command] = Behaviors.setup { ctx =>
+    val config: Config = ConfigFactory.load()
     implicit val ec: ExecutionContext = ctx.executionContext
+    implicit val materializer: Materializer = Materializer(ctx.system)
     implicit val db: Database = DatabaseExtension(ctx.system).db
 
     val metrics: PromExtension =
@@ -62,11 +69,13 @@ object WSClient
       case GridUpdate(grid) => Outgoing(UpdateGrid(grid))
     }
 
-    val lobbyAdapter: ActorRef[Chatroom.Command] = ctx.messageAdapter {
+    val chatAdapter: ActorRef[Chatroom.Command] = ctx.messageAdapter {
       case Chatroom.RoomJoined(airingId, roomId) => InRoom.RoomJoined(airingId, roomId)
+      case Chatroom.RoomRejoined(airingId, roomId) => InRoom.RoomRejoined(airingId, roomId)
       case Chatroom.RoomParticipants(participants) => InRoom.SetParticipants(participants)
       case Chatroom.ParticipantJoined(participant) => InRoom.AddParticipant(participant)
       case Chatroom.ParticipantLeft(participant) => InRoom.RemoveParticipant(participant)
+      case Chatroom.MessageSent(participant, message) => Messaging.MessageSent(participant, message)
     }
 
     def closing: PartialCommand = {
@@ -159,7 +168,7 @@ object WSClient
               airingId,
               session.user.userId.get,
               session.userMeta.username,
-              lobbyAdapter
+              chatAdapter
             )
             Behaviors.same
 
@@ -169,6 +178,7 @@ object WSClient
               session,
               geo,
               ws,
+              airingId,
               roomId
             )
         },
@@ -183,35 +193,115 @@ object WSClient
       session: SessionContext,
       geo: GeoContext,
       ws: ActorRef[Command],
-      roomId: UUID
-    ): Behavior[Command] = Behaviors.receiveMessage(compose(
-      {
-        case InRoom.SetParticipants(participants) =>
-          ctx.self ! Outgoing(SetParticipants(
-            participants.map(rp => Participant(
-              rp.userId,
-              rp.username
-            )).toSeq
-          ))
-          Behaviors.same
-        case InRoom.AddParticipant(participant) =>
-          ctx.self ! Outgoing(AddParticipant(Participant(
-            participant.userId,
-            participant.username
-          )))
-          Behaviors.same
-        case InRoom.RemoveParticipant(participant) =>
-          ctx.self ! Outgoing(RemoveParticipant(Participant(
-            participant.userId,
-            participant.username
-          )))
-          Behaviors.same
-      },
-      closing,
-      outgoing(ws)
-    ))
+      airingId: UUID,
+      roomId: RoomId
+    ): Behavior[Command] = Behaviors.setup { _ =>
+
+      val messageQueue: SourceQueueWithComplete[String] = Source
+        .queue[String](0, OverflowStrategy.dropHead)
+        .throttle(1, getUserThrottleTime(session.user.role, config))
+        .to(Sink.foreach(lobby.message(
+          airingId,
+          roomId,
+          session.user.userId.get,
+          _,
+        )))
+        .run()
+
+      Behaviors.receiveMessage(compose(
+        {
+          case InRoom.RoomRejoined(airingId, roomId) =>
+            inRoom(
+              session,
+              geo,
+              ws,
+              airingId,
+              roomId
+            )
+          case InRoom.SetParticipants(participants) =>
+            ctx.self ! Outgoing(SetParticipants(
+              participants
+                .map(rp => Participant(
+                  rp.userId,
+                  rp.username
+                ))
+                .filterNot(p => session.muted.contains(p.userId))
+                .toSeq
+            ))
+            Behaviors.same
+          case InRoom.AddParticipant(participant) =>
+            if (!session.muted.contains(participant.userId)) {
+              ctx.self ! Outgoing(AddParticipant(Participant(
+                participant.userId,
+                participant.username
+              )))
+            }
+            Behaviors.same
+          case InRoom.RemoveParticipant(participant) =>
+            if (!session.muted.contains(participant.userId)) {
+              ctx.self ! Outgoing(RemoveParticipant(Participant(
+                participant.userId,
+                participant.username
+              )))
+            }
+            Behaviors.same
+          case Messaging.MessageSent(participant, message) =>
+            if (!session.muted.contains(participant.userId)) {
+              ctx.self ! Outgoing(AppendMessage(
+                Participant(
+                  participant.userId,
+                  participant.username
+                ),
+                isSelf = session.user.userId.contains(participant.userId),
+                message
+              ))
+            }
+            Behaviors.same
+        },
+        messageHandler(messageQueue, ctx),
+        closing,
+        outgoing(ws)
+      ))
+    }
 
     run()
+  }
+
+  def messageHandler(
+    queue: SourceQueueWithComplete[String],
+    ctx: ActorContext[Command]
+  ): PartialCommand = {
+    case Incoming(SendMessage(message)) =>
+      ctx.pipeToSelf(queue.offer(message)) {
+        case Success(QueueOfferResult.Enqueued) =>
+          Messaging.MessageQueued
+        case Success(QueueOfferResult.Dropped) =>
+          Messaging.MessageThrottled
+        case Success(QueueOfferResult.Failure(ex)) =>
+          Messaging.MessageQueueFailed(ex)
+        case Success(QueueOfferResult.QueueClosed) =>
+          Messaging.MessageQueueClosed
+        case Failure(exception) =>
+          Messaging.MessageQueueFailed(exception)
+      }
+      Behaviors.same
+    case Messaging.MessageQueued =>
+      ctx.log.debug(s"Successfully queued message")
+      Behaviors.same
+    case Messaging.MessageThrottled =>
+      ctx.log.debug(s"Message throttled")
+      Behaviors.same
+    case Messaging.MessageQueueClosed =>
+      ctx.log.debug(s"Message queue closed?")
+      Behaviors.same
+    case Messaging.MessageQueueFailed(ex) =>
+      ctx.log.debug(s"Message queue failed: ${ex.getMessage}")
+      Behaviors.same
+  }
+
+  def getUserThrottleTime(userRole: UserRole, config: Config): FiniteDuration = {
+    if (userRole == UserRole.Anon) FiniteDuration(config.getDuration("features.anon.throttle", SECONDS), SECONDS)
+    else 0 seconds
   }
 
   def getDefaultProvider(context: GeoContext): GracenoteDefaultProvider = context match {
