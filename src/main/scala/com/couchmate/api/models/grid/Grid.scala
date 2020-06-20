@@ -7,9 +7,7 @@ import play.api.libs.json.{Json, OFormat}
 case class Grid(
   providerId: Long,
   startTime: LocalDateTime,
-  endTime: LocalDateTime,
-  duration: Int,
-  airings: Seq[GridAiring],
+  pages: Seq[GridPage],
 ) extends Product with Serializable
 
 object Grid {

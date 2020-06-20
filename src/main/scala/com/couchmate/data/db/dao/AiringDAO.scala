@@ -6,10 +6,11 @@ import java.util.UUID
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
-import com.couchmate.data.db.PgProfile.api._
+import com.couchmate.data.db.PgProfile.plainAPI._
 import com.couchmate.data.db.table.AiringTable
-import com.couchmate.data.models.Airing
+import com.couchmate.data.models.{Airing, AiringStatus, RoomStatusType}
 import slick.lifted.{Compiled, Rep}
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -99,6 +100,12 @@ trait AiringDAO {
     session: SlickSession
   ): Flow[Airing, Airing, NotUsed] =
     Slick.flowWithPassThrough(AiringDAO.upsertAiring)
+
+  def getAiringStatus(airingId: UUID)(
+    implicit
+    db: Database
+  ): Future[Option[AiringStatus]] =
+    db.run(AiringDAO.getAiringStatus(airingId).headOption)
 }
 
 object AiringDAO {
@@ -171,4 +178,22 @@ object AiringDAO {
       .update(airing)
     updated <- AiringDAO.getAiring(airingId)
   } yield updated.get}.transactionally
+
+  private[db] def getAiringStatus(airingId: UUID): SqlStreamingAction[Seq[AiringStatus], AiringStatus, Effect] =
+    sql"""
+       SELECT  a.*, CASE
+        WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 15 AND
+                EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 > 0
+                THEN ${RoomStatusType.PreGame}
+        WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 0 AND
+                duration - (EXTRACT(EPOCH FROM(end_time) - TIMEZONE('utc', NOW())) / 60) <= duration
+                THEN ${RoomStatusType.Open}
+        WHEN    EXTRACT(EPOCH FROM(end_time) - TIMEZONE('utc', NOW())) / 60 < 0 AND
+                EXTRACT(EPOCH FROM(end_time) - TIMEZONE('utc', NOW())) / 60 >= -15
+                THEN ${RoomStatusType.PostGame}
+        ELSE    ${RoomStatusType.Closed}
+        END AS  status
+        FROM    airing as a
+        WHERE   airing_id = $airingId
+      """.as[AiringStatus]
 }

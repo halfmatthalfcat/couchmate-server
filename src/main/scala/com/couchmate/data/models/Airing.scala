@@ -11,7 +11,7 @@ case class Airing(
   startTime: LocalDateTime,
   endTime: LocalDateTime,
   duration: Int,
-) extends Product with Serializable
+)
 
 object Airing extends JsonConfig {
   implicit val format: OFormat[Airing] = Json.format[Airing]

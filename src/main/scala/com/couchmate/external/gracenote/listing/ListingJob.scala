@@ -179,7 +179,7 @@ object ListingJob
            )).log(s"${providerId}")
         )
         .run
-        .flatMap(_ => getGrid(providerId, LocalDateTime.now(ZoneId.of("UTC")), 60))
+        .flatMap(_ => getGrid(providerId))
         .onComplete {
           case Success(value) =>
             ctx.self ! JobEnded(providerId, value)

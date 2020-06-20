@@ -1,11 +1,12 @@
 package com.couchmate.data.db.dao
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneId}
 
-import com.couchmate.api.models.grid.{Grid, GridAiring}
+import com.couchmate.api.models.grid.{Grid, GridAiring, GridChannel, GridPage}
 import com.couchmate.data.db.PgProfile.plainAPI._
 import com.couchmate.data.models.{RoomActivityType, RoomStatusType}
 import com.couchmate.util.DateUtils
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -13,40 +14,80 @@ trait GridDAO {
 
   def getGrid(
     providerId: Long,
-    startTime: LocalDateTime,
-    duration: Int,
+    pages: Int = 4,
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[Grid] = {
-    val endTime: LocalDateTime =
-      DateUtils.roundNearestHour(
-        startTime.plusMinutes(duration)
-      )
-    db.run(GridDAO.getGrid(
+    val now: LocalDateTime =
+      DateUtils.roundNearestHour(LocalDateTime.now(ZoneId.of("UTC")))
+    Future.sequence(
+      Seq
+        .tabulate[LocalDateTime](pages)(p => now.plusHours(p))
+        .map(startDate => db.run(GridDAO.getGridPage(
+          providerId,
+          startDate
+        )))
+    ).map(Grid(
       providerId,
-      DateUtils.roundNearestHour(startTime),
-      endTime,
-    )) map { airings: Seq[GridAiring] =>
-      Grid(
-        providerId,
-        DateUtils.roundNearestHour(startTime),
-        endTime,
-        duration,
-        airings,
-      )
-    }
+      now,
+      _
+    ))
   }
 
 }
 
 object GridDAO {
+  private[db] def getGridPage(
+    providerId: Long,
+    startDate: LocalDateTime
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[GridPage] = {
+    getGrid(providerId, startDate, startDate.plusHours(1)) map { airings =>
+      airings.foldLeft(GridPage(startDate, List.empty)) { case (page, airing) =>
+        val channel: GridChannel = page.channels.headOption.getOrElse(
+          GridChannel(
+            airing.channelId,
+            airing.channel,
+            airing.callsign,
+            Seq.empty
+          )
+        )
+
+        if (channel.channelId == airing.channelId && page.channels.nonEmpty) {
+          page.copy(
+            channels = channel.copy(
+              airings = channel.airings :+ airing
+            ) :: page.channels.tail
+          )
+        } else if (channel.channelId == airing.channelId) {
+          page.copy(
+            channels = channel.copy(
+              airings = channel.airings :+ airing
+            ) :: page.channels
+          )
+        } else {
+          page.copy(
+            channels = GridChannel(
+              airing.channelId,
+              airing.channel,
+              airing.callsign,
+              Seq(airing)
+            ) :: page.channels
+          )
+        }
+      }
+    } map { page => page.copy(channels = page.channels.reverse) }
+  }
+
   private[db] def getGrid(
     providerId: Long,
     startTime: LocalDateTime,
     endTime: LocalDateTime,
-  ) = {
+  ): SqlStreamingAction[Seq[GridAiring], GridAiring, Effect] = {
     sql"""SELECT            a.airing_id, a.start_time, a.end_time, a.duration,
                             pc.provider_channel_id, pc.channel, c.callsign,
                             s.title, s.description, s.type,
@@ -110,7 +151,7 @@ object GridDAO {
           LEFT OUTER JOIN   sport_organization as so
           ON                spe.sport_organization_id = so.sport_organization_id
           WHERE             p.provider_id = $providerId AND (
-            (a.start_time >= $startTime AND a.start_time <= $endTime) OR
+            (a.start_time >= $startTime AND a.start_time < $endTime) OR
             (a.end_time > $startTime AND a.end_time <= $endTime) OR
             (a.start_time <= $startTime AND a.end_time > $startTime)
           ) AND l.active = true

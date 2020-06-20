@@ -3,12 +3,15 @@
  */
 
 import Common._
-import com.github.scala2ts.configuration.SealedTypesMapping
+import com.github.scala2ts.configuration.{RenderAs, SealedTypesMapping}
 import sbt.Keys._
 import sbt.Resolver
 
 lazy val tsSettings = Seq(
   tsEnable := true,
+  tsRenderAs := RenderAs.Class,
+  tsIncludeDiscriminator := true,
+  tsDiscriminatorName := "ttype",
   tsIncludeTypes := Seq(
     "com\\.couchmate\\.api\\.ws\\.protocol".r
   ),

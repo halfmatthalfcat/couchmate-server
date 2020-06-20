@@ -1,5 +1,7 @@
 package com.couchmate.api.ws.protocol
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import com.couchmate.api.models.grid.Grid
@@ -15,12 +17,13 @@ sealed trait Protocol
 
 object Protocol extends CountryCodePlayJson {
   implicit val format: Format[Protocol] =
-    derived.flat.oformat((__ \ "type").format[String])
+    derived.flat.oformat((__ \ "ttype").format[String])
 }
 
 case class InitSession(
   timezone: String,
-  locale: String
+  locale: String,
+  region: String
 ) extends Protocol
 case class Login(
   email: String,
@@ -70,6 +73,8 @@ case class UpdateGrid(
 case class JoinRoom(
   airingId: UUID
 ) extends Protocol
+case object LeaveRoom extends Protocol
+case object RoomEnded extends Protocol
 case class RoomJoined(
   airingId: UUID
 ) extends Protocol
@@ -82,12 +87,41 @@ case class AddParticipant(
 case class RemoveParticipant(
   participant: Participant
 ) extends Protocol
+case class MuteParticipant(
+  participant: Participant
+) extends Protocol
 
 case class SendMessage(
   message: String
 ) extends Protocol
-case class AppendMessage(
+
+case class RoomMessage(
+  messageId: String,
   participant: Participant,
   isSelf: Boolean,
   message: String,
 ) extends Protocol
+
+object RoomMessage {
+  def apply(
+    participant: Participant,
+    isSelf: Boolean,
+    message: String,
+  ): RoomMessage = {
+    val instant: Instant = Instant.now()
+    val seconds: Long = instant.getEpochSecond
+    val nano: Long = instant.truncatedTo(ChronoUnit.MICROS).getNano
+
+    new RoomMessage(
+      s"$seconds.$nano",
+      participant,
+      isSelf,
+      message
+    )
+  }
+}
+
+case class LockSending(
+  duration: Int
+) extends Protocol
+case object UnlockSending extends Protocol

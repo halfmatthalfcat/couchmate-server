@@ -1,7 +1,5 @@
 package com.couchmate.services
 
-import java.time.LocalDateTime
-
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import com.couchmate.api.models.grid.Grid
@@ -42,7 +40,7 @@ object GridCoordinator
           ctx.log.debug(s"Removing listener ${listener} from ${state.getOrElse(providerId, Seq())}")
           run(state + (providerId -> state.getOrElse(providerId, Seq()).filterNot(_ == listener)))
         case StartUpdate => state.keys.foreach { providerId: Long =>
-          ctx.pipeToSelf(getGrid(providerId, LocalDateTime.now(), 60 * 4)) {
+          ctx.pipeToSelf(getGrid(providerId)) {
             case Success(value) => GridSuccess(value)
             case Failure(exception) => GridFailure(exception)
           }

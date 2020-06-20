@@ -6,9 +6,8 @@ import akka.actor.typed.{ActorRef, ActorSystem, Extension, ExtensionId}
 import akka.cluster.sharding.typed.ShardingEnvelope
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
 import akka.persistence.typed.PersistenceId
-import com.couchmate.data.models.User
-import com.couchmate.services.room.{Chatroom, RoomId}
-import com.couchmate.services.room.Chatroom.{JoinRoom, SendMessage}
+import com.couchmate.services.room.{Chatroom, RoomId, RoomParticipant}
+import com.couchmate.services.room.Chatroom.{JoinRoom, LeaveRoom, SendMessage}
 
 class RoomExtension(system: ActorSystem[_]) extends Extension {
   private[this] val sharding: ClusterSharding =
@@ -34,6 +33,20 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
     shardRegion ! ShardingEnvelope(
       airingId.toString,
       JoinRoom(userId, username, actorRef)
+    )
+  }
+
+  def leave(
+    airingId: UUID,
+    roomId: RoomId,
+    participant: RoomParticipant,
+  ): Unit = {
+    shardRegion ! ShardingEnvelope(
+      airingId.toString,
+      LeaveRoom(
+        roomId,
+        participant
+      )
     )
   }
 

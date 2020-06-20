@@ -1,6 +1,6 @@
 package com.couchmate.util
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneId}
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAccessor
 
