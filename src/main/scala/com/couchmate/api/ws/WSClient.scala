@@ -8,13 +8,14 @@ import akka.stream.Materializer
 import com.couchmate.Server
 import com.couchmate.api.JwtProvider
 import com.couchmate.api.models.User
+import com.couchmate.api.models.grid.GridAiring
 import com.couchmate.api.models.room.Participant
 import com.couchmate.api.ws.Commands.Connected.{CreateNewSessionFailure, CreateNewSessionSuccess}
 import com.couchmate.api.ws.protocol._
 import com.couchmate.api.ws.util.MessageMonitor
 import com.couchmate.data.db.PgProfile.api._
 import com.couchmate.data.db.dao._
-import com.couchmate.data.models.{UserMeta, UserProvider, UserRole, User => InternalUser}
+import com.couchmate.data.models.{RoomStatusType, UserMeta, UserProvider, UserRole, User => InternalUser}
 import com.couchmate.external.gracenote.models.GracenoteDefaultProvider
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
@@ -45,7 +46,6 @@ object WSClient
     ec: ExecutionContext,
     context: ActorContext[Server.Command]
   ): Behavior[Command] = Behaviors.setup { ctx =>
-    val config: Config = ConfigFactory.load()
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val materializer: Materializer = Materializer(ctx.system)
     implicit val db: Database = DatabaseExtension(ctx.system).db
@@ -58,7 +58,7 @@ object WSClient
       SingletonExtension(ctx.system)
 
     val gridAdapter: ActorRef[GridCoordinator.Command] = ctx.messageAdapter {
-      case GridUpdate(grid) => Outgoing(UpdateGrid(grid))
+      case GridUpdate(grid) => Connected.UpdateGrid(grid)
     }
 
     val chatAdapter: ActorRef[Chatroom.Command] = ctx.messageAdapter {
@@ -161,13 +161,36 @@ object WSClient
       Behaviors.receiveMessage(compose(
         {
           case Incoming(JoinRoom(airingId)) =>
-            lobby.join(
-              airingId,
-              session.user.userId.get,
-              session.userMeta.username,
-              chatAdapter
-            )
+            val roomReady: Boolean = session.airings.exists { airing =>
+              airing.airingId == airingId &&
+              (
+                airing.status == RoomStatusType.PreGame ||
+                airing.status == RoomStatusType.Open
+              )
+            }
+            if (roomReady) {
+              lobby.join(
+                airingId,
+                session.user.userId.get,
+                session.userMeta.username,
+                chatAdapter
+              )
+            }
             Behaviors.same
+
+          case Connected.UpdateGrid(grid) =>
+            ctx.self ! Outgoing(UpdateGrid(grid))
+            inSession(
+              session.copy(
+                airings = grid.pages.foldLeft(Set.empty[GridAiring]) {
+                  case (a1, gridPage) => a1 ++ gridPage.channels.foldLeft(Set.empty[GridAiring]) {
+                    case (a2, channel) => a2 ++ channel.airings
+                  }
+                }
+              ),
+              geo,
+              ws
+            )
 
           case InRoom.RoomJoined(airingId, roomId) =>
             ctx.self ! Outgoing(RoomJoined(airingId))
@@ -209,6 +232,11 @@ object WSClient
           chatAdapter
         ))
 
+      singletons.gridCoordinator ! GridCoordinator.RemoveListener(
+        session.providerId,
+        gridAdapter,
+      )
+
       Behaviors.receiveMessage(compose(
         {
           case Incoming(LeaveRoom) =>
@@ -222,6 +250,10 @@ object WSClient
               )
             )
             messageMonitor ! MessageMonitor.Complete
+            singletons.gridCoordinator ! GridCoordinator.AddListener(
+              session.providerId,
+              gridAdapter,
+            )
             inSession(session, geo, ws)
           case Incoming(SendMessage(message)) =>
             messageMonitor ! MessageMonitor.ReceiveMessage(message)
@@ -354,7 +386,8 @@ object WSClient
       providerId = provider.get.providerId.get,
       providerName = provider.get.name,
       token = token,
-      muted = mutes
+      muted = mutes,
+      airings = Set.empty
     )
   }) recoverWith {
     case ex: Throwable =>

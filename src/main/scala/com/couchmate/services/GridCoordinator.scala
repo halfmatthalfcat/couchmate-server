@@ -25,6 +25,11 @@ object GridCoordinator
   private final case class GridSuccess(grid: Grid) extends Command
   private final case class GridFailure(err: Throwable) extends Command
 
+  private final case class GridCoordinatorState(
+    currentGrid: Option[Grid],
+    listeners: Set[ActorRef[Command]]
+  )
+
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val db: Database = DatabaseExtension(ctx.system).db
@@ -32,13 +37,31 @@ object GridCoordinator
     Behaviors.withTimers { timers =>
       timers.startTimerAtFixedRate(StartUpdate, 5 seconds)
 
-      def run(state: Map[Long, Seq[ActorRef[Command]]]): Behavior[Command] = Behaviors.receiveMessage {
+      def run(state: Map[Long, GridCoordinatorState]): Behavior[Command] = Behaviors.receiveMessage {
         case AddListener(providerId, listener) =>
           ctx.watchWith(listener, RemoveListener(providerId, listener))
-          run(state + (providerId -> (state.getOrElse(providerId, Seq()) :+ listener)))
+
+          val nextState: GridCoordinatorState = state.getOrElse(providerId, GridCoordinatorState(
+            None,
+            Set.empty
+          ))
+
+          if (nextState.currentGrid.nonEmpty) {
+            listener ! GridUpdate(nextState.currentGrid.get)
+          }
+
+          run(state + (providerId -> nextState.copy(
+            listeners = nextState.listeners + listener
+          )))
         case RemoveListener(providerId, listener) =>
-          ctx.log.debug(s"Removing listener ${listener} from ${state.getOrElse(providerId, Seq())}")
-          run(state + (providerId -> state.getOrElse(providerId, Seq()).filterNot(_ == listener)))
+          val nextState: GridCoordinatorState = state.getOrElse(providerId, GridCoordinatorState(
+            None,
+            Set.empty
+          ))
+
+          run(state + (providerId -> nextState.copy(
+            listeners = nextState.listeners - listener
+          )))
         case StartUpdate => state.keys.foreach { providerId: Long =>
           ctx.pipeToSelf(getGrid(providerId)) {
             case Success(value) => GridSuccess(value)
@@ -47,10 +70,16 @@ object GridCoordinator
         }
           Behaviors.same
         case GridSuccess(grid) =>
-          state.getOrElse(grid.providerId, Seq()).foreach { listener =>
+          val nextState: GridCoordinatorState = state.getOrElse(grid.providerId, GridCoordinatorState(
+            Some(grid),
+            Set.empty
+          ))
+
+          nextState.listeners.foreach { listener =>
             listener ! GridUpdate(grid)
           }
-          Behaviors.same
+
+          run(state + (grid.providerId -> nextState))
       }
 
       run(Map())

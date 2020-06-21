@@ -101,6 +101,16 @@ case class RoomMessage(
   isSelf: Boolean,
   message: String,
 ) extends Protocol
+case class SystemMessage(
+  messageId: String,
+  message: String
+) extends Protocol
+case class DirectMessage(
+  messageId: String,
+  participant: Participant,
+  isSelf: Boolean,
+  message: String,
+) extends Protocol
 
 object RoomMessage {
   def apply(

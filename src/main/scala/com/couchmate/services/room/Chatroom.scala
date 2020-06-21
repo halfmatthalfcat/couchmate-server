@@ -174,7 +174,7 @@ object Chatroom extends AiringDAO {
         case LeaveRoom(roomId, participant) => Effect.persist(LeftRoom(
           roomId,
           participant
-        )).thenRun((s: State) => prevState
+        )).thenRun((_: State) => prevState
           .rooms(roomId.name)
           .getParticipantRoom(participant.userId)
           .get

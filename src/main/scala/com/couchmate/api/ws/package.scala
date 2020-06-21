@@ -7,6 +7,7 @@ package com.couchmate.api
 import java.util.UUID
 
 import akka.actor.typed.{ActorRef, Behavior}
+import com.couchmate.api.models.grid.{Grid, GridAiring}
 import com.couchmate.api.ws.protocol.Protocol
 import com.couchmate.services.room.{RoomId, RoomParticipant}
 
@@ -39,6 +40,7 @@ package object ws {
         geo: GeoContext
       ) extends Command
       case class CreateNewSessionFailure(err: Throwable) extends Command
+      case class UpdateGrid(grid: Grid) extends Command
     }
 
     object InRoom {
