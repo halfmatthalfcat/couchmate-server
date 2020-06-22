@@ -28,6 +28,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   version:
     runs-on: ubuntu-latest
+    needs: [ install ]
     steps:
       - name: Checkout release
         run : |
@@ -53,7 +54,7 @@ jobs:
           path: target/typescript
   uploadTS:
     runs-on: ubuntu-latest
-    needs: [ version ]
+    needs: [ install, version ]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
