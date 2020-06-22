@@ -98,7 +98,7 @@ lazy val server = (project in file("."))
       setReleaseVersion,
       commitReleaseVersion,
       tagRelease,
-      releaseStepCommand("sonatypeRelease"),
+      publishArtifacts,
       setNextVersion,
       commitNextVersion,
       pushChanges
