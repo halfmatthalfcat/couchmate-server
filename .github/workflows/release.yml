@@ -7,7 +7,6 @@ on:
 jobs:
   version:
     runs-on: ubuntu-latest
-    needs: [ install ]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -49,7 +48,7 @@ jobs:
           path: target/typescript
   uploadTS:
     runs-on: ubuntu-latest
-    needs: [ install, version ]
+    needs: [ version ]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
