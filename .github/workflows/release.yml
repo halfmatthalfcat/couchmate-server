@@ -21,6 +21,8 @@ jobs:
         run : sbt "release release-version ${{ github.event.release.tag_name }} with-defaults"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: Matt Oliver
+          GIT_AUTHOR_EMAIL: matt@couchmate.com
       - name: Generate Typescript Definitions
         run : sbt tsTranspile
         env:
