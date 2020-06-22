@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  release:
+    types: [ published ]
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - name: Run Release
+        run: sbt "release release-version ${{ github.event.release.tag_name }} with-defaults"
+      - name: Generate Typescript Definitions
+        run: sbt tsTranspile
+      - name: Upload Typescript Definitions
+        uses: actions/upload-artifact@v1
+        with:
+          name: typescript
+          path: target/typescript
+  uploadTS:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@couchmate'
+      - name: Download typescript definitions
+        uses: actions/download-artifact@v1
+        with:
+          name: typescript
+      - name: Upload typescript definitions
+        uses: ubuntu-latest
+        run: npm publish target/typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

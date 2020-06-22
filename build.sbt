@@ -3,9 +3,11 @@
  */
 
 import Common._
+import Release._
 import com.github.scala2ts.configuration.{RenderAs, SealedTypesMapping}
 import sbt.Keys._
 import sbt.Resolver
+import ReleaseTransformations._
 
 lazy val tsSettings = Seq(
   tsEnable := true,
@@ -19,7 +21,7 @@ lazy val tsSettings = Seq(
   tsOutDir := s"${(target in Compile).value}/typescript",
   tsPackageJsonName := "@couchmate/server",
   tsPackageJsonVersion := version.value,
-  tsPackageJsonRegistry := "https://gitlab.com/api/v4/projects/1/packages/npm/"
+  tsPackageJsonRegistry := "https://npm.pkg.github.com"
 )
 
 lazy val server = (project in file("."))
@@ -83,15 +85,41 @@ lazy val server = (project in file("."))
     discoveredMainClasses in Compile := Seq(),
     mainClass in (Compile, run) := Some("com.couchmate.Server"),
     scalacOptions ++= Seq(
-//      "-deprecation",
       "-encoding", "UTF-8",
-//      "-unchecked",
-//      "-feature",
-      // "-language:implicitConversions",
       "-language:postfixOps",
-//      "-Ywarn-dead-code",
-//      "-Xlint",
-//      "-Xfatal-warnings",
     ),
+    releaseVersionBump := sbtrelease.Version.Bump.Bugfix,
+    releaseProcess := Seq[ReleaseStep](
+      checkSnapshotDependencies,
+      inquireVersions,
+      runClean,
+      runTest,
+      runCompile,
+      setReleaseVersion,
+      commitReleaseVersion,
+      tagRelease,
+      releaseStepCommand("sonatypeRelease"),
+      setNextVersion,
+      commitNextVersion,
+      pushChanges
+    ),
+    pomExtra :=
+      <url>https://www.github.com/couchmate/server</url>
+        <scm>
+          <url>git@github.com:couchmate/server.git</url>
+          <connection>scm:git:git@github.com:couchmate/couchmate.git</connection>
+        </scm>
+        <developers>
+          <developer>
+            <id>halfmatthalfcat</id>
+            <name>Matt Oliver</name>
+            <url>https://www.github.com/halfmatthalfcat</url>
+          </developer>
+        </developers>,
+    publishMavenStyle := true,
+    githubOwner := "couchmate",
+    githubRepository := "server",
+    githubTokenSource := TokenSource.Environment("GITHUB_TOKEN"),
+    publishTo := githubPublishTo.value,
     addCommandAlias("db", "runMain com.couchmate.data.db.Migrations")
   )
