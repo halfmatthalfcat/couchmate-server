@@ -38,7 +38,7 @@ jobs:
         env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Typescript Definitions
-        run : ls -la && ls -la target && ls -la project && ls -la project/target && sbt "update; tsTranspile"
+        run : sbt "webNodeModules" && ls -la && ls -la target && ls -la project && ls -la project/target && sbt "update; tsTranspile"
         env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Typescript Definitions
