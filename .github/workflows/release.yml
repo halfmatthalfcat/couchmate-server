@@ -19,10 +19,12 @@ jobs:
           java-version: 1.8
       - name: Run Release
         run : sbt "release release-version ${{ github.event.release.tag_name }} with-defaults"
-      - name: Generate Typescript Definitions
-        env :
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate Typescript Definitions
         run : sbt tsTranspile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Typescript Definitions
         uses: actions/upload-artifact@v1
         with:
