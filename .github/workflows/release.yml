@@ -25,7 +25,7 @@ jobs:
           key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
       - name: Install Dependencies
         if: steps.sbt-cache.outputs.cache-hit != 'true'
-        run: sbt update
+        run: sbt "update; webNodeModules"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Checkout release
