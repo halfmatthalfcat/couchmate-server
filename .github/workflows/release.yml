@@ -16,12 +16,16 @@ jobs:
       - name: Run Release
         run: sbt "release release-version ${{ github.event.release.tag_name }} with-defaults"
       - name: Generate Typescript Definitions
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: sbt tsTranspile
       - name: Upload Typescript Definitions
         uses: actions/upload-artifact@v1
         with:
           name: typescript
           path: target/typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   uploadTS:
     runs-on: ubuntu-latest
     steps:
