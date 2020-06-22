@@ -38,7 +38,7 @@ jobs:
         env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Typescript Definitions
-        run : sbt "update; tsTranspile"
+        run : ls -la && ls -la target && sbt "update; tsTranspile"
         env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Typescript Definitions
