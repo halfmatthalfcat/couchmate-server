@@ -12,7 +12,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Checkout release
-        run : git checkout -b ${{ github.event.release.tag_name }} ${{ github.event.release.tag_name }}
+        run : git checkout -b master && git reset --hard tags/${{ github.event.release.tag_name }}
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
         with:
