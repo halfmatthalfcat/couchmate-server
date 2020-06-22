@@ -16,7 +16,7 @@ jobs:
       with:
         java-version: 1.8
     - name: Run Compile
-      run: ls -la && cat ~/.gitconfig && sbt compile
+      run: ls -la && cat .github && cat ~/.gitconfig && sbt compile
   test:
     runs-on: ubuntu-latest
     steps:
