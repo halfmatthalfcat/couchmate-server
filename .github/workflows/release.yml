@@ -18,8 +18,6 @@ jobs:
           path: |
             ~/.ivy2/cache
             ~/.sbt
-            target
-            project/target
           key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
       - name: Install Dependencies
         if: steps.sbt-cache.outputs.cache-hit != 'true'
@@ -40,7 +38,7 @@ jobs:
         with:
           java-version: 1.8
       - name: Run Release
-        run : sbt "release release-version ${{ github.event.release.tag_name }} with-defaults;"
+        run : sbt "update; release release-version ${{ github.event.release.tag_name }} with-defaults"
         env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Typescript Definitions
