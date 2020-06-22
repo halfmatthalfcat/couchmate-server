@@ -119,7 +119,7 @@ lazy val server = (project in file("."))
     publishMavenStyle := true,
     githubOwner := "couchmate",
     githubRepository := "server",
-    githubTokenSource := TokenSource.Environment("GITHUB_TOKEN"),
+    githubTokenSource := TokenSource.Environment("GITHUB_TOKEN") || TokenSource.GitConfig("github.token"),
     publishTo := githubPublishTo.value,
     addCommandAlias("db", "runMain com.couchmate.data.db.Migrations")
   )
