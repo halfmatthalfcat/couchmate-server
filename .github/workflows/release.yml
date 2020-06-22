@@ -5,6 +5,24 @@ on:
     types: [ published ]
 
 jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache Build Output
+        id: sbt-cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            target
+            project/target
+          key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
+      - name: Install Dependencies
+        if: steps.sbt-cache.outputs.cache-hit != 'true'
+        run: sbt update
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   version:
     runs-on: ubuntu-latest
     steps:
@@ -20,25 +38,12 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - name: Cache Build Output
-        id: cache-sbt-deps
-        env:
-          cache-name: cache-sbt-deps
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.ivy2/cache
-            ~/.sbt
-            target
-            project/target
-            version.sbt
-          key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
       - name: Run Release
         run : sbt "release release-version ${{ github.event.release.tag_name }} with-defaults"
         env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Typescript Definitions
-        run : sbt tsTranspile
+        run : sbt "update; tsTranspile"
         env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Typescript Definitions

@@ -7,6 +7,24 @@ on:
     branches: [ master ]
 
 jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache Build Output
+        id: sbt-cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            target
+            project/target
+          key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
+      - name: Install Dependencies
+        if: steps.sbt-cache.outputs.cache-hit != 'true'
+        run: sbt update
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   compile:
     runs-on: ubuntu-latest
     steps:
