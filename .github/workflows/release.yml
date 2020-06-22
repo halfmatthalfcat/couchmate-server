@@ -11,17 +11,18 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-          ref: ${{ github.event.release.tag_name }}
+      - name: Checkout release
+        run : git checkout ${{ github.event.release.tag_name }}
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
       - name: Run Release
-        run: sbt "release release-version ${{ github.event.release.tag_name }} with-defaults"
+        run : sbt "release release-version ${{ github.event.release.tag_name }} with-defaults"
       - name: Generate Typescript Definitions
-        env:
+        env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: sbt tsTranspile
+        run : sbt tsTranspile
       - name: Upload Typescript Definitions
         uses: actions/upload-artifact@v1
         with:
@@ -42,6 +43,6 @@ jobs:
         with:
           name: typescript
       - name: Upload typescript definitions
-        run: npm publish target/typescript
-        env:
+        run : npm publish target/typescript
+        env :
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
