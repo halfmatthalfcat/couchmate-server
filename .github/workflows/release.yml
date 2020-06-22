@@ -7,8 +7,6 @@ on:
 jobs:
   version:
     runs-on: ubuntu-latest
-    outputs:
-
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
@@ -38,7 +36,6 @@ jobs:
         with:
           name: typescript
       - name: Upload typescript definitions
-        uses: ubuntu-latest
         run: npm publish target/typescript
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

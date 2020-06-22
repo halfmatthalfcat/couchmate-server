@@ -33,7 +33,7 @@ lazy val server = (project in file("."))
   .settings(tsSettings: _*)
   .settings(
     name := "server",
-    version := "0.0.1",
+    organization := "com.couchmate",
     scalaVersion := "2.13.1",
     resolvers ++= Seq(
       Resolver.jcenterRepo,
