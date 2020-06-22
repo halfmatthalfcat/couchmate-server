@@ -21,7 +21,9 @@ jobs:
         with:
           java-version: 1.8
       - name: Cache Build Output
-        id: build-output
+        id: cache-sbt-deps
+        env:
+          cache-name: cache-sbt-deps
         uses: actions/cache@v2
         with:
           path: |
@@ -30,14 +32,14 @@ jobs:
             target
             project/target
             version.sbt
-          key : ${{ runner.os }}-output
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ github.event.release.tag_name }}
       - name: Run Release
         run : sbt "release release-version ${{ github.event.release.tag_name }} with-defaults"
-        env:
+        env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Typescript Definitions
         run : sbt tsTranspile
-        env:
+        env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Typescript Definitions
         uses: actions/upload-artifact@v1
