@@ -20,6 +20,17 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
+      - name: Cache Build Output
+        id: build-output
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            target
+            project/target
+            version.sbt
+          key : ${{ runner.os }}-output
       - name: Run Release
         run : sbt "release release-version ${{ github.event.release.tag_name }} with-defaults"
         env:
