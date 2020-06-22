@@ -8,6 +8,9 @@ jobs:
   install:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Cache Build Output
         id: sbt-cache
         uses: actions/cache@v2
@@ -26,9 +29,6 @@ jobs:
   version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
       - name: Checkout release
         run : |
           git branch --track master origin/master && git reset --hard tags/${{ github.event.release.tag_name }}
