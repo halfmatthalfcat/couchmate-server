@@ -100,8 +100,7 @@ lazy val server = (project in file("."))
       tagRelease,
       publishArtifacts,
       setNextVersion,
-      commitNextVersion,
-      pushChanges
+      commitNextVersion
     ),
     pomExtra :=
       <url>https://www.github.com/couchmate/server</url>
