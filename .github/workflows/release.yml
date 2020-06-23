@@ -5,7 +5,7 @@ on:
     types: [ published ]
 
 jobs:
-  version:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -15,6 +15,11 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@couchmate'
       - name: Cache Build Output
         id: sbt-cache
         uses: actions/cache@v2
@@ -38,29 +43,15 @@ jobs:
         env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Typescript Definitions
-        run : sbt "webNodeModules" && ls -la && ls -la target && ls -la project && ls -la project/target && sbt "update; tsTranspile"
+        run : sbt "tsTranspile"
         env :
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Typescript Definitions
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v2
         with:
           name: typescript
           path: target/typescript
-  uploadTS:
-    runs-on: ubuntu-latest
-    needs: [ version ]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v1
-        with:
-          node-version: '12.x'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@couchmate'
-      - name: Download typescript definitions
-        uses: actions/download-artifact@v1
-        with:
-          name: typescript
       - name: Upload typescript definitions
-        run : npm publish ./target/typescript
-        env :
+        run: npm publish ./target/typescript
+        env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
