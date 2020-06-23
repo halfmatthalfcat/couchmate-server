@@ -30,7 +30,7 @@ lazy val dockerSettings = Seq(
   dockerAlias := DockerAlias(
     Some("docker.pkg.github.com"),
     Some("couchmate"),
-    "core/server",
+    "server/server",
     Some(version.value)
   )
 )
