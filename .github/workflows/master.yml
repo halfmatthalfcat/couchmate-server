@@ -114,10 +114,6 @@ jobs:
           token: ${{ secrets.DO_TOKEN }}
       - name: Set cluster
         run: doctl kubernetes cluster kubeconfig save dev-east
-      - name: Prep helm
-        run: helm plugin install https://github.com/sstarcher/helm-release
-      - name: Version chart
-        run: helm release ./chart -t ${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }}
       - name: Release chart
         run: |
           helm upgrade \
@@ -126,6 +122,7 @@ jobs:
           --cleanup-on-fail \
           --set registry.token=${{ secrets.GITHUB_TOKEN }} \
           --set external-dns.cloudflare.apiKey=${{ secrets.CF_TOKEN }} \
+          --set images.tag=${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }} \
           --set app.db.host=cm-dev-do-user-7059730-0.a.db.ondigitalocean.com \
           --set app.db.username=doadmin \
           --set app.db.name=defaultdb \
