@@ -61,6 +61,6 @@ jobs:
         with:
           name: typescript
       - name: Upload typescript definitions
-        run : npm publish target/typescript
+        run : npm publish ./target/typescript
         env :
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
