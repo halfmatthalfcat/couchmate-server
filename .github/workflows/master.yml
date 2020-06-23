@@ -94,3 +94,31 @@ jobs:
         run: npm publish ./target/typescript
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    runs-on: ubuntu-latest
+    needs: [ artifacts ]
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+      - name: Set cluster
+        run: doctl kubernetes cluster kubeconfig save dev-east
+      - name: Prep helm
+        run: helm plugin install https://github.com/sstarcher/helm-release
+      - name: Version chart
+        run: helm release ./chart -t ${{ github.event.release.tag_name }}
+      - name: Release chart
+        run: |
+          helm upgrade \
+          --install \
+          --atomic \
+          --cleanup-on-fail \
+          --set registry.token=${{ secrets.GITHUB_TOKEN }} \
+          --set external-dns.cloudflare.apiKey=${{ secrets.CF_TOKEN }} \
+          --set app.db.host=cm-dev-do-user-7059730-0.a.db.ondigitalocean.com \
+          --set app.db.username=doadmin \
+          --set app.db.name=defaultdb \
+          --set app.db.password=${{ secrets.DO_PG_DEV_PW }} \
+          couchmate \
+          ./charts

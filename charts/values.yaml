@@ -10,6 +10,13 @@ registry:
 
 replicas: 3
 
+app:
+  db:
+    host:
+    username:
+    password:
+    name:
+
 images:
   org: couchmate
   name: server/server
