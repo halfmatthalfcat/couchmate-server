@@ -1,2 +1,25 @@
 # Couchmate Helm Values
 
+env: dev
+
+registry:
+  name: docker.pkg.github.com
+  username: halfmatthalfcat
+  email: matt@couchmate.com
+  token:
+
+replicas: 3
+
+images:
+  org: couchmate
+  name: server/server
+  tag: 0.0.0
+
+external-dns:
+  provider: cloudflare
+  domainFilters:
+    - couchmate.com
+  cloudflare:
+    apiKey:
+    email: matt@couchmate.com
+    proxied: true

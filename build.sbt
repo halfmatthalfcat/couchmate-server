@@ -61,17 +61,23 @@ lazy val server = (project in file("."))
       akka("cluster-metrics"),
       akka("cluster-tools"),
       akka("slf4j"),
+      akka("discovery"),
+      akkaManagement(),
+      akkaManagement("cluster-http"),
+      akkaManagement("cluster-bootstrap"),
       alpakka("amqp"),
       alpakka("slick"),
       slick("slick"),
       slick("slick-hikaricp"),
       slickPg(),
       slickPg("play-json"),
+      // Bootstrapping
+      "com.lightbend.akka.discovery"  %%  "akka-discovery-kubernetes-api" % Versions.akkaManagement,
       // Akka HTTP Stuff
-      "com.typesafe.akka"           %%  "akka-http"                     % "10.1.11",
-      "ch.megard"                   %%  "akka-http-cors"                % "0.4.3",
-      "de.heikoseeberger"           %%  "akka-http-play-json"           % "1.30.0",
-      "fr.davit"                    %%  "akka-http-metrics-prometheus"  % "0.6.0",
+      "com.typesafe.akka"             %%  "akka-http"                     % "10.1.11",
+      "ch.megard"                     %%  "akka-http-cors"                % "0.4.3",
+      "de.heikoseeberger"             %%  "akka-http-play-json"           % "1.30.0",
+      "fr.davit"                      %%  "akka-http-metrics-prometheus"  % "0.6.0",
       // Misc
       "io.underscore"               %%  "slickless"                     % "0.3.6",
       "io.github.nafg"              %%  "slick-migration-api"           % "0.7.0",
@@ -91,7 +97,7 @@ lazy val server = (project in file("."))
       "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1",
       "com.chuusai"                 %%  "shapeless"                     % "2.3.3",
       "com.neovisionaries"          %   "nv-i18n"                       % "1.27",
-      "org.fusesource.leveldbjni"   %  "leveldbjni-all"                 % "1.8"
+      "org.fusesource.leveldbjni"   %   "leveldbjni-all"                % "1.8"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     discoveredMainClasses in Compile := Seq(),

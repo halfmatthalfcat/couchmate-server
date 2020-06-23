@@ -1,0 +1,3 @@
+{{define "dockerconfig"}}
+"{\"auths\":{\"{{.Values.registry.name}}\":{\"username\":\"{{.Values.registry.username}}\",\"email\":\"{{.Values.registry.email}}\",\"password\":\"{{.Values.registry.token}}\"}}}"
+{{end}}

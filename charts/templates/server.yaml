@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: couchmate
+spec:
+  replicas: {{.Values.replicas}}
+  selector:
+    matchLabels:
+      app: server
+      env: {{.Values.env}}
+  template:
+    metadata:
+      labels:
+        app: server
+        env: {{.Values.env}}
+    spec:
+      serviceAccountName: server-sa
+      containers:
+        - name: server
+          image: "{{.Values.registry.name}}/{{.Values.images.org}}/{{.Values.images.name}}:{{.Values.images.tag}}"
+          ports:
+            - containerPort: 8080
+              name: server-ext
+            - containerPort: 2551
+              name: server-int
+            - containerPort: 8558
+              name: management
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: management
+            periodSeconds: 10
+            failureThreshold: 10
+            initialDelaySeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: management
+            periodSeconds: 10
+            failureThreshold: 10
+            initialDelaySeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server
+spec:
+  type: LoadBalancer
+  selector:
+    app: server
+    env: {{.Values.env}}
+  ports:
+    - port: 80
+      targetPort: server-ext
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: server
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: couchmate.com
+    external-dns.alpha.kubernetes.io/ttl: "120"
+spec:
+  rules:
+    - host: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
+      http:
+        paths:
+          - backend:
+              serviceName: server
+              servicePort: 80
