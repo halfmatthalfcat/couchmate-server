@@ -114,6 +114,8 @@ jobs:
           token: ${{ secrets.DO_TOKEN }}
       - name: Set cluster
         run: doctl kubernetes cluster kubeconfig save dev-east
+      - name: Build helm dependencies
+        run: cd charts && helm dependency build
       - name: Release chart
         run: |
           helm upgrade \
