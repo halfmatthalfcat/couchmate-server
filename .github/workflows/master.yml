@@ -98,6 +98,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ artifacts ]
     steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: 'Get Current Version'
+        id: currentVersion
+        uses: "WyriHaximus/github-action-get-previous-tag@master"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: benjlevesque/short-sha@v1.1
+        id: shortSha
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
@@ -107,7 +117,7 @@ jobs:
       - name: Prep helm
         run: helm plugin install https://github.com/sstarcher/helm-release
       - name: Version chart
-        run: helm release ./chart -t ${{ github.event.release.tag_name }}
+        run: helm release ./chart -t ${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }}
       - name: Release chart
         run: |
           helm upgrade \
