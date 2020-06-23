@@ -24,6 +24,17 @@ lazy val tsSettings = Seq(
   tsPackageJsonRegistry := "https://npm.pkg.github.com"
 )
 
+lazy val dockerSettings = Seq(
+  dockerRepository := Some("https://docker.pkg.github.com"),
+  dockerUsername := Some("halfmatthalfcat"),
+  dockerAlias := DockerAlias(
+    Some("docker.pkg.github.com"),
+    Some("couchmate"),
+    "server",
+    Some(version.value)
+  )
+)
+
 lazy val server = (project in file("."))
   .enablePlugins(
     Scala2TSPlugin,
@@ -31,6 +42,7 @@ lazy val server = (project in file("."))
     DockerPlugin,
   )
   .settings(tsSettings: _*)
+  .settings(dockerSettings: _*)
   .settings(
     name := "server",
     organization := "com.couchmate",
@@ -98,7 +110,9 @@ lazy val server = (project in file("."))
       setReleaseVersion,
       commitReleaseVersion,
       tagRelease,
-      publishArtifacts
+      publishArtifacts,
+      stageDockerImage,
+      publishDockerImage,
     ),
     pomExtra :=
       <url>https://www.github.com/couchmate/server</url>
