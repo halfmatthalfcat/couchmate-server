@@ -115,7 +115,7 @@ jobs:
       - name: Set cluster
         run: doctl kubernetes cluster kubeconfig save dev-east
       - name: Build helm dependencies
-        run: cd charts && helm dependency build
+        run: cd charts && helm dependency update
       - name: Release chart
         run: |
           helm upgrade \
