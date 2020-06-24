@@ -4,4 +4,4 @@ metadata:
   name: gh-dockerconfig
 type: kubernetes.io/dockerconfigjson
 data:
-  .dockerconfigjson: {{include "dockerconfig" . | b64enc}}
+  .dockerconfigjson: {{ template "imagePullSecret" . }}
