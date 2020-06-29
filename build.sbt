@@ -38,7 +38,6 @@ lazy val common = (project in file("common"))
       slickPg(),
       slickPg("play-json"),
       "io.underscore"               %%  "slickless"             % "0.3.6",
-      "io.github.nafg"              %%  "slick-migration-api"   % "0.9.0-SNAPSHOT",
       "com.typesafe.play"           %%  "play-json"             % "2.8.1",
       "com.beachape"                %%  "enumeratum"            % "1.5.15",
       "com.beachape"                %%  "enumeratum-play-json"  % "1.5.17",
@@ -57,6 +56,9 @@ lazy val migration = (project in file("migration"))
   .settings(commonSettings: _*)
   .settings(
     name := "migration",
+    libraryDependencies ++= Seq(
+      "io.github.nafg" %%  "slick-migration-api" % "0.8.0",
+    ),
     addCommandAlias("mg", "runMain com.couchmate.migration.Migrations")
   )
 
