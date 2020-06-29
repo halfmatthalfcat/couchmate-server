@@ -24,7 +24,6 @@ images:
   tag: 0.0.0
 
 external-dns:
-  rbac: true
   provider: cloudflare
   domainFilters:
     - couchmate.com
