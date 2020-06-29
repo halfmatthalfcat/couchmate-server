@@ -31,7 +31,7 @@ spec:
             - name: POSTGRES_HOST
               value: {{.Values.app.db.host}}
             - name: POSTGRES_PORT
-              value: {{.Values.app.db.port}}
+              value: "{{.Values.app.db.port}}"
             - name: POSTGRES_DB
               value: {{.Values.app.db.name}}
             - name: POSTGRES_USER
