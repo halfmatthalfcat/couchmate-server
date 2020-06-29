@@ -2,8 +2,7 @@ package com.couchmate.migration.db
 
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.db.PgProfile
-import slick.migration.api.TableMigration
-
+import slick.migration.api.{PostgresDialect, TableMigration}
 import java.time.LocalDateTime
 
 import scala.concurrent.ExecutionContext
@@ -19,6 +18,8 @@ class MigrationTable(tag: Tag) extends Table[Migration](tag, "__migrations__") {
 }
 
 object MigrationTable {
+  private implicit val profile: PostgresDialect = new PostgresDialect
+
   private[couchmate] val table = TableQuery[MigrationTable]
 
   private[couchmate] val schema: PgProfile.SchemaDescription = table.schema

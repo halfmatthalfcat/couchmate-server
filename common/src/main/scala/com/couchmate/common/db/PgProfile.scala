@@ -9,7 +9,6 @@ import enumeratum.{Enum, EnumEntry, SlickEnumPlainSqlSupport, SlickEnumSupport}
 import play.api.libs.json.{JsValue, Json}
 import slick.basic.Capability
 import slick.jdbc.JdbcCapabilities
-import slick.migration.api.PostgresDialect
 
 import scala.reflect.ClassTag
 
@@ -33,8 +32,6 @@ trait PgProfile
       with ArrayImplicits
       with DateTimeImplicits
       with JsonImplicits {
-    implicit val dialect: PostgresDialect =
-      new PostgresDialect
 
     private[this] def enumMappedColumn[E <: EnumEntry](enum: Enum[E])(
         implicit classTag: ClassTag[E],
