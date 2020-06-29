@@ -5,4 +5,4 @@ services:
     ports:
     - 3306:3306
   server:
-    image:
+    image: docker.pkg.github.com/couchmate/server/server:0.0.0

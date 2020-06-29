@@ -13,6 +13,7 @@ replicas: 3
 app:
   db:
     host:
+    port:
     username:
     password:
     name:

@@ -9,48 +9,69 @@ import sbt.Keys._
 import sbt.Resolver
 import ReleaseTransformations._
 
-lazy val tsSettings = Seq(
-  tsEnable := true,
-  tsRenderAs := RenderAs.Class,
-  tsIncludeDiscriminator := true,
-  tsDiscriminatorName := "ttype",
-  tsIncludeTypes := Seq(
-    "com\\.couchmate\\.api\\.ws\\.protocol".r
+val commonSettings = Seq(
+  organization := "com.couchmate",
+  scalaVersion := "2.13.1",
+  resolvers ++= Seq(
+    Resolver.jcenterRepo,
+    Resolver.sonatypeRepo("snapshot")
   ),
-  tsSealedTypesMapping := SealedTypesMapping.AsUnionString,
-  tsOutDir := s"${(target in Compile).value}/typescript",
-  tsPackageJsonName := "@couchmate/server",
-  tsPackageJsonVersion := version.value,
-  tsPackageJsonRegistry := "https://npm.pkg.github.com"
-)
-
-lazy val dockerSettings = Seq(
-  dockerRepository := Some("https://docker.pkg.github.com"),
-  dockerUsername := Some("halfmatthalfcat"),
-  dockerAlias := DockerAlias(
-    Some("docker.pkg.github.com"),
-    Some("couchmate"),
-    "server/server",
-    Some(version.value)
-  )
+  githubOwner := "couchmate",
+  githubRepository := "server",
+  githubTokenSource := TokenSource.GitConfig("github.token") || TokenSource.Environment("GITHUB_TOKEN"),
+  publishTo := githubPublishTo.value,
 )
 
 lazy val server = (project in file("."))
+  .settings(commonSettings: _*)
+  .aggregate(common, migration, core)
+
+lazy val common = (project in file("common"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "common",
+    libraryDependencies ++= Seq(
+      akka("stream-typed"),
+      alpakka("slick"),
+      slick("slick"),
+      slick("slick-hikaricp"),
+      slickPg(),
+      slickPg("play-json"),
+      "io.underscore"               %%  "slickless"             % "0.3.6",
+      "io.github.nafg"              %%  "slick-migration-api"   % "0.9.0-SNAPSHOT",
+      "com.typesafe.play"           %%  "play-json"             % "2.8.1",
+      "com.beachape"                %%  "enumeratum"            % "1.5.15",
+      "com.beachape"                %%  "enumeratum-play-json"  % "1.5.17",
+      "com.beachape"                %%  "enumeratum-slick"      % "1.5.16",
+      "com.chuusai"                 %%  "shapeless"             % "2.3.3",
+      "org.postgresql"              %   "postgresql"            % "42.2.9",
+      "com.neovisionaries"          %   "nv-i18n"               % "1.27",
+      "com.github.t3hnar"           %%  "scala-bcrypt"          % "4.1",
+      "com.typesafe.scala-logging"  %%  "scala-logging"         % "3.9.2",
+
+    )
+  )
+
+lazy val migration = (project in file("migration"))
+  .dependsOn(common)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "migration",
+    addCommandAlias("mg", "runMain com.couchmate.migration.Migrations")
+  )
+
+lazy val core = (project in file("core"))
   .enablePlugins(
     Scala2TSPlugin,
     JavaAppPackaging,
     DockerPlugin,
   )
+  .dependsOn(common)
+  .settings(commonSettings: _*)
   .settings(tsSettings: _*)
   .settings(dockerSettings: _*)
   .settings(
-    name := "server",
-    organization := "com.couchmate",
-    scalaVersion := "2.13.1",
-    resolvers ++= Seq(
-      Resolver.jcenterRepo,
-      Resolver.sonatypeRepo("snapshot")
-    ),
+    name := "core",
     libraryDependencies ++= Seq(
       akka("actor-typed"),
       akka("remote"),
@@ -65,12 +86,6 @@ lazy val server = (project in file("."))
       akkaManagement(),
       akkaManagement("cluster-http"),
       akkaManagement("cluster-bootstrap"),
-      alpakka("amqp"),
-      alpakka("slick"),
-      slick("slick"),
-      slick("slick-hikaricp"),
-      slickPg(),
-      slickPg("play-json"),
       // Bootstrapping
       "com.lightbend.akka.discovery"  %%  "akka-discovery-kubernetes-api" % Versions.akkaManagement,
       // Akka HTTP Stuff
@@ -79,24 +94,11 @@ lazy val server = (project in file("."))
       "de.heikoseeberger"             %%  "akka-http-play-json"           % "1.30.0",
       "fr.davit"                      %%  "akka-http-metrics-prometheus"  % "0.6.0",
       // Misc
-      "io.underscore"               %%  "slickless"                     % "0.3.6",
-      "io.github.nafg"              %%  "slick-migration-api"           % "0.7.0",
-      "com.liyaos"                  %%  "scala-forklift-slick"          % "0.3.2",
-      "com.typesafe.play"           %%  "play-json"                     % "2.8.1",
       "org.julienrf"                %%  "play-json-derived-codecs"      % "7.0.0",
       "com.typesafe"                %   "config"                        % "1.4.0",
       "com.nimbusds"                %   "nimbus-jose-jwt"               % "4.27",
       "ch.qos.logback"              %   "logback-classic"               % "1.2.3",
-      "com.typesafe.scala-logging"  %%  "scala-logging"                 % "3.9.2",
-      "org.postgresql"              %   "postgresql"                    % "42.2.9",
-      "com.github.t3hnar"           %%  "scala-bcrypt"                  % "4.1",
-      "com.typesafe.play"           %%  "play-json"                     % "2.8.1",
-      "com.beachape"                %%  "enumeratum"                    % "1.5.15",
-      "com.beachape"                %%  "enumeratum-play-json"          % "1.5.17",
-      "com.beachape"                %%  "enumeratum-slick"              % "1.5.16",
       "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1",
-      "com.chuusai"                 %%  "shapeless"                     % "2.3.3",
-      "com.neovisionaries"          %   "nv-i18n"                       % "1.27",
       "org.fusesource.leveldbjni"   %   "leveldbjni-all"                % "1.8"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
@@ -134,9 +136,31 @@ lazy val server = (project in file("."))
           </developer>
         </developers>,
     publishMavenStyle := true,
-    githubOwner := "couchmate",
-    githubRepository := "server",
-    githubTokenSource := TokenSource.Environment("GITHUB_TOKEN") || TokenSource.GitConfig("github.token"),
-    publishTo := githubPublishTo.value,
     addCommandAlias("db", "runMain com.couchmate.data.db.Migrations")
   )
+
+lazy val tsSettings = Seq(
+  tsEnable := true,
+  tsRenderAs := RenderAs.Class,
+  tsIncludeDiscriminator := true,
+  tsDiscriminatorName := "ttype",
+  tsIncludeTypes := Seq(
+    "com\\.couchmate\\.api\\.ws\\.protocol".r
+  ),
+  tsSealedTypesMapping := SealedTypesMapping.AsUnionString,
+  tsOutDir := s"${(target in Compile).value}/typescript",
+  tsPackageJsonName := "@couchmate/server",
+  tsPackageJsonVersion := version.value,
+  tsPackageJsonRegistry := "https://npm.pkg.github.com"
+)
+
+lazy val dockerSettings = Seq(
+  dockerRepository := Some("https://docker.pkg.github.com"),
+  dockerUsername := Some("halfmatthalfcat"),
+  dockerAlias := DockerAlias(
+    Some("docker.pkg.github.com"),
+    Some("couchmate"),
+    "server/server",
+    Some(version.value)
+  )
+)
