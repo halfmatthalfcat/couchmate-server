@@ -75,5 +75,7 @@ spec:
   ports:
     - port: 80
       targetPort: server-ext
+      name: server-ext
     - port: 8000
       targetPort: management
+      name: management
