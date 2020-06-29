@@ -7,7 +7,7 @@ case class MigrationItem[T <: Table[_]](migrationId: Long, table: TableQuery[T])
   (migration: MigrationItem.CMMigration[T])(sideEffects: DBIO[_]*) extends PostgresDialect {
   private[this] implicit val profile: PostgresDialect = new PostgresDialect
 
-  def up: DBIO[Unit] = migration(TableMigration(table))()
+  def up: DBIO[Unit] = migration(TableMigration(table))() andThen DBIO.seq(sideEffects: _*)
   def down: DBIO[Unit] = migration(TableMigration(table)).reverse()
 }
 
