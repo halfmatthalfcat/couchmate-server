@@ -29,6 +29,6 @@ external-dns:
   domainFilters:
     - couchmate.com
   cloudflare:
-    apiKey:
+    apiToken:
     email: matt@couchmate.com
     proxied: true
