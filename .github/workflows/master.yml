@@ -89,9 +89,9 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: typescript
-          path: target/typescript
+          path: core/target/typescript
       - name: Publish Typescript definitions
-        run: npm publish ./target/typescript
+        run: npm publish ./core/target/typescript
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   release:
