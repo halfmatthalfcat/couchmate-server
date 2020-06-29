@@ -78,7 +78,7 @@ jobs:
           git config --global user.email "matt@couchmate.com"
           git config --global user.name "Matt Oliver"
       - name: Run Release
-        run: sbt "release release-version ${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }} with-defaults"
+        run: sbt "project core; release release-version ${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }} with-defaults"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Typescript Definitions
