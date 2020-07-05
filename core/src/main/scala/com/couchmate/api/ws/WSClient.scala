@@ -168,6 +168,7 @@ object WSClient
                 airing.status == RoomStatusType.Open
               )
             }
+            ctx.log.debug(s"${airingId} exists for user ${session.user.userId.get}: ${roomReady}")
             if (roomReady) {
               lobby.join(
                 airingId,
