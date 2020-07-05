@@ -4,6 +4,7 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import com.couchmate.common.dao.{ProviderDAO, UserProviderDAO}
 import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.services.gracenote.listing.ListingPullType
 import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -42,6 +43,7 @@ object ListingUpdater
             ctx.log.debug(s"Starting listing pull for $providerId")
             listingCoordinator ! ListingCoordinator.RequestListing(
               providerId,
+              ListingPullType.Full,
               ctx.system.ignoreRef
             )
           }
