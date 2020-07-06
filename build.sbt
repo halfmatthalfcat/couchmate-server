@@ -81,6 +81,7 @@ lazy val core = (project in file("core"))
       akka("cluster-typed"),
       akka("cluster-sharding-typed"),
       akka("persistence-typed"),
+      akka("persistence-query"),
       akka("cluster-metrics"),
       akka("cluster-tools"),
       akka("slf4j"),
@@ -90,6 +91,7 @@ lazy val core = (project in file("core"))
       akkaManagement("cluster-bootstrap"),
       // Bootstrapping
       "com.lightbend.akka.discovery"  %%  "akka-discovery-kubernetes-api" % Versions.akkaManagement,
+      "com.lightbend.akka"            %%  "akka-persistence-jdbc"         % "4.0.0",
       // Akka HTTP Stuff
       "com.typesafe.akka"             %%  "akka-http"                     % "10.1.11",
       "ch.megard"                     %%  "akka-http-cors"                % "0.4.3",
@@ -100,8 +102,7 @@ lazy val core = (project in file("core"))
       "com.typesafe"                %   "config"                        % "1.4.0",
       "com.nimbusds"                %   "nimbus-jose-jwt"               % "4.27",
       "ch.qos.logback"              %   "logback-classic"               % "1.2.3",
-      "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1",
-      "org.fusesource.leveldbjni"   %   "leveldbjni-all"                % "1.8"
+      "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     discoveredMainClasses in Compile := Seq(),
