@@ -12,6 +12,8 @@ object SeriesMigrations {
       _.seriesName,
       _.totalSeasons,
       _.totalEpisodes,
+    ).addIndexes(
+      _.extIdIdx
     )
   )()
 

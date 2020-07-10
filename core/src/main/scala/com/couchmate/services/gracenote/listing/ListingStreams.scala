@@ -7,7 +7,7 @@ import akka.http.scaladsl.HttpExt
 import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.Materializer
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{RestartSource, Source}
 import com.couchmate.common.dao.{EpisodeDAO, LineupDAO, ListingCacheDAO, ProviderChannelDAO, ProviderDAO, ShowDAO, SportEventDAO}
 import com.couchmate.common.models.thirdparty.gracenote
 import com.couchmate.common.models.thirdparty.gracenote.{GracenoteAiring, GracenoteAiringPlan, GracenoteChannelAiring, GracenoteProgram, GracenoteSlotAiring, GracenoteSport}
@@ -111,7 +111,12 @@ object ListingStreams
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Source[Lineup, NotUsed] = Source.future(gracenoteAiring match {
+  ): Source[Lineup, NotUsed] = RestartSource.withBackoff(
+    minBackoff = 1.seconds,
+    maxBackoff = 5.seconds,
+    randomFactor = 0.2,
+    maxRestarts = 3
+  )(() => Source.future(gracenoteAiring match {
     case GracenoteAiring(_, _, _, program) if program.seriesId.nonEmpty =>
       episode(program)
     case GracenoteAiring(_, _, _, program) if program.sportsId.nonEmpty =>
@@ -129,7 +134,7 @@ object ListingStreams
         .getOrElse("N/A"),
       originalAirDate = program.origAirDate,
     ))
-  }).mapAsync(1)(show => getOrAddLineup(
+  })).mapAsync(1)(show => getOrAddLineup(
     providerChannelId,
     show,
     Airing(

@@ -6,7 +6,7 @@ import com.couchmate.common.util.slick.WithTableQuery
 
 class SeriesTable(tag: Tag) extends Table[Series](tag, "series") {
   def seriesId: Rep[Long] = column[Long]("series_id", O.PrimaryKey, O.AutoInc)
-  def extId: Rep[Long] = column[Long]("ext_id")
+  def extId: Rep[Long] = column[Long]("ext_id", O.Unique)
   def seriesName: Rep[String] = column[String]("series_name")
   def totalSeasons: Rep[Option[Long]] = column[Option[Long]]("total_seasons")
   def totalEpisodes: Rep[Option[Long]] = column[Option[Long]]("total_episodes")
@@ -17,6 +17,12 @@ class SeriesTable(tag: Tag) extends Table[Series](tag, "series") {
     totalSeasons,
     totalEpisodes,
   ) <> ((Series.apply _).tupled, Series.unapply)
+
+  def extIdIdx = index(
+    "series_ext_idx",
+    extId,
+    unique = true
+  );
 }
 
 object SeriesTable extends WithTableQuery[SeriesTable] {

@@ -4,7 +4,7 @@ import com.couchmate.common.db.PgProfile.api._
 import slick.migration.api._
 
 case class MigrationItem[T <: Table[_]](migrationId: Long, table: TableQuery[T])
-  (migration: MigrationItem.CMMigration[T])(sideEffects: DBIO[_]*) extends PostgresDialect {
+  (migration: MigrationItem.CMMigration[T])(sideEffects: DBIO[_]*) {
   private[this] implicit val profile: PostgresDialect = new PostgresDialect
 
   def up: DBIO[Unit] = migration(TableMigration(table))() andThen DBIO.seq(sideEffects: _*)
