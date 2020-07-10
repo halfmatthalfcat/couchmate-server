@@ -18,8 +18,8 @@ case class GracenoteProgram(
   subType: GracenoteProgramSubtype,
   // -- Start Series
   seriesId: Option[Long],
-  seasonNumber: Option[Long],
-  episodeNumber: Option[Long],
+  seasonNum: Option[Long],
+  episodeNum: Option[Long],
   episodeTitle: Option[String],
   // -- End Series
   // -- Start Sport
@@ -73,12 +73,12 @@ object GracenoteProgram {
       (__ \ "seriesId").readNullable[Long]
     ) and
     (
-      (__ \ "seasonNumber").readNullable[String].map(_.map(_.toLong)) or
-      (__ \ "seasonNumber").readNullable[Long]
+      (__ \ "seasonNum").readNullable[String].map(_.map(_.toLong)) or
+      (__ \ "seasonNum").readNullable[Long]
     ) and
     (
-      (__ \ "episodeNumber").readNullable[String].map(_.map(_.toLong)) or
-      (__ \ "episodeNumber").readNullable[Long]
+      (__ \ "episodeNum").readNullable[String].map(_.map(_.toLong)) or
+      (__ \ "episodeNum").readNullable[Long]
     ) and
     (__ \ "episodeTitle").readNullable[String] and
     // -- End Series
