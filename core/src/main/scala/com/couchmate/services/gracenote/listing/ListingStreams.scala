@@ -111,10 +111,10 @@ object ListingStreams
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Source[Lineup, NotUsed] = RestartSource.withBackoff(
+  ): Source[Lineup, NotUsed] = RestartSource.onFailuresWithBackoff(
     minBackoff = 1.seconds,
-    maxBackoff = 5.seconds,
-    randomFactor = 0.2,
+    maxBackoff = 1.seconds,
+    randomFactor = 0,
     maxRestarts = 3
   )(() => Source.future(gracenoteAiring match {
     case GracenoteAiring(_, _, _, program) if program.seriesId.nonEmpty =>
