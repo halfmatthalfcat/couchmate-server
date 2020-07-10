@@ -186,8 +186,8 @@ object ListingStreams
     Episode(
       episodeId = None,
       seriesId = None,
-      season = program.seasonNumber,
-      episode = program.episodeNumber
+      season = program.seasonNum,
+      episode = program.episodeNum
     )
   )
 
