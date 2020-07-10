@@ -30,7 +30,7 @@ object ListingUpdater
     Behaviors.withTimers { timers =>
       timers.startTimerWithFixedDelay(StartUpdate, 1 day)
 
-      // ctx.self ! StartUpdate
+      ctx.self ! StartUpdate
 
       Behaviors.receiveMessage {
         case StartUpdate => ctx.pipeToSelf(getProviders) {

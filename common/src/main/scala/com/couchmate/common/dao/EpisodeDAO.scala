@@ -119,14 +119,16 @@ object EpisodeDAO {
       eExists <- getEpisodeForSeries(
         s.seriesId.get,
         episode.season,
-        episode.season
+        episode.episode
       )
       e <- eExists.fold(upsertEpisode(episode.copy(
-        seriesId = s.seriesId
+        seriesId = s.seriesId,
+        season = episode.season,
+        episode = episode.episode
       )))(DBIO.successful)
-      s <- ShowDAO.upsertShow(show.copy(
-        episodeId = e.episode
+      show <- ShowDAO.upsertShow(show.copy(
+        episodeId = e.episodeId
       ))
-    } yield s
+    } yield show
   }).transactionally
 }
