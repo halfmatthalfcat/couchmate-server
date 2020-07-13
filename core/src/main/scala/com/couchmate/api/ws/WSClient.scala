@@ -1,6 +1,7 @@
 package com.couchmate.api.ws
 
 import java.time.Duration
+import java.util.UUID
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
@@ -9,7 +10,7 @@ import com.couchmate.Server
 import com.couchmate.api.JwtProvider
 import com.couchmate.common.models.api.grid.GridAiring
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.api.ws.Commands.Connected.{CreateNewSessionFailure, CreateNewSessionSuccess}
+import com.couchmate.api.ws.Commands.Connected.{CreateNewSessionFailure, CreateNewSessionSuccess, RestoreRoomSessionFailure, RestoreRoomSessionSuccess, RestoreSessionFailure, RestoreSessionSuccess}
 import com.couchmate.api.ws.protocol._
 import com.couchmate.api.ws.util.MessageMonitor
 import com.couchmate.common.models.api.User
@@ -36,7 +37,8 @@ object WSClient
   with UserMetaDAO
   with ProviderDAO
   with UserProviderDAO
-  with UserMuteDAO {
+  with UserMuteDAO
+  with GridDAO {
   import Commands._
 
   val moniker: Moniker = Moniker()
@@ -116,8 +118,31 @@ object WSClient
           }
           Behaviors.same
 
+        case Incoming(resume: RestoreSession) =>
+          val geoContext: GeoContext = GeoContext(
+            resume.locale,
+            resume.timezone,
+            resume.region
+          )
+          ctx.pipeToSelf(resumeSession(resume)) {
+            case Success(value) if resume.roomId.nonEmpty =>
+              RestoreRoomSessionSuccess(value, geoContext, resume.roomId.get)
+            case Success(value) =>
+              RestoreSessionSuccess(value, geoContext)
+            case Failure(exception) if resume.roomId.nonEmpty =>
+              RestoreRoomSessionFailure(exception)
+            case Failure(exception) =>
+              ctx.log.error("Failed to restore session", exception)
+              RestoreSessionFailure(exception)
+          }
+          Behaviors.same
+
         case CreateNewSessionSuccess(session, geo) =>
           inSession(session, geo, ws, init = true)
+        case RestoreSessionSuccess(session, geo) =>
+          inSession(session, geo, ws, init = true)
+        case RestoreRoomSessionSuccess(session, geo, airingId) =>
+          inSession(session, geo, ws, init = true, Some(airingId))
       },
       closing,
       outgoing(ws)
@@ -130,10 +155,11 @@ object WSClient
       session: SessionContext,
       geo: GeoContext,
       ws: ActorRef[Command],
-      init: Boolean = false
+      init: Boolean = false,
+      roomRestore: Option[UUID] = None,
     ): Behavior[Command] = Behaviors.setup { _ =>
 
-      if (init) {
+      if (init && roomRestore.nonEmpty && session.roomIsOpen(roomRestore.get)) {
         ws ! Outgoing(SetSession(
           User(
             userId = session.user.userId.get,
@@ -152,6 +178,33 @@ object WSClient
           geo.country,
         )
 
+        lobby.join(
+          roomRestore.get,
+          session.user.userId.get,
+          session.userMeta.username,
+          chatAdapter
+        )
+      } else if (init) {
+        ws ! Outgoing(SetSession(
+          User(
+            userId = session.user.userId.get,
+            username = session.userMeta.username,
+            email = session.userMeta.email,
+            token = session.token
+          ),
+          session.providerName,
+          session.token,
+        ))
+
+        ws ! Outgoing(UpdateGrid(session.grid))
+
+        metrics.incSession(
+          session.providerId,
+          session.providerName,
+          geo.timezone,
+          geo.country,
+        )
+
         singletons.gridCoordinator ! GridCoordinator.AddListener(
           session.providerId,
           gridAdapter,
@@ -161,15 +214,7 @@ object WSClient
       Behaviors.receiveMessage(compose(
         {
           case Incoming(JoinRoom(airingId)) =>
-            val roomReady: Boolean = session.airings.exists { airing =>
-              airing.airingId == airingId &&
-              (
-                airing.status == RoomStatusType.PreGame ||
-                airing.status == RoomStatusType.Open
-              )
-            }
-            ctx.log.debug(s"${airingId} exists for user ${session.user.userId.get}: ${roomReady}")
-            if (roomReady) {
+            if (session.roomIsOpen(airingId)) {
               lobby.join(
                 airingId,
                 session.user.userId.get,
@@ -182,13 +227,7 @@ object WSClient
           case Connected.UpdateGrid(grid) =>
             ctx.self ! Outgoing(UpdateGrid(grid))
             inSession(
-              session.copy(
-                airings = grid.pages.foldLeft(Set.empty[GridAiring]) {
-                  case (a1, gridPage) => a1 ++ gridPage.channels.foldLeft(Set.empty[GridAiring]) {
-                    case (a2, channel) => a2 ++ channel.airings
-                  }
-                }
-              ),
+              session.setAiringsFromGrid(grid),
               geo,
               ws
             )
@@ -346,11 +385,42 @@ object WSClient
     case _ => GracenoteDefaultProvider.USEast
   }
 
+  def resumeSession(resume: RestoreSession)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[SessionContext] = for {
+    userId <- Future.fromTry(validateToken(resume.token))
+    user <- getUser(userId).map(_.getOrElse(
+      throw new RuntimeException(s"Could not find user for $userId")
+    ))
+    userMeta <- getUserMeta(userId).map(_.getOrElse(
+      throw new RuntimeException(s"Could not find userMeta for $userId")
+    ))
+    mutes <- getUserMutes(userId)
+    userProvider <- getUserProvider(userId).map(_.getOrElse(
+      throw new RuntimeException(s"Could not find userProvider for $userId")
+    ))
+    provider <- getProvider(userProvider.providerId).map(_.getOrElse(
+      throw new RuntimeException(s"Could not find provider for $userId (${userProvider.providerId})")
+    ))
+    grid <- getGrid(userProvider.providerId)
+  } yield SessionContext(
+    user = user,
+    userMeta = userMeta,
+    providerId = userProvider.providerId,
+    providerName = provider.name,
+    token = resume.token,
+    muted = mutes,
+    airings = Set.empty,
+    grid = grid
+  ).setAiringsFromGrid(grid)
+
   def createNewSession(context: GeoContext)(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[SessionContext] = ({
+  ): Future[SessionContext] = {
     val defaultProvider: GracenoteDefaultProvider =
       getDefaultProvider(context)
 
@@ -381,6 +451,7 @@ object WSClient
         claims = Map(),
         expiry = Duration.ofDays(365L)
       ))
+      grid <- getGrid(defaultProvider.value)
     } yield SessionContext(
       user = user,
       userMeta = userMeta,
@@ -388,11 +459,8 @@ object WSClient
       providerName = provider.get.name,
       token = token,
       muted = mutes,
-      airings = Set.empty
-    )
-  }) recoverWith {
-    case ex: Throwable =>
-      System.out.println(s"----- ERROR: ${ex.getMessage}")
-      Future.failed(ex)
+      airings = Set.empty,
+      grid = grid
+    ).setAiringsFromGrid(grid)
   }
 }

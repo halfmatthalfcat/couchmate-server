@@ -80,7 +80,7 @@ trait JwtProvider {
           )
         )
 
-      if (expired) {
+      if (!expired) {
         Failure(ExpiredJwtError)
       } else if (!verified) {
         Failure(InvalidJwtError)

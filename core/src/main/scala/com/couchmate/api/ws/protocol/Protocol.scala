@@ -31,7 +31,10 @@ case class Login(
 ) extends Protocol
 case class RestoreSession(
   token: String,
-  roomId: Option[UUID]
+  roomId: Option[UUID],
+  timezone: String,
+  locale: String,
+  region: String
 ) extends Protocol
 case class SetSession(
   user: User,

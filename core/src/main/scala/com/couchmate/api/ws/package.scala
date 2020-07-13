@@ -40,6 +40,20 @@ package object ws {
         geo: GeoContext
       ) extends Command
       case class CreateNewSessionFailure(err: Throwable) extends Command
+
+      case class RestoreSessionSuccess(
+        session: SessionContext,
+        geo: GeoContext
+      ) extends Command
+      case class RestoreSessionFailure(err: Throwable) extends Command
+
+      case class RestoreRoomSessionSuccess(
+        session: SessionContext,
+        geo: GeoContext,
+        airingId: UUID
+      ) extends Command
+      case class RestoreRoomSessionFailure(ex: Throwable) extends Command
+
       case class UpdateGrid(grid: Grid) extends Command
     }
 

@@ -2,8 +2,8 @@ package com.couchmate.api.ws
 
 import java.util.UUID
 
-import com.couchmate.common.models.api.grid.GridAiring
-import com.couchmate.common.models.data.{User, UserMeta}
+import com.couchmate.common.models.api.grid.{Grid, GridAiring}
+import com.couchmate.common.models.data.{RoomStatusType, User, UserMeta}
 
 case class SessionContext(
   user: User,
@@ -12,5 +12,24 @@ case class SessionContext(
   providerName: String,
   token: String,
   muted: Seq[UUID],
-  airings: Set[GridAiring]
-)
+  airings: Set[GridAiring],
+  grid: Grid,
+) {
+  def setAiringsFromGrid(grid: Grid): SessionContext =
+    this.copy(
+      airings = grid.pages.foldLeft(Set.empty[GridAiring]) {
+        case (a1, gridPage) => a1 ++ gridPage.channels.foldLeft(Set.empty[GridAiring]) {
+          case (a2, channel) => a2 ++ channel.airings
+        }
+      }
+    )
+
+  def roomIsOpen(airingId: UUID): Boolean =
+    this.airings.exists { airing =>
+      airing.airingId == airingId &&
+        (
+          airing.status == RoomStatusType.PreGame ||
+          airing.status == RoomStatusType.Open
+        )
+    }
+}
