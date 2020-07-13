@@ -1,19 +1,20 @@
 package com.couchmate.services.gracenote.listing
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneId}
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.Materializer
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.typed.scaladsl.ActorFlow
 import akka.util.Timeout
-import com.couchmate.common.dao.{GridDAO, ProviderDAO}
+import com.couchmate.common.dao.{GridDAO, ListingJobDAO, ProviderDAO}
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.thirdparty.gracenote.{GracenoteAiringPlanResult, GracenoteChannelAiring, GracenoteSlotAiring, GracenoteSport}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.Provider
+import com.couchmate.common.models.data.{ListingJobStatus, Provider, ListingJob => ListingJobModel}
+import com.couchmate.common.util.DateUtils
 import com.couchmate.services.GracenoteCoordinator
 import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
 import com.typesafe.config.{Config, ConfigFactory}
@@ -26,7 +27,8 @@ import scala.util.{Failure, Success}
 object ListingJob
   extends PlayJsonSupport
   with ProviderDAO
-  with GridDAO {
+  with GridDAO
+  with ListingJobDAO {
   sealed trait Command
 
   final case class AddListener(actorRef: ActorRef[Command]) extends Command
@@ -37,6 +39,9 @@ object ListingJob
 
   private final case class SportsSuccess(sports: Seq[GracenoteSport]) extends Command
   private final case class SportsFailure(err: Throwable) extends Command
+
+  private final case class JobSuccess(job: ListingJobModel) extends Command
+  private final case class JobFailure(err: Throwable) extends Command
 
   private final case class GridSuccess(grid: Grid) extends Command
   private final case class GridFailure(err: Throwable) extends Command
@@ -49,12 +54,14 @@ object ListingJob
 
   private final case class PreState(
     provider: Option[Provider] = None,
-    sports: Option[Seq[GracenoteSport]] = None
+    sports: Option[Seq[GracenoteSport]] = None,
+    job: Option[ListingJobModel] = None,
   )
 
   private final case class JobState(
     provider: Provider,
     sports: Seq[GracenoteSport],
+    job: ListingJobModel
   )
 
   def apply(
@@ -86,12 +93,24 @@ object ListingJob
       case Failure(exception) => SportsFailure(exception)
     }
 
+    ctx.pipeToSelf(upsertListingJob(ListingJobModel(
+      providerId = providerId,
+      pullAmount = pullType.value,
+      started = LocalDateTime.now(ZoneId.of("UTC")),
+      baseSlot = DateUtils.roundNearestHour(LocalDateTime.now(ZoneId.of("UTC"))),
+      status = ListingJobStatus.InProgress
+    ))) {
+      case Success(job) => JobSuccess(job)
+      case Failure(exception) => JobFailure(exception)
+    }
+
     def start(state: PreState): Behavior[Command] = Behaviors.receiveMessage {
       case ProviderSuccess(provider) =>
-        if (state.sports.nonEmpty) {
+        if (state.sports.nonEmpty && state.job.nonEmpty) {
           run(JobState(
             provider = provider,
-            sports = state.sports.get
+            sports = state.sports.get,
+            job = state.job.get,
           ))
         } else {
           start(state.copy(
@@ -99,14 +118,27 @@ object ListingJob
           ))
         }
       case SportsSuccess(sports) =>
-        if (state.provider.nonEmpty) {
+        if (state.provider.nonEmpty && state.job.nonEmpty) {
           run(JobState(
             provider = state.provider.get,
-            sports = sports
+            sports = sports,
+            job = state.job.get,
           ))
         } else {
           start(state.copy(
             sports = Some(sports)
+          ))
+        }
+      case JobSuccess(job) =>
+        if (state.provider.nonEmpty && state.sports.nonEmpty) {
+          run(JobState(
+            provider = state.provider.get,
+            sports = state.sports.get,
+            job = state.job.get
+          ))
+        } else {
+          start(state.copy(
+            job = Some(job)
           ))
         }
 
@@ -115,6 +147,9 @@ object ListingJob
         Behaviors.stopped
       case SportsFailure(err) =>
         ctx.log.error(s"Unable to get sports", err)
+        Behaviors.stopped
+      case JobFailure(err) =>
+        ctx.log.error(s"Unable to make job", err)
         Behaviors.stopped
     }
 
@@ -169,17 +204,38 @@ object ListingJob
                case (acc, lineup) if !lineup.active => acc.copy(removed = acc.removed + 1)
                case (acc, _) => acc
              }
-           }).reduce((prev: GracenoteAiringPlanResult, curr: GracenoteAiringPlanResult) => prev.copy(
-             added = prev.added + curr.added,
-             removed = prev.removed + curr.removed,
-             skipped = prev.skipped + curr.skipped
-           )).log(s"${providerId}")
+           })
+          // Side-effect to update job
+          .alsoTo(Sink.foreachAsync(1)(plan => upsertListingJob(
+            state.job.copy(
+              lastSlot = Some(plan.startTime)
+            )
+          ).map(_ => ())))
+          .reduce((prev: GracenoteAiringPlanResult, curr: GracenoteAiringPlanResult) => prev.copy(
+           added = prev.added + curr.added,
+           removed = prev.removed + curr.removed,
+           skipped = prev.skipped + curr.skipped
+         )).log(s"${providerId}")
+          .alsoTo(Sink.foreachAsync(1)(_ => upsertListingJob(
+            state.job.copy(
+              completed = Some(LocalDateTime.now(ZoneId.of("UTC"))),
+              status = ListingJobStatus.Complete
+            )
+          ).map(_ => ())))
         )
         .run
         .flatMap(_ => getGrid(providerId))
         .onComplete {
           case Success(value) =>
             ctx.self ! JobEnded(providerId, value)
+          case Failure(exception) =>
+            ctx.log.error(s"Listing job for $providerId failed", exception)
+            upsertListingJob(
+              state.job.copy(
+                completed = Some(LocalDateTime.now(ZoneId.of("UTC"))),
+                status = ListingJobStatus.Error
+              )
+            )
         }
 
       def job(listeners: Seq[ActorRef[Command]]): Behavior[Command] = Behaviors.receiveMessage {

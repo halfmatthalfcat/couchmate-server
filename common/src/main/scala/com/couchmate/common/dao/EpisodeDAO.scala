@@ -3,7 +3,7 @@ package com.couchmate.common.dao
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.{Episode, Series, Show}
 import com.couchmate.common.tables.{EpisodeTable, SeriesTable}
 
@@ -45,17 +45,35 @@ trait EpisodeDAO {
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Show] =
-    db.run(EpisodeDAO.getOrAddEpisode(show, series, episode))
-
-  def getOrAddEpisode$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[(Show, Series, Episode), Show, NotUsed] =
-    Slick.flowWithPassThrough(
-      (EpisodeDAO.getOrAddEpisode _).tupled
-    )
+  ): Future[Show] = (for {
+    series <- db.run(SeriesDAO.addOrGetSeries(series).head) recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Get series failed: ${ex.getMessage}, ${SeriesDAO.addOrGetSeries(series).statements.mkString("\n")}")
+        for {
+          s <- db.run(SeriesDAO.addOrGetSeries(series).headOption)
+          _ = System.out.println(s"Legit no series: ${s.isEmpty}")
+          f <- Future.failed(ex)
+        } yield f
+    }
+    episode <- db.run(EpisodeDAO.addOrGetEpisode(episode.copy(
+      seriesId = series.seriesId
+    )).head) recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Get episode failed: ${ex.getMessage}")
+        Future.failed(ex)
+    }
+    show <- db.run(ShowDAO.addOrGetShow(show.copy(
+      episodeId = episode.episodeId
+    )).head) recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Get show failed: ${ex.getMessage}")
+        Future.failed(ex)
+    }
+  } yield show) recoverWith {
+    case ex: Throwable =>
+      System.out.println(s"!Episode failed ${ex.getMessage}")
+      Future.failed(ex)
+  }
 }
 
 object EpisodeDAO {
@@ -98,37 +116,36 @@ object EpisodeDAO {
       updated <- EpisodeDAO.getEpisode(episodeId)
     } yield updated.get}
 
-  private[common] def getOrAddEpisode(
-    show: Show,
-    series: Series,
-    episode: Episode
-  )(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[Show] = (ShowDAO.getShowByShow(show) flatMap {
-    case Some(show) => DBIO.successful(show)
-    case None => for {
-      seriesExists <- series match {
-        case Series(Some(seriesId), _, _, _, _) =>
-          SeriesDAO.getSeries(seriesId)
-        case Series(None, extSeriesId, _, _, _) =>
-          SeriesDAO.getSeriesByExt(extSeriesId)
-        case _ => DBIO.successful(Option.empty[Series])
-      }
-      s <- seriesExists.fold(SeriesDAO.upsertSeries(series))(DBIO.successful)
-      eExists <- getEpisodeForSeries(
-        s.seriesId.get,
-        episode.season,
-        episode.episode
-      )
-      e <- eExists.fold(upsertEpisode(episode.copy(
-        seriesId = s.seriesId,
-        season = episode.season,
-        episode = episode.episode
-      )))(DBIO.successful)
-      show <- ShowDAO.upsertShow(show.copy(
-        episodeId = e.episodeId
-      ))
-    } yield show
-  }).transactionally
+  private[common] def addOrGetEpisode(e: Episode) =
+    sql"""
+         WITH input_rows(series_id, season, episode) AS (
+          VALUES (${e.seriesId}, ${e.season}, ${e.episode})
+         ), ins AS (
+          INSERT INTO episode as e (series_id, season, episode)
+          SELECT * FROM input_rows
+          ON CONFLICT (series_id, season, episode) DO NOTHING
+          RETURNING episode_id, series_id, season, episode
+         ), sel AS (
+          SELECT episode_id, series_id, season, episode
+          FROM ins
+          UNION ALL
+          SELECT e.episode_id, series_id, season, episode
+          FROM input_rows
+          JOIN episode as e USING (series_id, season, episode)
+         ), ups AS (
+           INSERT INTO episode AS ep (series_id, season, episode)
+           SELECT i.*
+           FROM   input_rows i
+           LEFT   JOIN sel   s USING (series_id, season, episode)
+           WHERE  s.series_id IS NULL
+           ON     CONFLICT (series_id, season, episode) DO UPDATE
+           SET    series_id = ep.series_id,
+                  season = ep.season,
+                  episode = ep.episode
+           RETURNING episode_id, series_id, season, episode
+         )  SELECT episode_id, series_id, season, episode FROM sel
+            UNION  ALL
+            TABLE  ups;
+         """.as[Episode]
+
 }

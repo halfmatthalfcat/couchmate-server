@@ -8,7 +8,7 @@ import com.couchmate.common.util.slick.WithTableQuery
 
 class ShowTable(tag: Tag) extends Table[Show](tag, "show") {
   def showId: Rep[Long] = column[Long]("show_id", O.PrimaryKey, O.AutoInc)
-  def extId: Rep[Long] = column[Long]("ext_id")
+  def extId: Rep[Long] = column[Long]("ext_id", O.Unique)
   def `type`: Rep[ShowType] = column[ShowType]("type")
   def episodeId: Rep[Option[Long]] = column[Option[Long]]("episode_id")
   def sportEventId: Rep[Option[Long]] = column[Option[Long]]("sport_event_id")
@@ -45,6 +45,12 @@ class ShowTable(tag: Tag) extends Table[Show](tag, "show") {
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict,
   )
+
+  def extIdIdx = index(
+    "show_ext_idx",
+    extId,
+    unique = true
+  );
 }
 
 object ShowTable extends WithTableQuery[ShowTable] {

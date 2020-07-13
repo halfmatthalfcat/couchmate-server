@@ -3,7 +3,7 @@ package com.couchmate.common.dao
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.Show
 import com.couchmate.common.tables.ShowTable
 
@@ -49,19 +49,11 @@ trait ShowDAO {
   ): Flow[Show, Show, NotUsed] =
     Slick.flowWithPassThrough(ShowDAO.upsertShow)
 
-  def getOrAddShow(show: Show)(
+  def addOrGetShow(show: Show)(
     implicit
-    ec: ExecutionContext,
     db: Database
   ): Future[Show] =
-    db.run(ShowDAO.getOrAddShow(show))
-
-  def getOrAddShow$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[Show, Show, NotUsed] =
-    Slick.flowWithPassThrough(ShowDAO.getOrAddShow)
+    db.run(ShowDAO.addOrGetShow(show).head)
 }
 
 object ShowDAO {
@@ -102,12 +94,39 @@ object ShowDAO {
       updated <- ShowDAO.getShow(showId)
     } yield updated.get}
 
-  private[common] def getOrAddShow(show: Show)(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[Show] = (getShowByShow(show) flatMap {
-    case Some(show) => DBIO.successful(show)
-    case None => upsertShow(show)
-  }).transactionally
+  private[common] def addOrGetShow(show: Show) =
+    sql"""
+         WITH input_rows(ext_id, type, episode_id, sport_event_id, title, description, original_air_date) AS (
+          VALUES (${show.extId}, ${show.`type`}, ${show.episodeId}, ${show.sportEventId}, ${show.title}, ${show.description}, ${show.originalAirDate}::timestamp)
+         ), ins AS (
+          INSERT INTO show (ext_id, type, episode_id, sport_event_id, title, description, original_air_date)
+          SELECT * FROM input_rows
+          ON CONFLICT (ext_id) DO NOTHING
+          RETURNING show_id, ext_id, type, episode_id, sport_event_id, title, description, original_air_date
+         ), sel AS (
+          SELECT show_id, ext_id, type, episode_id, sport_event_id, title, description, original_air_date
+          FROM ins
+          UNION ALL
+          SELECT s.show_id, ext_id, s.type, s.episode_id, s.sport_event_id, s.title, s.description, s.original_air_date
+          FROM input_rows
+          JOIN show as s USING (ext_id)
+         ), ups AS (
+           INSERT INTO show AS shw (ext_id, type, episode_id, sport_event_id, title, description, original_air_date)
+           SELECT i.*
+           FROM   input_rows i
+           LEFT   JOIN sel   s USING (ext_id)
+           WHERE  s.ext_id IS NULL
+           ON     CONFLICT (ext_id) DO UPDATE
+           SET    type = shw.type,
+                  episode_id = shw.episode_id,
+                  sport_event_id = shw.sport_event_id,
+                  title = shw.title,
+                  description = shw.description,
+                  original_air_date = shw.original_air_date
+           RETURNING show_id, ext_id, type, episode_id, sport_event_id, title, description, original_air_date
+         )  SELECT show_id, ext_id, type, episode_id, sport_event_id, title, description, original_air_date FROM sel
+            UNION  ALL
+            TABLE  ups;
+         """.as[Show]
 
 }

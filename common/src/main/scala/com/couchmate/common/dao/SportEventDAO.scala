@@ -3,7 +3,7 @@ package com.couchmate.common.dao
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.{Show, SportEvent, SportOrganization}
 import com.couchmate.common.tables.SportEventTable
 
@@ -51,6 +51,12 @@ trait SportEventDAO {
   ): Flow[SportEvent, SportEvent, NotUsed] =
     Slick.flowWithPassThrough(SportEventDAO.upsertSportEvent)
 
+  def addOrGetSportEvent(sportEvent: SportEvent)(
+    implicit
+    db: Database
+  ): Future[SportEvent] =
+    db.run(SportEventDAO.addOrGetSportEvent(sportEvent).head)
+
   def getOrAddSportEvent(
     show: Show,
     sportOrganization: SportOrganization,
@@ -59,17 +65,15 @@ trait SportEventDAO {
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Show] =
-    db.run(SportEventDAO.getOrAddSportEvent(show, sportOrganization, sportEvent))
-
-  def getOrAddSportEvent$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[(Show, SportOrganization, SportEvent), Show, NotUsed] =
-    Slick.flowWithPassThrough(
-      (SportEventDAO.getOrAddSportEvent _).tupled
-    )
+  ): Future[Show] = for {
+    so <- db.run(SportOrganizationDAO.addOrGetSportOrganization(sportOrganization).head)
+    se <- db.run(SportEventDAO.addOrGetSportEvent(sportEvent.copy(
+      sportOrganizationId = so.sportOrganizationId
+    )).head)
+    s <- db.run(ShowDAO.addOrGetShow(show.copy(
+      sportEventId = se.sportEventId
+    )).head)
+  } yield s
 }
 
 object SportEventDAO {
@@ -110,35 +114,34 @@ object SportEventDAO {
       updated <- SportEventDAO.getSportEvent(sportEventId)
     } yield updated.get}
 
-  private[common] def getOrAddSportEvent(
-    show: Show,
-    sportOrganization: SportOrganization,
-    sportEvent: SportEvent
-  )(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[Show] = (ShowDAO.getShowByShow(show) flatMap {
-    case Some(show) => DBIO.successful(show)
-    case None => for {
-      sportOrgExists <- SportOrganizationDAO.getSportOrganizationBySportAndOrg(
-        sportOrganization.extSportId,
-        sportOrganization.extOrgId
-      )
-      sportOrg <- sportOrgExists.fold(
-        SportOrganizationDAO.upsertSportOrganization(sportOrganization)
-      )(DBIO.successful)
-      sportEventExists <- SportEventDAO.getSportEventByNameAndOrg(
-        sportEvent.sportEventTitle,
-        sportOrg.sportOrganizationId.get,
-      )
-      sportEvent <- sportEventExists.fold(
-        upsertSportEvent(sportEvent.copy(
-          sportOrganizationId = sportOrg.sportOrganizationId
-        ))
-      )(DBIO.successful)
-      s <- ShowDAO.upsertShow(show.copy(
-        sportEventId = sportEvent.sportEventId
-      ))
-    } yield s
-  }).transactionally
+  private[common] def addOrGetSportEvent(se: SportEvent) =
+    sql"""
+         WITH input_rows(sport_organization_id, sport_event_title) AS (
+          VALUES (${se.sportOrganizationId}, ${se.sportEventTitle})
+         ), ins AS (
+          INSERT INTO sport_event (sport_organization_id, sport_event_title)
+          SELECT * FROM input_rows
+          ON CONFLICT (sport_organization_id, sport_event_title) DO NOTHING
+          RETURNING sport_event_id, sport_organization_id, sport_event_title
+         ), sel AS (
+          SELECT sport_event_id, sport_organization_id, sport_event_title
+          FROM ins
+          UNION ALL
+          SELECT se.sport_event_id, sport_organization_id, sport_event_title
+          FROM input_rows
+          JOIN sport_event AS se USING (sport_organization_id, sport_event_title)
+         ), ups AS (
+           INSERT INTO sport_event AS se (sport_organization_id, sport_event_title)
+           SELECT i.*
+           FROM   input_rows i
+           LEFT   JOIN sel   s USING (sport_organization_id, sport_event_title)
+           WHERE  s.sport_organization_id IS NULL
+           ON     CONFLICT (sport_organization_id, sport_event_title) DO UPDATE
+           SET    sport_organization_id = se.sport_organization_id,
+                  sport_event_title = se.sport_event_title
+           RETURNING sport_event_id, sport_organization_id, sport_event_title
+         )  SELECT sport_event_id, sport_organization_id, sport_event_title FROM sel
+            UNION  ALL
+            TABLE  ups;
+         """.as[SportEvent]
 }

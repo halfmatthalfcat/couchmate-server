@@ -13,6 +13,8 @@ object EpisodeMigrations {
       _.episode,
     ).addForeignKeys(
       _.seriesFk,
+    ).addIndexes(
+      _.seriesIdx
     )
   )()
 

@@ -14,6 +14,8 @@ object LineupMigrations {
     ).addForeignKeys(
       _.providerChannelFk,
       _.airingFk,
+    ).addIndexes(
+      _.pcAiringIdx
     )
   )()
 

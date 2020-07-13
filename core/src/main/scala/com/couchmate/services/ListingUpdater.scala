@@ -43,7 +43,7 @@ object ListingUpdater
             ctx.log.debug(s"Starting listing pull for $providerId")
             listingCoordinator ! ListingCoordinator.RequestListing(
               providerId,
-              ListingPullType.Full,
+              ListingPullType.Initial,
               ctx.system.ignoreRef
             )
           }

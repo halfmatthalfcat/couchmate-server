@@ -102,7 +102,8 @@ lazy val core = (project in file("core"))
       "com.typesafe"                %   "config"                        % "1.4.0",
       "com.nimbusds"                %   "nimbus-jose-jwt"               % "4.27",
       "ch.qos.logback"              %   "logback-classic"               % "1.2.3",
-      "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1"
+      "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1",
+      "com.enragedginger"           %%  "akka-quartz-scheduler"         % "1.8.4-akka-2.6.x"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     discoveredMainClasses in Compile := Seq(),

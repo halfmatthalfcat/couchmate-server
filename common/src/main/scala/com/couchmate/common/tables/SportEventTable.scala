@@ -6,11 +6,11 @@ import com.couchmate.common.util.slick.WithTableQuery
 
 class SportEventTable(tag: Tag) extends Table[SportEvent](tag, "sport_event") {
   def sportEventId: Rep[Long] = column[Long]("sport_event_id", O.PrimaryKey, O.AutoInc)
-  def sportOrganizationId: Rep[Option[Long]] = column[Option[Long]]("sport_organization_id")
+  def sportOrganizationId: Rep[Long] = column[Long]("sport_organization_id")
   def sportEventTitle: Rep[String] = column[String]("sport_event_title")
   def * = (
     sportEventId.?,
-    sportOrganizationId,
+    sportOrganizationId.?,
     sportEventTitle,
   ) <> ((SportEvent.apply _).tupled, SportEvent.unapply)
 

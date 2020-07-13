@@ -18,6 +18,8 @@ object ShowMigrations {
     ).addForeignKeys(
       _.episodeFk,
       _.sportFk,
+    ).addIndexes(
+      _.extIdIdx
     )
   )()
 

@@ -3,7 +3,7 @@ package com.couchmate.common.dao
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.Series
 import com.couchmate.common.tables.SeriesTable
 
@@ -50,6 +50,12 @@ trait SeriesDAO {
     session: SlickSession
   ): Flow[Series, Series, NotUsed] =
     Slick.flowWithPassThrough(SeriesDAO.upsertSeries)
+
+  def addOrGetSeries(series: Series)(
+    implicit
+    db: Database
+  ): Future[Series] =
+    db.run(SeriesDAO.addOrGetSeries(series).head)
 }
 
 object SeriesDAO {
@@ -80,4 +86,36 @@ object SeriesDAO {
         .update(series)
       updated <- SeriesDAO.getSeries(seriesId)
     } yield updated.get}
+
+  private[common] def addOrGetSeries(series: Series) =
+    sql"""
+         WITH input_rows(ext_id, series_name, total_seasons, total_episodes) AS (
+          VALUES (${series.extId}, ${series.seriesName}, ${series.totalSeasons}, ${series.totalEpisodes})
+         ), ins AS (
+          INSERT INTO series (ext_id, series_name, total_seasons, total_episodes)
+          SELECT * FROM input_rows
+          ON CONFLICT (ext_id) DO NOTHING
+          RETURNING series_id, ext_id, series_name, total_seasons, total_episodes
+         ), sel AS (
+          SELECT series_id, ext_id, series_name, total_seasons, total_episodes
+          FROM ins
+          UNION ALL
+          SELECT s.series_id, ext_id, s.series_name, s.total_seasons, s.total_episodes
+          FROM input_rows
+          JOIN series AS s USING (ext_id)
+         ), ups AS (
+           INSERT INTO series AS srs (ext_id, series_name, total_seasons, total_episodes)
+           SELECT i.*
+           FROM   input_rows i
+           LEFT   JOIN sel   s USING (ext_id)
+           WHERE  s.ext_id IS NULL
+           ON     CONFLICT (ext_id) DO UPDATE
+           SET    series_name = srs.series_name,
+                  total_seasons = srs.total_seasons,
+                  total_episodes = srs.total_episodes
+           RETURNING series_id, ext_id, series_name, total_seasons, total_episodes
+         )  SELECT series_id, ext_id, series_name, total_seasons, total_episodes FROM sel
+            UNION  ALL
+            TABLE  ups;
+         """.as[Series]
 }

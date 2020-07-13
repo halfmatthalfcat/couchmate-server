@@ -5,7 +5,7 @@ import java.util.UUID
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.{Airing, Lineup, Show}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteAiring
 import com.couchmate.common.tables.{LineupTable, ProviderChannelTable}
@@ -71,23 +71,20 @@ trait LineupDAO {
 
   def getOrAddLineup(
     providerChannelId: Long,
-    show: Show,
     airing: Airing,
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Lineup] =
-    db.run(LineupDAO.getOrAddLineup(providerChannelId, show, airing))
-
-  def getOrAddLineup$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[(Long, Show, Airing), Lineup, NotUsed] =
-    Slick.flowWithPassThrough(
-      (LineupDAO.getOrAddLineup _).tupled
-    )
+  ): Future[Lineup] = for {
+    a <- db.run(AiringDAO.addOrGetAiring(airing).head)
+    l <- db.run(LineupDAO.addOrGetLineup(Lineup(
+      lineupId = None,
+      providerChannelId = providerChannelId,
+      airingId = a.airingId.get,
+      active = true
+    )).head)
+  } yield l
 
   def disableLineup(
     providerChannelId: Long,
@@ -154,35 +151,36 @@ object LineupDAO {
       } yield updated.get
     }}.transactionally
 
-
-  private[common] def getOrAddLineup(
-    providerChannelId: Long,
-    show: Show,
-    airing: Airing,
-  )(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[Lineup] = (for {
-    airingExists <- AiringDAO.getAiringByShowStartAndEnd(
-      showId = show.showId.get,
-      startTime = airing.startTime,
-      endTime = airing.endTime,
-    )
-    a <- airingExists
-      .map(DBIO.successful)
-      .getOrElse(AiringDAO.upsertAiring(airing))
-    lineupExists <- getLineupForProviderChannelAndAiring(
-      providerChannelId,
-      a.airingId.get
-    )
-    lineup <- lineupExists
-        .fold(upsertLineup(Lineup(
-          lineupId = None,
-          providerChannelId = providerChannelId,
-          airingId = a.airingId.get,
-          active = true
-        )))(DBIO.successful)
-  } yield lineup).transactionally
+  private[common] def addOrGetLineup(l: Lineup) =
+    sql"""
+          WITH input_rows(provider_channel_id, airing_id, active) AS (
+            VALUES (${l.providerChannelId}, ${l.airingId}::uuid, ${l.active})
+          ), ins AS (
+            INSERT INTO lineup as l (provider_channel_id, airing_id, active)
+            SELECT * from input_rows
+            ON CONFLICT (provider_channel_id, airing_id) DO NOTHING
+            RETURNING lineup_id, provider_channel_id, airing_id, active
+          ), sel AS (
+            SELECT lineup_id, provider_channel_id, airing_id, active
+            FROM ins
+            UNION ALL
+            SELECT l.lineup_id, provider_channel_id, airing_id, l.active
+            FROM input_rows
+            JOIN lineup as l USING (provider_channel_id, airing_id)
+          ), ups AS (
+           INSERT INTO lineup AS l (provider_channel_id, airing_id, active)
+           SELECT i.*
+           FROM   input_rows i
+           LEFT   JOIN sel   s USING (provider_channel_id, airing_id)
+           WHERE  s.provider_channel_id IS NULL
+           ON     CONFLICT (provider_channel_id, airing_id) DO UPDATE
+           SET    provider_channel_id = l.provider_channel_id,
+                  airing_id = l.airing_id
+           RETURNING lineup_id, provider_channel_id, airing_id, active
+         )  SELECT lineup_id, provider_channel_id, airing_id, active FROM sel
+            UNION  ALL
+            TABLE  ups;
+         """.as[Lineup]
 
   private[common] def disableLineup(
     providerChannelId: Long,

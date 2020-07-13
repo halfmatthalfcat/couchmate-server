@@ -35,7 +35,8 @@ object Migrations extends LazyLogging {
     ListingCacheMigrations.init,
     LineupMigrations.init,
     JournalMigrations.init,
-    SnapshotMigrations.init
+    SnapshotMigrations.init,
+    ListingJobMigrations.init,
   )
 
   private[this] def applyMigrations()(

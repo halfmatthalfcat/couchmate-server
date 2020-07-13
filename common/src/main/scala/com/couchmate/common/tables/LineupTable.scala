@@ -37,6 +37,12 @@ class LineupTable(tag: Tag) extends Table[Lineup](tag, "lineup") {
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict,
   )
+
+  def pcAiringIdx = index(
+    "provider_channel_airing_idx",
+    (providerChannelId, airingId),
+    unique = true
+  )
 }
 
 object LineupTable extends WithTableQuery[LineupTable] {

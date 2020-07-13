@@ -62,7 +62,7 @@ trait ListingCacheDAO {
 }
 
 object ListingCacheDAO {
-  private[this] lazy val getListingCacheQuery= Compiled {
+  private[this] lazy val getListingCacheQuery = Compiled {
     (providerChannelId: Rep[Long], startTime: Rep[LocalDateTime]) =>
       ListingCacheTable.table.filter { lc =>
         lc.providerChannelId === providerChannelId &&

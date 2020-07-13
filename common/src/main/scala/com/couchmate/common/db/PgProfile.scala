@@ -48,6 +48,7 @@ trait PgProfile
     implicit val userExtTypeMapper = enumMappedColumn(UserExtType)
     implicit val gnProgramTypeMapper = enumMappedColumn(GracenoteProgramType)
     implicit val showTypeMapper = enumMappedColumn(ShowType)
+    implicit val listingJobStatusMapper = enumMappedColumn(ListingJobStatus)
 
     implicit val countryCodeMappedColumn: BaseColumnType[CountryCode] =
       MappedColumnType.base[CountryCode, String](
@@ -79,10 +80,12 @@ trait PgProfile
     with Date2DateTimePlainImplicits
     with UUIDPlainImplicits
     with SlickEnumPlainSqlSupport {
-    implicit val roomStatusSetParameter = setParameterForEnum(RoomStatusType)
-    implicit val roomActivitySetParameter = setParameterForEnum(RoomActivityType)
+    implicit val roomStatusSetParameter = setParameterForEnumLowercase(RoomStatusType)
+    implicit val roomActivitySetParameter = setParameterForEnumLowercase(RoomActivityType)
+    implicit val showTypeSetParameter = setParameterForEnumLowercase(ShowType)
 
-    implicit val roomStatusGetResult = getResultForEnum(RoomStatusType)
+    implicit val roomStatusGetResult = getResultForEnumLowercase(RoomStatusType)
+    implicit val showTypeGetResult = getResultForEnumLowercase(ShowType)
   }
 }
 

@@ -7,8 +7,8 @@ import com.couchmate.common.util.slick.WithTableQuery
 class EpisodeTable(tag: Tag) extends Table[Episode](tag, "episode") {
   def episodeId: Rep[Long] = column[Long]("episode_id", O.PrimaryKey, O.AutoInc)
   def seriesId: Rep[Option[Long]] = column[Option[Long]]("series_id")
-  def season: Rep[Option[Long]] = column[Option[Long]]("season")
-  def episode: Rep[Option[Long]] = column[Option[Long]]("episode")
+  def season: Rep[Long] = column[Long]("season")
+  def episode: Rep[Long] = column[Long]("episode")
   def * = (
     episodeId.?,
     seriesId,
@@ -24,6 +24,12 @@ class EpisodeTable(tag: Tag) extends Table[Episode](tag, "episode") {
     _.seriesId,
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict,
+  )
+
+  def seriesIdx = index(
+    "series_idx",
+    (seriesId, season, episode),
+    unique = true
   )
 }
 

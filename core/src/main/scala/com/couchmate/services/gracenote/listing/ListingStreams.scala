@@ -1,6 +1,7 @@
 package com.couchmate.services.gracenote.listing
 
 import java.time.{LocalDateTime, ZoneId}
+import java.util.UUID
 
 import akka.NotUsed
 import akka.http.scaladsl.HttpExt
@@ -118,10 +119,18 @@ object ListingStreams
     maxRestarts = 3
   )(() => Source.future(gracenoteAiring match {
     case GracenoteAiring(_, _, _, program) if program.seriesId.nonEmpty =>
-      episode(program)
+      episode(program).recoverWith {
+        case ex: Throwable =>
+          System.out.println(s"Episode failed")
+          Future.failed(ex)
+      }
     case GracenoteAiring(_, _, _, program) if program.sportsId.nonEmpty =>
-      sport(program, sports)
-    case GracenoteAiring(_, _, _, program) => getOrAddShow(Show(
+      sport(program, sports).recoverWith {
+        case ex: Throwable =>
+          System.out.println(s"Sport failed")
+          Future.failed(ex)
+      }
+    case GracenoteAiring(_, _, _, program) => addOrGetShow(Show(
       showId = None,
       extId = program.rootId,
       `type` = ShowType.Show,
@@ -133,12 +142,15 @@ object ListingStreams
         .orElse(program.longDescription)
         .getOrElse("N/A"),
       originalAirDate = program.origAirDate,
-    ))
+    )).recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Show failed")
+        Future.failed(ex)
+    }
   })).mapAsync(1)(show => getOrAddLineup(
     providerChannelId,
-    show,
     Airing(
-      airingId = None,
+      airingId = Some(UUID.randomUUID()),
       showId = show.showId.get,
       startTime = gracenoteAiring.startTime,
       endTime = gracenoteAiring.endTime,
@@ -186,8 +198,8 @@ object ListingStreams
     Episode(
       episodeId = None,
       seriesId = None,
-      season = program.seasonNum,
-      episode = program.episodeNum
+      season = program.seasonNum.getOrElse(0L),
+      episode = program.episodeNum.getOrElse(0L)
     )
   )
 
@@ -224,13 +236,11 @@ object ListingStreams
           extSportId = program.sportsId.get,
           extOrgId = program.organizationId,
           sportName = gnSport.map(_.sportsName).getOrElse("N/A"),
-          orgName = Some(sportOrg.organizationName)
+          orgName = sportOrg.organizationName
         )).getOrElse(SportOrganization(
         sportOrganizationId = None,
         extSportId = program.sportsId.get,
-        extOrgId = None,
         sportName = gnSport.map(_.sportsName).getOrElse("N/A"),
-        orgName = None
       ))
 
     getOrAddSportEvent(

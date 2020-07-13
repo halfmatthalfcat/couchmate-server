@@ -3,7 +3,7 @@ package com.couchmate.common.dao
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.SportOrganization
 import com.couchmate.common.tables.SportOrganizationTable
 
@@ -50,6 +50,12 @@ trait SportOrganizationDAO {
     session: SlickSession
   ): Flow[SportOrganization, SportOrganization, NotUsed] =
     Slick.flowWithPassThrough(SportOrganizationDAO.upsertSportOrganization)
+
+  def addOrGetSportOrganization(sportOrganization: SportOrganization)(
+    implicit
+    db: Database
+  ): Future[SportOrganization] =
+    db.run(SportOrganizationDAO.addOrGetSportOrganization(sportOrganization).head)
 }
 
 object SportOrganizationDAO {
@@ -87,4 +93,37 @@ object SportOrganizationDAO {
         .update(sportOrganization)
       updated <- SportOrganizationDAO.getSportOrganization(sportOrganizationId)
     } yield updated.get}
+
+  private[common] def addOrGetSportOrganization(so: SportOrganization) =
+    sql"""
+         WITH input_rows(ext_sport_id, ext_org_id, sport_name, org_name) AS (
+          VALUES (${so.extSportId}, ${so.extOrgId}, ${so.sportName}, ${so.orgName})
+         ), ins AS (
+          INSERT INTO sport_organization (ext_sport_id, ext_org_id, sport_name, org_name)
+          SELECT * FROM input_rows
+          ON CONFLICT (ext_sport_id, ext_org_id) DO NOTHING
+          RETURNING sport_organization_id, ext_sport_id, ext_org_id, sport_name, org_name
+         ), sel AS (
+          SELECT sport_organization_id, ext_sport_id, ext_org_id, sport_name, org_name
+          FROM ins
+          UNION ALL
+          SELECT so.sport_organization_id, ext_sport_id, ext_org_id, so.sport_name, so.org_name
+          FROM input_rows
+          JOIN sport_organization AS so USING (ext_sport_id, ext_org_id)
+         ), ups AS (
+           INSERT INTO sport_organization AS so (ext_sport_id, ext_org_id, sport_name, org_name)
+           SELECT i.*
+           FROM   input_rows i
+           LEFT   JOIN sel   s USING (ext_sport_id, ext_org_id)
+           WHERE  s.ext_sport_id IS NULL
+           ON     CONFLICT (ext_sport_id, ext_org_id) DO UPDATE
+           SET    ext_sport_id = so.ext_sport_id,
+                  ext_org_id = so.ext_org_id,
+                  sport_name = so.sport_name,
+                  org_name = so.org_name
+           RETURNING sport_organization_id, ext_sport_id, ext_org_id, sport_name, org_name
+         )  SELECT sport_organization_id, ext_sport_id, ext_org_id, sport_name, org_name FROM sel
+            UNION  ALL
+            TABLE  ups;
+         """.as[SportOrganization]
 }

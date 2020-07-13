@@ -30,7 +30,8 @@ case class GracenoteProgram(
   // -- End Sport
 ) extends Product with Serializable {
   def isSport: Boolean = {
-    sportsId.isDefined
+    sportsId.isDefined &&
+    entityType == GracenoteProgramType.Sports
   }
 
   def isSeries: Boolean = {
@@ -60,9 +61,20 @@ object GracenoteProgram {
       (__ \ "rootId").read[String].map(_.toLong) or
       (__ \ "rootId").read[Long]
     ) and
-    (__ \ "title").readWithDefault[String]("Unknown Program") and
-    (__ \ "shortDescription").readNullable[String] and
-    (__ \ "longDescription").readNullable[String] and
+    (__ \ "title")
+      .readWithDefault[String]("Local Programming")
+      .map[String] {
+        case "SIGN OFF" => "Local Programming"
+        case _ @ title => title
+    } and
+    (__ \ "shortDescription").readNullable[String].map {
+      case Some("Sign off.") => Some("Local Programming")
+      case _ @ description => description
+    } and
+    (__ \ "longDescription").readNullable[String].map {
+      case Some("Sign off.") => Some("Local Programming")
+      case _ @ description => description
+    } and
     (__ \ "origAirDate").readNullable[String].map(dateToLocalDateTime) and
     (__ \ "releaseDate").readNullable[String].map(dateToLocalDateTime) and
     (__ \ "entityType").readWithDefault[GracenoteProgramType](GracenoteProgramType.Show) and
@@ -80,13 +92,16 @@ object GracenoteProgram {
       (__ \ "episodeNum").readNullable[String].map(_.map(_.toLong)) or
       (__ \ "episodeNum").readNullable[Long]
     ) and
-    (__ \ "episodeTitle").readNullable[String] and
+    (__ \ "episodeTitle").readNullable[String].map {
+      case Some("SIGN OFF") => Some("Local Programming")
+      case _ @ title => title
+    } and
     // -- End Series
     // -- Start Sport
     (__ \ "eventTitle").readNullable[String] and
     (
       (__ \ "organizationId").readNullable[String].map(_.map(_.toLong)) or
-      (__ \ "organizationid").readNullable[Long]
+      (__ \ "organizationId").readNullable[Long]
     ) and
     (
       (__ \ "sportsId").readNullable[String].map(_.map(_.toLong)) or

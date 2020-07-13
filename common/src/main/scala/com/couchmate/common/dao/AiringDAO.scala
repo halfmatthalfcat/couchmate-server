@@ -178,6 +178,39 @@ object AiringDAO {
     updated <- AiringDAO.getAiring(airingId)
   } yield updated.get}.transactionally
 
+  private[common] def addOrGetAiring(a: Airing) =
+    sql"""
+         WITH input_rows(airing_id, show_id, start_time, end_time, duration) AS (
+          VALUES (${a.airingId}::uuid, ${a.showId}, ${a.startTime}::timestamp, ${a.endTime}::timestamp, ${a.duration})
+         ), ins AS (
+          INSERT INTO airing AS a (airing_id, show_id, start_time, end_time, duration)
+          SELECT * FROM input_rows
+          ON CONFLICT (show_id, start_time, end_time) DO NOTHING
+          RETURNING airing_id, show_id, start_time, end_time, duration
+         ), sel AS (
+          SELECT airing_id, show_id, start_time, end_time, duration
+          FROM ins
+          UNION ALL
+          SELECT a.airing_id, show_id, start_time, end_time, a.duration
+          FROM input_rows
+          JOIN airing as a USING (show_id, start_time, end_time)
+         ), ups AS (
+           INSERT INTO airing AS air (airing_id, show_id, start_time, end_time, duration)
+           SELECT i.*
+           FROM   input_rows i
+           LEFT   JOIN sel   s USING (show_id, start_time, end_time)
+           WHERE  s.show_id IS NULL
+           ON     CONFLICT (show_id, start_time, end_time) DO UPDATE
+           SET    show_id = air.show_id,
+                  start_time = air.start_time,
+                  end_time = air.end_time,
+                  duration = air.duration
+           RETURNING airing_id, show_id, start_time, end_time, duration
+         )  SELECT airing_id, show_id, start_time, end_time, duration FROM sel
+            UNION  ALL
+            TABLE  ups;
+         """.as[Airing]
+
   private[common] def getAiringStatus(airingId: UUID): SqlStreamingAction[Seq[AiringStatus], AiringStatus, Effect] =
     sql"""
        SELECT  a.*, CASE
