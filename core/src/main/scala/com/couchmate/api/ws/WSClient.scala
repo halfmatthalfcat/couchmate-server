@@ -10,14 +10,14 @@ import com.couchmate.Server
 import com.couchmate.api.JwtProvider
 import com.couchmate.common.models.api.grid.GridAiring
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.api.ws.Commands.Connected.{CreateNewSessionFailure, CreateNewSessionSuccess, RestoreRoomSessionFailure, RestoreRoomSessionSuccess, RestoreSessionFailure, RestoreSessionSuccess}
+import com.couchmate.api.ws.Commands.Connected.{CreateNewSessionFailure, CreateNewSessionSuccess, LogoutFailure, LogoutSuccess, RestoreRoomSessionFailure, RestoreRoomSessionSuccess, RestoreSessionFailure, RestoreSessionSuccess}
 import com.couchmate.api.ws.protocol._
 import com.couchmate.api.ws.util.MessageMonitor
 import com.couchmate.common.models.api.User
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.dao._
-import com.couchmate.common.models.data.{RoomStatusType, UserMeta, UserProvider, UserRole, User => InternalUser}
+import com.couchmate.common.models.data.{RoomStatusType, UserActivity, UserActivityType, UserMeta, UserProvider, UserRole, User => InternalUser}
 import com.couchmate.common.models.api.User
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
@@ -26,6 +26,7 @@ import com.couchmate.util.akka.AkkaUtils
 import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, RoomExtension, SingletonExtension}
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.neovisionaries.i18n.CountryCode
+import io.prometheus.client.Histogram
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -38,6 +39,7 @@ object WSClient
   with ProviderDAO
   with UserProviderDAO
   with UserMuteDAO
+  with UserActivityDAO
   with GridDAO {
   import Commands._
 
@@ -74,7 +76,7 @@ object WSClient
     }
 
     def closing: PartialCommand = {
-      case Complete =>
+      case Complete | LogoutSuccess =>
         ctx.log.debug("Connection complete")
         Behaviors.stopped
       case Closed =>
@@ -241,8 +243,26 @@ object WSClient
               RoomContext(
                 airingId,
                 roomId
-              )
+              ),
+              metrics.startTimeInRoom()
             )
+
+          case Complete | Closed =>
+            ctx.log.debug(s"Logging out ${session.user.userId.get}")
+            metrics.decSession(
+              session.providerId,
+              session.providerName,
+              geo.timezone,
+              geo.country,
+            )
+            ctx.pipeToSelf(addUserActivity(UserActivity(
+              session.user.userId.get,
+              UserActivityType.Logout,
+            ))) {
+              case Success(_) => LogoutSuccess
+              case Failure(exception) => LogoutFailure(exception)
+            }
+            Behaviors.same
         },
         closing,
         outgoing(ws)
@@ -253,8 +273,19 @@ object WSClient
       session: SessionContext,
       geo: GeoContext,
       ws: ActorRef[Command],
-      room: RoomContext
+      room: RoomContext,
+      timer: Histogram.Timer,
+      rejoining: Boolean = false
     ): Behavior[Command] = Behaviors.setup { _ =>
+
+      if (!rejoining) {
+        metrics.incAttendance(
+          session.providerId,
+          session.providerName,
+          geo.timezone,
+          geo.country,
+        )
+      }
 
       val messageMonitorAdapter: ActorRef[MessageMonitor.Command] =
         ctx.messageAdapter {
@@ -294,6 +325,13 @@ object WSClient
               session.providerId,
               gridAdapter,
             )
+            metrics.decAttendance(
+              session.providerId,
+              session.providerName,
+              geo.timezone,
+              geo.country,
+            )
+            timer.close()
             inSession(session, geo, ws)
           case Incoming(SendMessage(message)) =>
             messageMonitor ! MessageMonitor.ReceiveMessage(message)
@@ -307,11 +345,19 @@ object WSClient
               RoomContext(
                 airingId,
                 roomId
-              )
+              ),
+              timer
             )
           case _: InRoom.RoomEnded =>
             messageMonitor ! MessageMonitor.Complete
             ctx.self ! Outgoing(RoomEnded)
+            metrics.decAttendance(
+              session.providerId,
+              session.providerName,
+              geo.timezone,
+              geo.country,
+            )
+            timer.close()
             inSession(session, geo, ws)
           case InRoom.SetParticipants(participants) =>
             ctx.self ! Outgoing(SetParticipants(
@@ -350,6 +396,30 @@ object WSClient
                 isSelf = session.user.userId.contains(participant.userId),
                 message
               ))
+            }
+            Behaviors.same
+
+          case Complete | Closed =>
+            ctx.log.debug(s"Logging out ${session.user.userId.get}")
+            metrics.decSession(
+              session.providerId,
+              session.providerName,
+              geo.timezone,
+              geo.country,
+            )
+            metrics.decAttendance(
+              session.providerId,
+              session.providerName,
+              geo.timezone,
+              geo.country,
+            )
+            timer.close()
+            ctx.pipeToSelf(addUserActivity(UserActivity(
+              session.user.userId.get,
+              UserActivityType.Logout,
+            ))) {
+              case Success(_) => LogoutSuccess
+              case Failure(exception) => LogoutFailure(exception)
             }
             Behaviors.same
         },
@@ -405,6 +475,10 @@ object WSClient
       throw new RuntimeException(s"Could not find provider for $userId (${userProvider.providerId})")
     ))
     grid <- getGrid(userProvider.providerId)
+    _ <- addUserActivity(UserActivity(
+      userId,
+      UserActivityType.Login
+    ))
   } yield SessionContext(
     user = user,
     userMeta = userMeta,
@@ -450,6 +524,10 @@ object WSClient
         subject = user.userId.get.toString,
         claims = Map(),
         expiry = Duration.ofDays(365L)
+      ))
+      _ <- addUserActivity(UserActivity(
+        user.userId.get,
+        UserActivityType.Login
       ))
       grid <- getGrid(defaultProvider.value)
     } yield SessionContext(

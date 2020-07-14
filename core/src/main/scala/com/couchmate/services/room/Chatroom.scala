@@ -6,20 +6,22 @@ import java.util.UUID
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
-import akka.persistence.typed.PersistenceId
+import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
-import com.couchmate.common.dao.AiringDAO
+import com.couchmate.common.dao.{AiringDAO, RoomActivityDAO}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.AiringStatus
+import com.couchmate.common.models.data.{AiringStatus, RoomActivity, RoomActivityType}
 import com.couchmate.common.models.data.RoomStatusType.Closed
-import com.couchmate.util.akka.extensions.DatabaseExtension
+import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension}
 
 import scala.concurrent.ExecutionContext
 import scala.compat.java8.DurationConverters
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-object Chatroom extends AiringDAO {
+object Chatroom
+  extends AiringDAO
+  with RoomActivityDAO {
   val TypeKey: EntityTypeKey[Command] =
     EntityTypeKey[Command]("Chatroom")
 
@@ -100,6 +102,10 @@ object Chatroom extends AiringDAO {
   def apply(airingId: UUID, persistenceId: PersistenceId): Behavior[Command] = Behaviors.setup { ctx =>
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val db: Database = DatabaseExtension(ctx.system).db
+    val metrics: PromExtension =
+      PromExtension(ctx.system)
+
+    metrics.incRoom()
 
     ctx.pipeToSelf(getAiringStatus(airingId)) {
       case Success(Some(value)) => GetAiringSuccess(value)
@@ -117,14 +123,22 @@ object Chatroom extends AiringDAO {
             "general" -> NamedRoom("general")
           )
         ),
-        commandHandler(ctx, timers),
+        commandHandler(
+          ctx,
+          timers,
+          metrics
+        ),
         eventHandler
       )
     }
   }
 
-  private[this] def commandHandler: (ActorContext[Command], TimerScheduler[Command]) => (State, Command) => Effect[Event, State] =
-    (ctx: ActorContext[Command], timers: TimerScheduler[Command]) => (prevState, command) => prevState match {
+  private[this] def commandHandler(
+    ctx: ActorContext[Command],
+    timers: TimerScheduler[Command],
+    metrics: PromExtension
+  )(implicit db: Database): (State, Command) => Effect[Event, State] =
+    (prevState, command) => prevState match {
       case State(_, None, _) => command match {
         case GetAiringSuccess(AiringStatus(_, _, _, _, _, Closed)) => Effect.stop()
         case GetAiringSuccess(status) => Effect
@@ -134,7 +148,7 @@ object Chatroom extends AiringDAO {
               RoomEnding,
               DurationConverters.toScala(Duration.between(
                 LocalDateTime.now(ZoneId.of("UTC")),
-                s.status.get.endTime,
+                s.status.get.endTime.plusMinutes(15),
               )).max(FiniteDuration(0L, SECONDS))
             )
           )
@@ -153,6 +167,11 @@ object Chatroom extends AiringDAO {
                     s.airingId,
                     room.roomId
                   )
+                  addRoomActivity(RoomActivity(
+                    s.airingId,
+                    participant.userId,
+                    RoomActivityType.Kicked.Expired
+                  ))
                 }
               }
             }
@@ -163,24 +182,31 @@ object Chatroom extends AiringDAO {
          .thenRun((s: State) => actorRef ! RoomParticipants(s.rooms(roomName).getParticipantRoom(userId).get.participants.toSet))
          .thenRun((s: State) => s.rooms(roomName).rooms.head.participants.tail.foreach(_.actorRef ! ParticipantJoined(
            s.rooms(roomName).rooms.head.participants.head
-         )))
-         .thenRun((s: State) => ctx.watchWith(
+         ))).thenRun((s: State) => ctx.watchWith(
            s.rooms(roomName).rooms.head.participants.head.actorRef,
            LeaveRoom(
              s.rooms(roomName).rooms.head.roomId,
              s.rooms(roomName).rooms.head.participants.head,
            )
-         ))
+         )).thenRun((s: State) => addRoomActivity(RoomActivity(
+          s.airingId,
+          userId,
+          RoomActivityType.Joined
+        )))
         case LeaveRoom(roomId, participant) => Effect.persist(LeftRoom(
           roomId,
           participant
         )).thenRun((_: State) => prevState
           .rooms(roomId.name)
           .getParticipantRoom(participant.userId)
-          .get
+          .getOrElse(throw new RuntimeException(s"Unable to get ${participant.userId} for room ${roomId.name}"))
           .participants
           .foreach(_.actorRef ! ParticipantLeft(participant))
-        )
+        ).thenRun((s: State) => addRoomActivity(RoomActivity(
+          s.airingId,
+          participant.userId,
+          RoomActivityType.Left
+        )))
         case SendMessage(roomId, userId, message) => Effect
           .none
           .thenRun((s: State) => s
@@ -201,7 +227,7 @@ object Chatroom extends AiringDAO {
                   ))
               }
             }
-          )
+          ).thenRun((_: State) => metrics.incMessages())
         case _ => Effect.unhandled
       }
     }

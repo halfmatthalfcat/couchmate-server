@@ -34,6 +34,9 @@ object MessageMonitor {
     val lobby: RoomExtension =
       RoomExtension(ctx.system)
 
+    val shouldThrottle: Boolean =
+      config.getBoolean("features.anon.throttle")
+
     def accepting: Behavior[Command] = Behaviors.receiveMessagePartial {
       case ReceiveMessage(message) => lobby.message(
           room.airingId,
@@ -41,7 +44,8 @@ object MessageMonitor {
           session.user.userId.get,
           message
         )
-        throttling
+        if (shouldThrottle) throttling
+        else Behaviors.same
       case Complete => Behaviors.stopped
     }
 
@@ -54,6 +58,8 @@ object MessageMonitor {
           senderRef ! UnlockSending
           timers.cancel(ThrottleKey)
           accepting
+        case Complete =>
+          Behaviors.stopped
       }
 
       if (session.user.role == UserRole.Anon) {
@@ -64,7 +70,7 @@ object MessageMonitor {
         )
 
         run(FiniteDuration(
-          config.getDuration("features.anon.throttle", SECONDS),
+          config.getDuration("features.anon.throttleDuration", SECONDS),
           SECONDS
         ).toSeconds.toInt)
       } else { accepting }

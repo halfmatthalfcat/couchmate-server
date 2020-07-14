@@ -10,7 +10,7 @@ import com.couchmate.common.util.slick.WithTableQuery
 class UserActivityTable(tag: Tag) extends Table[UserActivity](tag, "user_activity") {
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def action: Rep[UserActivityType] = column[UserActivityType]("action")
-  def created: Rep[LocalDateTime] = column[LocalDateTime]("created", O.SqlType("timestamptz"))
+  def created: Rep[LocalDateTime] = column[LocalDateTime]("created", O.SqlType("timestamp"))
   def * = (
     userId,
     action,

@@ -54,6 +54,9 @@ package object ws {
       ) extends Command
       case class RestoreRoomSessionFailure(ex: Throwable) extends Command
 
+      case object LogoutSuccess extends Command
+      case class LogoutFailure(ex: Throwable) extends Command
+
       case class UpdateGrid(grid: Grid) extends Command
     }
 
