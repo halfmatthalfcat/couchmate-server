@@ -1,3 +1,4 @@
+# Couchmate Helm chart
 apiVersion: v2
 name: server
 description: A Helm chart for the Couchmate server
