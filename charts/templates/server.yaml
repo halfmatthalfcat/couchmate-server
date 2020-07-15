@@ -85,7 +85,6 @@ spec:
     - http:
         paths:
           - path: /ws
-            pathType: Exact
             backend:
               serviceName: server
               servicePort: server-ext
