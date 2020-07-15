@@ -55,6 +55,20 @@ apiVersion: v1
 kind: Service
 metadata:
   name: server
+  annotations:
+    service.beta.kubernetes.io/do-loadbalancer-name: couchmate-server
+    service.beta.kubernetes.io/do-loadbalancer-enable-proxy-protocol: 'false'
+    service.beta.kubernetes.io/do-loadbalancer-redirect-http-to-https: 'true'
+    service.beta.kubernetes.io/do-loadbalancer-algorithm: 'least_connections'
+    service.beta.kubernetes.io/do-loadbalancer-protocol: 'tcp'
+    service.beta.kubernetes.io/do-loadbalancer-http-ports: '80'
+    service.beta.kubernetes.io/do-loadbalancer-tls-ports: '443'
+    service.beta.kubernetes.io/do-loadbalancer-healthcheck-protocol: 'http'
+    service.beta.kubernetes.io/do-loadbalancer-healthcheck-port: '80'
+    service.beta.kubernetes.io/do-loadbalancer-healthcheck-path: '/ready'
+    service.beta.kubernetes.io/do-loadbalancer-certificate-id: 'be4dd172-a1fb-46fb-9545-8b1263397535'
+    external-dns.alpha.kubernetes.io/hostname: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
+    external-dns.alpha.kubernetes.io/ttl: "120"
 spec:
   type: LoadBalancer
   selector:
@@ -64,29 +78,3 @@ spec:
     - port: 80
       targetPort: server-ext
       name: server-ext
----
-apiVersion: networking.k8s.io/v1beta1
-kind: Ingress
-metadata:
-  name: server
-  annotations:
-    service.beta.kubernetes.io/do-loadbalancer-name: couchmate-server
-    service.beta.kubernetes.io/do-loadbalancer-enable-proxy-protocol: 'false'
-    service.beta.kubernetes.io/do-loadbalancer-algorithm: 'least_connections'
-    service.beta.kubernetes.io/do-loadbalancer-protocol: 'tcp'
-    service.beta.kubernetes.io/do-loadbalancer-http-ports: '80'
-    service.beta.kubernetes.io/do-loadbalancer-healthcheck-protocol: 'http'
-    service.beta.kubernetes.io/do-loadbalancer-healthcheck-port: '8000'
-    service.beta.kubernetes.io/do-loadbalancer-healthcheck-path: '/ready'
-    external-dns.alpha.kubernetes.io/hostname: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
-    external-dns.alpha.kubernetes.io/ttl: "120"
-spec:
-  rules:
-    - http:
-        paths:
-          - path: /ws
-            backend:
-              serviceName: server
-              servicePort: server-ext
-
-
