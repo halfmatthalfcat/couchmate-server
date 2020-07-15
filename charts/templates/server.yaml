@@ -93,7 +93,7 @@ spec:
   tls:
     - hosts:
         - {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
-      secretName: letsencrypt-secret
+      secretName: {{.Values.env}}-api-tls
   rules:
     - host: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
       http:
