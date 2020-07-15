@@ -75,6 +75,11 @@ spec:
     app: server
     env: {{.Values.env}}
   ports:
-    - port: 80
+    - name: http
+      protocol: TCP
+      port: 80
       targetPort: server-ext
-      name: server-ext
+    - name: https
+      protocol: TCP
+      port: 443
+      targetPort: server-ext
