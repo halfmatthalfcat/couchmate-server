@@ -4,6 +4,7 @@ import akka.actor.typed.scaladsl.ActorContext
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.management.scaladsl.AkkaManagement
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.couchmate.Server
 import com.couchmate.api.ws.Commands._
@@ -24,6 +25,7 @@ trait Routes
 
   def routes(
     registry: PrometheusRegistry,
+    mgmt: Route
   ): Route = cors() {
     concat(
       path("metrics") {
@@ -42,7 +44,8 @@ trait Routes
             { case Outgoing(p) => p }
           )
         )
-      }
+      },
+      mgmt
     )
   }
 }

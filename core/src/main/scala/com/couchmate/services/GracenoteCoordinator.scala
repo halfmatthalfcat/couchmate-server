@@ -99,7 +99,7 @@ object GracenoteCoordinator extends PlayJsonSupport {
       50,
       OverflowStrategy.dropHead
     )
-    .throttle(2, 1 second)
+    .throttle(5, 1 second)
     .collect {
       case GetProviders(zipCode, countryCode, senderRef) => http.singleRequest(makeGracenoteRequest(
         gnHost,

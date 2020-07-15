@@ -4,6 +4,7 @@ import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.{ActorSystem => ClassicActorSystem}
 import akka.http.scaladsl.Http
+import akka.management.scaladsl.AkkaManagement
 import akka.stream.Materializer
 import com.couchmate.Server
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsRoute._
@@ -16,7 +17,8 @@ class ApiServer(
   host: String,
   port: Int,
   registry: PrometheusRegistry,
-  settings: HttpMetricsSettings
+  settings: HttpMetricsSettings,
+  mgmt: AkkaManagement
 )(
   implicit
   val ec: ExecutionContext,
@@ -30,6 +32,7 @@ class ApiServer(
   val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
     routes(
       registry,
+      mgmt.routes,
     ).recordMetrics(registry, settings),
     interface = host,
     port = port,
@@ -41,7 +44,8 @@ object ApiServer {
     host: String,
     port: Int,
     registry: PrometheusRegistry,
-    settings: HttpMetricsSettings
+    settings: HttpMetricsSettings,
+    mgmt: AkkaManagement
   )(
     implicit
     ec: ExecutionContext,
@@ -50,6 +54,7 @@ object ApiServer {
     host,
     port,
     registry,
-    settings
+    settings,
+    mgmt
   ).httpServer
 }

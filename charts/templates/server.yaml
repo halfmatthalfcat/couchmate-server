@@ -23,8 +23,6 @@ spec:
               name: server-ext
             - containerPort: 2551
               name: server-int
-            - containerPort: 8558
-              name: management
           env:
             - name: ENV
               value: {{.Values.env}}
@@ -57,6 +55,20 @@ apiVersion: v1
 kind: Service
 metadata:
   name: server
+spec:
+  type: ClusterIP
+  selector:
+    app: server
+    env: {{.Values.env}}
+  ports:
+    - port: 80
+      targetPort: server-ext
+      name: server-ext
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: server
   annotations:
     service.beta.kubernetes.io/do-loadbalancer-name: couchmate-server
     service.beta.kubernetes.io/do-loadbalancer-enable-proxy-protocol: 'false'
@@ -69,14 +81,13 @@ metadata:
     external-dns.alpha.kubernetes.io/hostname: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
     external-dns.alpha.kubernetes.io/ttl: "120"
 spec:
-  type: LoadBalancer
-  selector:
-    app: server
-    env: {{.Values.env}}
-  ports:
-    - port: 80
-      targetPort: server-ext
-      name: server-ext
-    - port: 8000
-      targetPort: management
-      name: management
+  rules:
+    - http:
+        paths:
+          - path: /ws
+            pathType: Exact
+            backend:
+              serviceName: server
+              servicePort: server-ext
+
+

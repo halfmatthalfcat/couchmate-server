@@ -22,13 +22,12 @@ object Server {
 
   case class StartFailed(cause: Throwable) extends Command
 
-  case class Started(binding: ServerBinding, mgmt: AkkaManagement) extends Command
+  case class Started(binding: ServerBinding) extends Command
 
   case object Stop extends Command
 
   private[this] def running(
     binding: ServerBinding,
-    management: AkkaManagement,
     ctx: ActorContext[Command]
   ): Behavior[Command] =
     Behaviors.receiveMessagePartial[Command] {
@@ -42,7 +41,6 @@ object Server {
     }.receiveSignal {
       case (_, PostStop) =>
         binding.unbind()
-        management.stop()
         Behaviors.same
     }
 
@@ -50,14 +48,14 @@ object Server {
     Behaviors.receiveMessage[Command] {
       case StartFailed(ex) =>
         throw new RuntimeException("Failed to start server", ex)
-      case Started(binding, mgmt) =>
+      case Started(binding) =>
         ctx.log.info(
           "Server online at http://{}:{}/",
           binding.localAddress.getHostString,
           binding.localAddress.getPort,
         )
         if (wasStopped) ctx.self ! Stop
-        running(binding, mgmt, ctx)
+        running(binding, ctx)
       case Stop =>
         starting(wasStopped = true, ctx)
     }
@@ -88,17 +86,14 @@ object Server {
 
     implicit val timeout: Timeout = 30 seconds
 
-    ctx.pipeToSelf(for {
-      api <- ApiServer(
-        host,
-        port,
-        metrics.registry,
-        metrics.settings
-      )
-      mgmt = AkkaManagement(system)
-      _ <- mgmt.start()
-    } yield (api, mgmt)) {
-      case Success((api, mgmt)) => Started(api, mgmt)
+    ctx.pipeToSelf(ApiServer(
+      host,
+      port,
+      metrics.registry,
+      metrics.settings,
+      AkkaManagement(system)
+    )) {
+      case Success(binding) => Started(binding)
       case Failure(ex) => StartFailed(ex)
     }
 
