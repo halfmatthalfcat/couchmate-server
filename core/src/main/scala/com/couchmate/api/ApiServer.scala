@@ -18,7 +18,6 @@ class ApiServer(
   port: Int,
   registry: PrometheusRegistry,
   settings: HttpMetricsSettings,
-  mgmt: AkkaManagement
 )(
   implicit
   val ec: ExecutionContext,
@@ -32,7 +31,6 @@ class ApiServer(
   val httpServer: Future[Http.ServerBinding] = Http().bindAndHandle(
     routes(
       registry,
-      mgmt.routes,
     ).recordMetrics(registry, settings),
     interface = host,
     port = port,
@@ -44,8 +42,7 @@ object ApiServer {
     host: String,
     port: Int,
     registry: PrometheusRegistry,
-    settings: HttpMetricsSettings,
-    mgmt: AkkaManagement
+    settings: HttpMetricsSettings
   )(
     implicit
     ec: ExecutionContext,
@@ -55,6 +52,5 @@ object ApiServer {
     port,
     registry,
     settings,
-    mgmt
   ).httpServer
 }

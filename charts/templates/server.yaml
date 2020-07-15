@@ -23,6 +23,8 @@ spec:
               name: server-ext
             - containerPort: 2551
               name: server-int
+            - containerPort: 8558
+              name: management
           env:
             - name: ENV
               value: {{.Values.env}}
@@ -83,3 +85,17 @@ spec:
       protocol: TCP
       port: 443
       targetPort: server-ext
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: server
+spec:
+  rules:
+    - host: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
+      http:
+        paths:
+          - path: /ws
+            backend:
+              serviceName: server
+              servicePort: 443

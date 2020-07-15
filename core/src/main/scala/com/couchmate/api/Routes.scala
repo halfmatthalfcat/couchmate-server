@@ -25,7 +25,6 @@ trait Routes
 
   def routes(
     registry: PrometheusRegistry,
-    mgmt: Route
   ): Route = cors() {
     concat(
       path("metrics") {
@@ -45,7 +44,6 @@ trait Routes
           )
         )
       },
-      mgmt
     )
   }
 }
