@@ -66,7 +66,7 @@ metadata:
     service.beta.kubernetes.io/do-loadbalancer-http-ports: '80'
     service.beta.kubernetes.io/do-loadbalancer-tls-ports: '443'
     service.beta.kubernetes.io/do-loadbalancer-healthcheck-protocol: 'http'
-    service.beta.kubernetes.io/do-loadbalancer-healthcheck-port: '80'
+    service.beta.kubernetes.io/do-loadbalancer-healthcheck-port: '8000'
     service.beta.kubernetes.io/do-loadbalancer-healthcheck-path: '/ready'
     service.beta.kubernetes.io/do-loadbalancer-certificate-id: 'be4dd172-a1fb-46fb-9545-8b1263397535'
     external-dns.alpha.kubernetes.io/hostname: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
@@ -85,6 +85,10 @@ spec:
       protocol: TCP
       port: 443
       targetPort: server-ext
+    - name: management
+      protocol: http
+      port: 8000
+      targetPort: management
 ---
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
