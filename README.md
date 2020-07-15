@@ -1,6 +1,6 @@
 # Couchmate Server
 
-Scala/Akka-powered backend for Couchmate
+Scala/Akka-powered backend for Couchmate.
 
 ## Enabling Github Packages Support
 
