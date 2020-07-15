@@ -56,7 +56,7 @@ kind: Service
 metadata:
   name: server
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: server
     env: {{.Values.env}}
