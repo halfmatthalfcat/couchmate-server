@@ -122,6 +122,7 @@ jobs:
           --install \
           --atomic \
           --cleanup-on-fail \
+          --set env=dev \
           --set registry.token=${{ secrets.GITHUB_TOKEN }} \
           --set external-dns.cloudflare.apiToken=${{ secrets.CF_TOKEN }} \
           --set images.tag=${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }} \

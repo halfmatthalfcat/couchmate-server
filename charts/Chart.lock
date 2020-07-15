@@ -2,5 +2,11 @@ dependencies:
 - name: external-dns
   repository: https://charts.bitnami.com/bitnami
   version: 3.2.2
-digest: sha256:dc53021cd3875b1ab7ae6e05f2507145b31a3b701ee7e31a036f7e73030ca8ba
-generated: "2020-06-23T08:07:32.572217-04:00"
+- name: nginx-ingress
+  repository: https://kubernetes-charts.storage.googleapis.com
+  version: 1.40.3
+- name: cert-manager
+  repository: https://charts.jetstack.io
+  version: v0.15.2
+digest: sha256:3d07d22ab8fa8b51fcd04c6e1d46de59a11bc06b898e66e85d9a99d12c14ba38
+generated: "2020-07-15T08:22:10.767856-04:00"

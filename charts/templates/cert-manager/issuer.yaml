@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  name: letsencrypt-issuer
+spec:
+  acme:
+    server: https://acme-{{if eq .Values.env "local"}}staging-{{end}}v02.api.letsencrypt.org/directory
+    email: admin@couchmate.com
+    privateKeySecretRef:
+      name: letsencrypt-secret
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
