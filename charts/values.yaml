@@ -33,6 +33,8 @@ external-dns:
     apiToken:
     email: matt@couchmate.com
     proxied: true
+cert-manager:
+  installCRDs: true
 nginx-ingress:
   controller:
     metrics:
