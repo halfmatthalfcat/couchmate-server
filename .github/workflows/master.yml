@@ -123,6 +123,7 @@ jobs:
           --atomic \
           --cleanup-on-fail \
           --set env=dev \
+          --set doToken=${{ secrets.DO_TOKEN }} \
           --set registry.token=${{ secrets.GITHUB_TOKEN }} \
           --set external-dns.cloudflare.apiToken=${{ secrets.CF_TOKEN }} \
           --set images.tag=${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }} \

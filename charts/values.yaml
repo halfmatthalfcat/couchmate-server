@@ -10,6 +10,8 @@ registry:
 
 replicas: 3
 
+doToken:
+
 app:
   db:
     host:
@@ -24,15 +26,10 @@ images:
   tag: 0.0.0
 
 external-dns:
-  provider: cloudflare
   domainFilters:
     - couchmate.com
-  zoneIdFilters:
-    - 53e5a461e6830e20f9f56f9bac1d9da9
-  cloudflare:
-    apiToken:
-    email: matt@couchmate.com
-    proxied: true
+  digitalocean:
+    secretName: digitalocean-apikey
 nginx-ingress:
   controller:
     metrics:
