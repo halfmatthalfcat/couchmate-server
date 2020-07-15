@@ -60,7 +60,7 @@ metadata:
     service.beta.kubernetes.io/do-loadbalancer-enable-proxy-protocol: 'false'
     service.beta.kubernetes.io/do-loadbalancer-redirect-http-to-https: 'true'
     service.beta.kubernetes.io/do-loadbalancer-algorithm: 'least_connections'
-    service.beta.kubernetes.io/do-loadbalancer-protocol: 'tcp'
+    service.beta.kubernetes.io/do-loadbalancer-protocol: 'https'
     service.beta.kubernetes.io/do-loadbalancer-http-ports: '80'
     service.beta.kubernetes.io/do-loadbalancer-tls-ports: '443'
     service.beta.kubernetes.io/do-loadbalancer-healthcheck-protocol: 'http'
