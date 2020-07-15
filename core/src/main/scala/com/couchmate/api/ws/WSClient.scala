@@ -8,17 +8,15 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.Materializer
 import com.couchmate.Server
 import com.couchmate.api.JwtProvider
-import com.couchmate.common.models.api.grid.GridAiring
-import com.couchmate.common.models.api.room.Participant
-import com.couchmate.api.ws.Commands.Connected.{CreateNewSessionFailure, CreateNewSessionSuccess, LogoutFailure, LogoutSuccess, RestoreRoomSessionFailure, RestoreRoomSessionSuccess, RestoreSessionFailure, RestoreSessionSuccess}
+import com.couchmate.api.ws.Commands.Connected._
 import com.couchmate.api.ws.protocol._
 import com.couchmate.api.ws.util.MessageMonitor
-import com.couchmate.common.models.api.User
-import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
-import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.dao._
-import com.couchmate.common.models.data.{RoomStatusType, UserActivity, UserActivityType, UserMeta, UserProvider, UserRole, User => InternalUser}
+import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.User
+import com.couchmate.common.models.api.room.Participant
+import com.couchmate.common.models.data.{UserActivity, UserActivityType, UserMeta, UserProvider, UserRole, User => InternalUser}
+import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.{Chatroom, RoomParticipant}
@@ -49,7 +47,7 @@ object WSClient
     implicit
     ec: ExecutionContext,
     context: ActorContext[Server.Command]
-  ): Behavior[Command] = Behaviors.setup { ctx =>
+  ): Behavior[Command] = Behaviors.setup { implicit ctx =>
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val materializer: Materializer = Materializer(ctx.system)
     implicit val db: Database = DatabaseExtension(ctx.system).db
@@ -126,7 +124,7 @@ object WSClient
             resume.timezone,
             resume.region
           )
-          ctx.pipeToSelf(resumeSession(resume)) {
+          ctx.pipeToSelf(resumeSession(resume, geoContext)) {
             case Success(value) if resume.roomId.nonEmpty =>
               RestoreRoomSessionSuccess(value, geoContext, resume.roomId.get)
             case Success(value) =>
@@ -455,40 +453,51 @@ object WSClient
     case _ => GracenoteDefaultProvider.USEast
   }
 
-  def resumeSession(resume: RestoreSession)(
+  def resumeSession(
+    resume: RestoreSession,
+    geo: GeoContext
+  )(
     implicit
     ec: ExecutionContext,
-    db: Database
-  ): Future[SessionContext] = for {
-    userId <- Future.fromTry(validateToken(resume.token))
-    user <- getUser(userId).map(_.getOrElse(
-      throw new RuntimeException(s"Could not find user for $userId")
-    ))
-    userMeta <- getUserMeta(userId).map(_.getOrElse(
-      throw new RuntimeException(s"Could not find userMeta for $userId")
-    ))
-    mutes <- getUserMutes(userId)
-    userProvider <- getUserProvider(userId).map(_.getOrElse(
-      throw new RuntimeException(s"Could not find userProvider for $userId")
-    ))
-    provider <- getProvider(userProvider.providerId).map(_.getOrElse(
-      throw new RuntimeException(s"Could not find provider for $userId (${userProvider.providerId})")
-    ))
-    grid <- getGrid(userProvider.providerId)
-    _ <- addUserActivity(UserActivity(
-      userId,
-      UserActivityType.Login
-    ))
-  } yield SessionContext(
-    user = user,
-    userMeta = userMeta,
-    providerId = userProvider.providerId,
-    providerName = provider.name,
-    token = resume.token,
-    muted = mutes,
-    airings = Set.empty,
-    grid = grid
-  ).setAiringsFromGrid(grid)
+    db: Database,
+    ctx: ActorContext[Command]
+  ): Future[SessionContext] =
+    validateToken(resume.token) match {
+      case Failure(exception) =>
+        ctx.log.warn(s"Got bad token: ${exception.getMessage}")
+        createNewSession(geo)
+      case Success(value) => getUser(value) flatMap {
+        case None =>
+          ctx.log.warn(s"Couldn't find user $value")
+          createNewSession(geo)
+        case Some(user @ InternalUser(Some(userId), _, _, _, _)) => for {
+          userMeta <- getUserMeta(userId).map(_.getOrElse(
+            throw new RuntimeException(s"Could not find userMeta for $userId")
+          ))
+          mutes <- getUserMutes(userId)
+          userProvider <- getUserProvider(userId).map(_.getOrElse(
+            throw new RuntimeException(s"Could not find userProvider for $userId")
+          ))
+          provider <- getProvider(userProvider.providerId).map(_.getOrElse(
+            throw new RuntimeException(s"Could not find provider for $userId (${userProvider.providerId})")
+          ))
+          grid <- getGrid(userProvider.providerId)
+          _ <- addUserActivity(UserActivity(
+            userId,
+            UserActivityType.Login
+          ))
+        } yield SessionContext(
+          user = user,
+          userMeta = userMeta,
+          providerId = userProvider.providerId,
+          providerName = provider.name,
+          token = resume.token,
+          muted = mutes,
+          airings = Set.empty,
+          grid = grid
+        ).setAiringsFromGrid(grid)
+      }
+    }
 
   def createNewSession(context: GeoContext)(
     implicit
