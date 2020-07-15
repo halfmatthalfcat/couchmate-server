@@ -86,7 +86,7 @@ spec:
       port: 443
       targetPort: server-ext
     - name: management
-      protocol: http
+      protocol: TCP
       port: 8000
       targetPort: management
 ---
