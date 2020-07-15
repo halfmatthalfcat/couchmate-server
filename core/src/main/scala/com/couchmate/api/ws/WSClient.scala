@@ -8,7 +8,6 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.Materializer
 import com.couchmate.Server
 import com.couchmate.api.JwtProvider
-import com.couchmate.api.ws.Commands.Connected._
 import com.couchmate.api.ws.protocol._
 import com.couchmate.api.ws.util.MessageMonitor
 import com.couchmate.common.dao._
@@ -74,7 +73,7 @@ object WSClient
     }
 
     def closing: PartialCommand = {
-      case Complete | LogoutSuccess =>
+      case Complete | Connected.LogoutSuccess =>
         ctx.log.debug("Connection complete")
         Behaviors.stopped
       case Closed =>
@@ -113,8 +112,8 @@ object WSClient
         case Incoming(InitSession(timezone, locale, region)) =>
           val geoContext: GeoContext = GeoContext(locale, timezone, region)
           ctx.pipeToSelf(createNewSession(geoContext)) {
-            case Success(value) => CreateNewSessionSuccess(value, geoContext)
-            case Failure(exception) => CreateNewSessionFailure(exception)
+            case Success(value) => Connected.CreateNewSessionSuccess(value, geoContext)
+            case Failure(exception) => Connected.CreateNewSessionFailure(exception)
           }
           Behaviors.same
 
@@ -126,22 +125,22 @@ object WSClient
           )
           ctx.pipeToSelf(resumeSession(resume, geoContext)) {
             case Success(value) if resume.roomId.nonEmpty =>
-              RestoreRoomSessionSuccess(value, geoContext, resume.roomId.get)
+              Connected.RestoreRoomSessionSuccess(value, geoContext, resume.roomId.get)
             case Success(value) =>
-              RestoreSessionSuccess(value, geoContext)
+              Connected.RestoreSessionSuccess(value, geoContext)
             case Failure(exception) if resume.roomId.nonEmpty =>
-              RestoreRoomSessionFailure(exception)
+              Connected.RestoreRoomSessionFailure(exception)
             case Failure(exception) =>
               ctx.log.error("Failed to restore session", exception)
-              RestoreSessionFailure(exception)
+              Connected.RestoreSessionFailure(exception)
           }
           Behaviors.same
 
-        case CreateNewSessionSuccess(session, geo) =>
+        case Connected.CreateNewSessionSuccess(session, geo) =>
           inSession(session, geo, ws, init = true)
-        case RestoreSessionSuccess(session, geo) =>
+        case Connected.RestoreSessionSuccess(session, geo) =>
           inSession(session, geo, ws, init = true)
-        case RestoreRoomSessionSuccess(session, geo, airingId) =>
+        case Connected.RestoreRoomSessionSuccess(session, geo, airingId) =>
           inSession(session, geo, ws, init = true, Some(airingId))
       },
       closing,
@@ -257,8 +256,8 @@ object WSClient
               session.user.userId.get,
               UserActivityType.Logout,
             ))) {
-              case Success(_) => LogoutSuccess
-              case Failure(exception) => LogoutFailure(exception)
+              case Success(_) => Connected.LogoutSuccess
+              case Failure(exception) => Connected.LogoutFailure(exception)
             }
             Behaviors.same
         },
@@ -416,8 +415,8 @@ object WSClient
               session.user.userId.get,
               UserActivityType.Logout,
             ))) {
-              case Success(_) => LogoutSuccess
-              case Failure(exception) => LogoutFailure(exception)
+              case Success(_) => Connected.LogoutSuccess
+              case Failure(exception) => Connected.LogoutFailure(exception)
             }
             Behaviors.same
         },
