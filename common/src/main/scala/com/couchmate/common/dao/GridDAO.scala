@@ -22,18 +22,22 @@ trait GridDAO {
   ): Future[Grid] = {
     val now: LocalDateTime =
       DateUtils.roundNearestHour(LocalDateTime.now(ZoneId.of("UTC")))
-    Future.sequence(
-      Seq
-        .tabulate[LocalDateTime](pages)(p => now.plusHours(p))
-        .map(startDate => db.run(GridDAO.getGridPage(
-          providerId,
-          startDate
-        )))
-    ).map(Grid(
+    for {
+      provider <- db.run(ProviderDAO.getProvider(providerId))
+      pages <- Future.sequence(
+        Seq
+          .tabulate[LocalDateTime](pages)(p => now.plusHours(p))
+          .map(startDate => db.run(GridDAO.getGridPage(
+            providerId,
+            startDate
+          )))
+      )
+    } yield Grid(
       providerId,
+      provider.get.name,
       now,
-      _
-    ))
+      pages,
+    )
   }
 
 }

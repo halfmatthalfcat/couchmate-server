@@ -6,6 +6,7 @@ import play.api.libs.json.{Json, Format}
 
 case class Grid(
   providerId: Long,
+  providerName: String,
   startTime: LocalDateTime,
   pages: Seq[GridPage],
 )
