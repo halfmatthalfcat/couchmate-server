@@ -58,10 +58,10 @@ package object ws {
       case object LogoutSuccess extends Command
       case class LogoutFailure(ex: Throwable) extends Command
 
-      case class EmailValidated(exists: Boolean) extends Command
+      case class EmailValidated(exists: Boolean, valid: Boolean) extends Command
       case class EmailValidatedFailed(ex: Throwable) extends Command
 
-      case class UsernameValidated(exists: Boolean) extends Command
+      case class UsernameValidated(exists: Boolean, valid: Boolean) extends Command
       case class UsernameValidatedFailed(ex: Throwable) extends Command
 
       case class AccountRegistered(session: SessionContext) extends Command
@@ -69,6 +69,9 @@ package object ws {
 
       case class AccountVerified(session: SessionContext) extends Command
       case class AccountVerifiedFailed(ex: Throwable) extends Command
+
+      case class LoggedIn(session: SessionContext) extends Command
+      case class LoggedInFailed(ex: Throwable) extends Command
 
       case class ProviderUpdated(
         providerId: Long,

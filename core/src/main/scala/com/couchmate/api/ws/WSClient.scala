@@ -1,6 +1,6 @@
 package com.couchmate.api.ws
 
-import java.time.temporal.{ChronoUnit, TemporalUnit}
+import java.time.temporal.ChronoUnit
 import java.time.{Duration, LocalDateTime, ZoneId}
 import java.util.UUID
 
@@ -8,6 +8,7 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.Materializer
 import com.couchmate.Server
+import com.couchmate.api.ws.protocol.RegisterAccountErrorCause.EmailExists
 import com.couchmate.api.ws.protocol._
 import com.couchmate.api.ws.util.MessageMonitor
 import com.couchmate.common.dao._
@@ -235,16 +236,38 @@ object WSClient
             Behaviors.same
 
           case Incoming(ValidateEmail(email)) =>
-            ctx.pipeToSelf(emailExists(email)) {
-              case Success(exists) => Connected.EmailValidated(exists)
-              case Failure(ex) => Connected.EmailValidatedFailed(ex)
+            val emailRegex = "(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9]))\\.){3}(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9])|[a-z0-9-]*[a-z0-9]:(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21-\\x5a\\x53-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])+)\\])".r
+            if (emailRegex.matches(email)) {
+              ctx.pipeToSelf(emailExists(email)) {
+                case Success(exists) => Connected.EmailValidated(
+                  exists,
+                  valid = true
+                )
+                case Failure(ex) => Connected.EmailValidatedFailed(ex)
+              }
+            } else {
+              ctx.self ! Connected.EmailValidated(
+                exists = false,
+                valid = false
+              )
             }
             Behaviors.same
 
           case Incoming(ValidateUsername(username)) =>
-            ctx.pipeToSelf(usernameExists(username)) {
-              case Success(exists) => Connected.UsernameValidated(exists)
-              case Failure(ex) => Connected.UsernameValidatedFailed(ex)
+            val usernameRegex = "^[a-zA-Z0-9]{0,16}$".r
+            if (usernameRegex.matches(username)) {
+              ctx.pipeToSelf(usernameExists(username)) {
+                case Success(exists) => Connected.UsernameValidated(
+                  exists,
+                  valid = true
+                )
+                case Failure(ex) => Connected.UsernameValidatedFailed(ex)
+              }
+            } else {
+              ctx.self ! Connected.UsernameValidated(
+                exists = false,
+                valid = false
+              )
             }
             Behaviors.same
 
@@ -268,6 +291,13 @@ object WSClient
             }
             Behaviors.same
 
+          case Incoming(Login(email, password)) =>
+            ctx.pipeToSelf(login(session, email, password)) {
+              case Success(session) => Connected.LoggedIn(session)
+              case Failure(ex: Throwable) => Connected.LoggedInFailed(ex)
+            }
+            Behaviors.same
+
           case Connected.AccountRegistered(session) =>
             ws ! Outgoing(RegisterAccountSuccess(User(
               session.user.userId.get,
@@ -287,6 +317,17 @@ object WSClient
           case Connected.AccountVerified(session) =>
             ws ! Outgoing(VerifyAccountSuccess(true))
             inSession(session, geo, ws, init = false, None)
+
+          case Connected.EmailValidated(exists, valid) =>
+            ws ! Outgoing(ValidateEmailResponse(exists, valid))
+            Behaviors.same
+
+          case Connected.UsernameValidated(exists, valid) =>
+            ws ! Outgoing(ValidateUsernameResponse(exists, valid))
+            Behaviors.same
+
+          case Connected.LoggedIn(session) =>
+            inSession(session, geo, ws, init = true, None)
 
           case Connected.UpdateGrid(grid) =>
             ctx.self ! Outgoing(UpdateGrid(grid))
@@ -624,12 +665,17 @@ object WSClient
     implicit
     ec: ExecutionContext,
     db: Database,
+    ctx: ActorContext[Command],
     mail: MailExtension,
     jwt: JwtExtension
   ): Future[SessionContext] = {
     import com.github.t3hnar.bcrypt._
 
-    for {
+    (for {
+      _ <- emailExists(register.email) flatMap {
+        case true => Future.failed(RegisterAccountError(EmailExists))
+        case false => Future.successful()
+      }
       user <- upsertUser(session.user.copy(
         role = UserRole.Registered
       ))
@@ -648,7 +694,7 @@ object WSClient
       token <- Future.fromTry(jwt.createToken(
         session.user.userId.get.toString,
         Map("scope" -> "register"),
-        Duration.of(20, ChronoUnit.MINUTES)
+        Duration.ofMinutes(20)
       ))
       _ <- mail.accountRegistration(
         register.email,
@@ -657,7 +703,11 @@ object WSClient
     } yield session.copy(
       user = user,
       userMeta = meta
-    )
+    )) recoverWith {
+      case ex: Throwable =>
+        ctx.log.error("Failed to register account", ex)
+        Future.failed(RegisterAccountError(RegisterAccountErrorCause.UnknownError))
+    }
   }
 
   def verifyAccount(session: SessionContext, token: String)(
@@ -679,4 +729,52 @@ object WSClient
   } yield session.copy(
     user = user
   )
+
+  def login(session: SessionContext, email: String, password: String)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    jwt: JwtExtension
+  ): Future[SessionContext] = {
+    import com.github.t3hnar.bcrypt._
+
+    for {
+      userExists <- getUserByEmail(email)
+      userPrivate <- userExists.fold[Future[Option[UserPrivate]]](
+        Future.failed(LoginError(LoginErrorCause.BadCredentials))
+      ) { user =>
+        if (!user.verified) {
+          Future.failed(LoginError(LoginErrorCause.NotVerified))
+        } else {
+          getUserPrivate(user.userId.get)
+        }
+      }
+      valid <- userPrivate.fold[Future[Boolean]](
+        Future.failed(LoginError(LoginErrorCause.Unknown))
+      )(userP => Future.fromTry(password.isBcryptedSafe(userP.password)))
+      _ <- if (!valid) {
+        Future.failed(LoginError(LoginErrorCause.BadCredentials))
+      } else { Future.successful() }
+      user = userExists.get
+      token <- Future.fromTry(jwt.createToken(
+        user.userId.get.toString,
+        Map("scope" -> "access"),
+        Duration.ofDays(30)
+      ))
+      userMeta <- getUserMeta(user.userId.get)
+      mutes <- getUserMutes(user.userId.get)
+      userProvider <- getUserProvider(user.userId.get)
+      provider <- getProvider(userProvider.get.providerId)
+      grid <- getGrid(userProvider.get.providerId)
+    } yield session.copy(
+      user,
+      userMeta.get,
+      provider.get.providerId.get,
+      provider.get.name,
+      token,
+      mutes,
+      airings = Set(),
+      grid
+    ).setAiringsFromGrid(grid)
+  }
 }

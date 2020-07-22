@@ -26,11 +26,6 @@ case class InitSession(
   locale: String,
   region: String
 ) extends Protocol
-case class Login(
-  email: String,
-  password: String
-) extends Protocol
-case object Logout extends Protocol
 case class RestoreSession(
   token: String,
   roomId: Option[UUID],
@@ -44,18 +39,30 @@ case class SetSession(
   token: String
 ) extends Protocol
 
+case class Login(
+  email: String,
+  password: String
+) extends Protocol
+case class LoginFailure(
+  cause: LoginError
+) extends Protocol
+
+case object Logout extends Protocol
+
 case class ValidateEmail(
   email: String
 ) extends Protocol
 case class ValidateEmailResponse(
-  exists: Boolean
+  exists: Boolean,
+  valid: Boolean
 ) extends Protocol
 
 case class ValidateUsername(
   username: String
 ) extends Protocol
 case class ValidateUsernameResponse(
-  exists: Boolean
+  exists: Boolean,
+  valid: Boolean
 ) extends Protocol
 
 case class RegisterAccount(

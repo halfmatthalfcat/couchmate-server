@@ -1,15 +1,23 @@
 package com.couchmate.api.ws.protocol
 
 import enumeratum._
+import play.api.libs.json.{Format, Json}
 
-sealed trait RegisterAccountError extends EnumEntry
+sealed trait RegisterAccountErrorCause extends EnumEntry
 
-object RegisterAccountError
-  extends Enum[RegisterAccountError]
-  with PlayJsonEnum[RegisterAccountError] {
+object RegisterAccountErrorCause
+  extends Enum[RegisterAccountErrorCause]
+  with PlayJsonEnum[RegisterAccountErrorCause] {
   val values = findValues
 
-  case object EmailExists     extends RegisterAccountError
-  case object UsernameExists  extends RegisterAccountError
-  case object UnknownError    extends RegisterAccountError
+  case object EmailExists     extends RegisterAccountErrorCause
+  case object UnknownError    extends RegisterAccountErrorCause
+}
+
+case class RegisterAccountError(
+  cause: RegisterAccountErrorCause
+) extends Throwable
+
+object RegisterAccountError {
+  implicit val format: Format[RegisterAccountError] = Json.format[RegisterAccountError]
 }
