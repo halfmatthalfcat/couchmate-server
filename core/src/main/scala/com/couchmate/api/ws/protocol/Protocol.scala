@@ -6,7 +6,8 @@ import java.util.UUID
 
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.common.models.api.{Provider, User}
+import com.couchmate.common.models.api.Provider
+import com.couchmate.common.models.api.user.User
 import com.couchmate.common.models.data.UserMeta
 import com.couchmate.common.util.json.CountryCodePlayJson
 import com.neovisionaries.i18n.CountryCode
@@ -29,6 +30,7 @@ case class Login(
   email: String,
   password: String
 ) extends Protocol
+case object Logout extends Protocol
 case class RestoreSession(
   token: String,
   roomId: Option[UUID],
@@ -42,23 +44,36 @@ case class SetSession(
   token: String
 ) extends Protocol
 
-case class ValidateNewAccount(
-  email: String,
-  username: String,
+case class ValidateEmail(
+  email: String
 ) extends Protocol
-case class ValidateNewAccountResponse(
-  status: ValidateAccountStatus
+case class ValidateEmailResponse(
+  exists: Boolean
+) extends Protocol
+
+case class ValidateUsername(
+  username: String
+) extends Protocol
+case class ValidateUsernameResponse(
+  exists: Boolean
 ) extends Protocol
 
 case class RegisterAccount(
   email: String,
-  username: String,
+  password: String,
 ) extends Protocol
-case class RegisterAccountResponse(
-  meta: UserMeta
+case class RegisterAccountSuccess(
+  user: User
 ) extends Protocol
 case class RegisterAccountFailure(
   cause: RegisterAccountError
+) extends Protocol
+
+case class VerifyAccount(
+  token: String,
+) extends Protocol
+case class VerifyAccountSuccess(
+  verified: Boolean
 ) extends Protocol
 
 case class GetProviders(
@@ -67,6 +82,15 @@ case class GetProviders(
 ) extends Protocol
 case class GetProvidersResponse(
   providers: Seq[Provider]
+) extends Protocol
+
+case class UpdateProvider(
+  zipCode: String,
+  providerId: Long
+) extends Protocol
+case class UpdateProviderResponse(
+  success: Boolean,
+  pulling: Boolean
 ) extends Protocol
 
 case class UpdateGrid(

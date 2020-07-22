@@ -10,7 +10,7 @@ object UserActivityType
 
   val values = findValues
 
-  case object Login   extends UserActivityType
-  case object Logout  extends UserActivityType
-
+  case object Login       extends UserActivityType
+  case object Logout      extends UserActivityType
+  case object Registered  extends UserActivityType
 }

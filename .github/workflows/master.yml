@@ -132,5 +132,6 @@ jobs:
           --set app.db.username=doadmin \
           --set app.db.name=defaultdb \
           --set app.db.password=${{ secrets.DO_PG_DEV_PW }} \
+          --set app.mailgun.apiKey=${{ secrets.MAILGUN_API_KEY }} \
           couchmate \
           ./charts

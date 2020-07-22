@@ -9,8 +9,6 @@ import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{User, UserExtType, UserMeta, UserPrivate, UserRole}
 import com.couchmate.common.tables.{UserExtTable, UserMetaTable, UserTable}
 
-import com.github.t3hnar.bcrypt._
-
 import scala.concurrent.{ExecutionContext, Future}
 
 trait UserDAO {
@@ -66,30 +64,6 @@ trait UserDAO {
     session: SlickSession
   ): Flow[User, User, NotUsed] =
     Slick.flowWithPassThrough(UserDAO.upsertUser)
-
-  def activateAccount(
-    email: String,
-    username: String,
-    password: String,
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[User] =
-    db.run(UserDAO.activateAccount(
-      email,
-      username,
-      password,
-    ))
-
-  def createEmailAccount$()(
-    implicit
-    session: SlickSession,
-    ec: ExecutionContext
-  ): Flow[(String, String, String), User, NotUsed] =
-    Slick.flowWithPassThrough(
-      (UserDAO.activateAccount _).tupled
-    )
 }
 
 object UserDAO {
@@ -143,30 +117,4 @@ object UserDAO {
         .update(user)
       updated <- UserDAO.getUser(userId)
     } yield updated.get}
-
-  private[common] def activateAccount(
-    email: String,
-    username: String,
-    password: String,
-  )(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[User] = (for {
-    user <- upsertUser(User(
-      userId = None,
-      active = true,
-      verified = false,
-      role = UserRole.Registered
-    ))
-    _ <- UserMetaDAO.upsertUserMeta(UserMeta(
-      userId = user.userId.get,
-      email = Some(email),
-      username = username
-    ))
-    hashedPw <- DBIO.from(Future.fromTry(password.bcryptSafe(10)))
-    _ <- UserPrivateDAO.upsertUserPrivate(UserPrivate(
-      userId = user.userId.get,
-      password = hashedPw
-    ))
-  } yield user).transactionally
  }

@@ -19,6 +19,8 @@ app:
     username:
     password:
     name:
+  mailgun:
+    apiKey:
 
 images:
   org: couchmate

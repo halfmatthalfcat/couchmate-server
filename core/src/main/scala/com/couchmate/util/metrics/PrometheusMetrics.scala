@@ -15,6 +15,11 @@ trait PrometheusMetrics {
     .build("cm_messages", "Counter of messages sent")
     .register(collector)
 
+  private[this] val registered: Counter = Counter
+    .build("cm_registered", "Counter of accounts registered")
+    .labelNames("tz", "country")
+    .register(collector)
+
   private[this] val sessions: Gauge = Gauge
     .build("cm_sessions", "Current number of sessions")
     .labelNames("provider_id", "provider", "tz", "country")
@@ -35,6 +40,15 @@ trait PrometheusMetrics {
 
   def incMessages(): Unit =
     messages.inc()
+
+  def incRegistered(
+    tz: String,
+    country: Option[CountryCode]
+  ): Unit = registered
+    .labels(
+      tz,
+      country.map(_.getAlpha3).getOrElse("N/A")
+    ).inc()
 
   def incSession(
     providerId: Long,

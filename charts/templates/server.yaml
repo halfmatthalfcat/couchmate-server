@@ -38,6 +38,8 @@ spec:
               value: {{.Values.app.db.username}}
             - name: POSTGRES_PASSWORD
               value: {{.Values.app.db.password}}
+            - name: MAILGUN_API_KEY
+              value: {{.Values.app.mailgun.apiKey}}
           readinessProbe:
             httpGet:
               path: /ready

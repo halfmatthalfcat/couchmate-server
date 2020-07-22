@@ -7,8 +7,9 @@ package com.couchmate.api
 import java.util.UUID
 
 import akka.actor.typed.{ActorRef, Behavior}
-import com.couchmate.common.models.api.grid.{Grid, GridAiring}
+import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.api.ws.protocol.Protocol
+import com.couchmate.common.models.data.{User, UserMeta}
 import com.couchmate.services.room.{RoomId, RoomParticipant}
 
 package object ws {
@@ -56,6 +57,25 @@ package object ws {
 
       case object LogoutSuccess extends Command
       case class LogoutFailure(ex: Throwable) extends Command
+
+      case class EmailValidated(exists: Boolean) extends Command
+      case class EmailValidatedFailed(ex: Throwable) extends Command
+
+      case class UsernameValidated(exists: Boolean) extends Command
+      case class UsernameValidatedFailed(ex: Throwable) extends Command
+
+      case class AccountRegistered(session: SessionContext) extends Command
+      case class AccountRegisteredFailed(ex: Throwable) extends Command
+
+      case class AccountVerified(session: SessionContext) extends Command
+      case class AccountVerifiedFailed(ex: Throwable) extends Command
+
+      case class ProviderUpdated(
+        providerId: Long,
+        providerName: String,
+        pulling: Boolean
+      ) extends Command
+      case class ProviderUpdatedFailed(ex: Throwable) extends Command
 
       case class UpdateGrid(grid: Grid) extends Command
     }

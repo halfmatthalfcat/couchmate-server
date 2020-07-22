@@ -1,40 +1,41 @@
 package com.couchmate.api.ws
 
-import java.time.Duration
+import java.time.temporal.{ChronoUnit, TemporalUnit}
+import java.time.{Duration, LocalDateTime, ZoneId}
 import java.util.UUID
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.Materializer
 import com.couchmate.Server
-import com.couchmate.api.JwtProvider
 import com.couchmate.api.ws.protocol._
 import com.couchmate.api.ws.util.MessageMonitor
 import com.couchmate.common.dao._
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.api.User
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.common.models.data.{UserActivity, UserActivityType, UserMeta, UserProvider, UserRole, User => InternalUser}
+import com.couchmate.common.models.api.user.User
+import com.couchmate.common.models.data.{UserActivity, UserActivityType, UserMeta, UserPrivate, UserProvider, UserRole, User => InternalUser}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.{Chatroom, RoomParticipant}
 import com.couchmate.util.akka.AkkaUtils
-import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, RoomExtension, SingletonExtension}
+import com.couchmate.util.akka.extensions.{DatabaseExtension, JwtExtension, MailExtension, PromExtension, RoomExtension, SingletonExtension}
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.neovisionaries.i18n.CountryCode
 import io.prometheus.client.Histogram
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 object WSClient
   extends AkkaUtils
-  with JwtProvider
   with UserDAO
   with UserMetaDAO
   with ProviderDAO
   with UserProviderDAO
+  with UserPrivateDAO
   with UserMuteDAO
   with UserActivityDAO
   with GridDAO {
@@ -57,6 +58,10 @@ object WSClient
       RoomExtension(ctx.system)
     val singletons: SingletonExtension =
       SingletonExtension(ctx.system)
+    implicit val mail: MailExtension =
+      MailExtension(ctx.system)
+    implicit val jwt: JwtExtension =
+      JwtExtension(ctx.system)
 
     val gridAdapter: ActorRef[GridCoordinator.Command] = ctx.messageAdapter {
       case GridUpdate(grid) => Connected.UpdateGrid(grid)
@@ -164,7 +169,10 @@ object WSClient
             userId = session.user.userId.get,
             username = session.userMeta.username,
             email = session.userMeta.email,
-            token = session.token
+            token = session.token,
+            verified = session.user.verified,
+            role = session.user.role,
+            mutes = session.mutes
           ),
           session.providerName,
           session.token,
@@ -189,7 +197,10 @@ object WSClient
             userId = session.user.userId.get,
             username = session.userMeta.username,
             email = session.userMeta.email,
-            token = session.token
+            token = session.token,
+            verified = session.user.verified,
+            role = session.user.role,
+            mutes = session.mutes
           ),
           session.providerName,
           session.token,
@@ -222,6 +233,60 @@ object WSClient
               )
             }
             Behaviors.same
+
+          case Incoming(ValidateEmail(email)) =>
+            ctx.pipeToSelf(emailExists(email)) {
+              case Success(exists) => Connected.EmailValidated(exists)
+              case Failure(ex) => Connected.EmailValidatedFailed(ex)
+            }
+            Behaviors.same
+
+          case Incoming(ValidateUsername(username)) =>
+            ctx.pipeToSelf(usernameExists(username)) {
+              case Success(exists) => Connected.UsernameValidated(exists)
+              case Failure(ex) => Connected.UsernameValidatedFailed(ex)
+            }
+            Behaviors.same
+
+          case Incoming(register: RegisterAccount) =>
+            if (session.user.role == UserRole.Anon) {
+              ctx.pipeToSelf(registerAccount(session, register)) {
+                case Success(session) => Connected.AccountRegistered(session)
+                case Failure(ex) =>
+                  ctx.log.error("Failed to register", ex)
+                  Connected.AccountRegisteredFailed(ex)
+              }
+            }
+            Behaviors.same
+
+          case Incoming(verify: VerifyAccount) =>
+            if (!session.user.verified) {
+              ctx.pipeToSelf(verifyAccount(session, verify.token)) {
+                case Success(session) => Connected.AccountVerified(session)
+                case Failure(ex) => Connected.AccountVerifiedFailed(ex)
+              }
+            }
+            Behaviors.same
+
+          case Connected.AccountRegistered(session) =>
+            ws ! Outgoing(RegisterAccountSuccess(User(
+              session.user.userId.get,
+              verified = false,
+              session.user.role,
+              session.userMeta.username,
+              session.userMeta.email,
+              token = session.token,
+              mutes = session.mutes,
+            )))
+            metrics.incRegistered(
+              geo.timezone,
+              geo.country
+            )
+            inSession(session, geo, ws, init = false, None)
+
+          case Connected.AccountVerified(session) =>
+            ws ! Outgoing(VerifyAccountSuccess(true))
+            inSession(session, geo, ws, init = false, None)
 
           case Connected.UpdateGrid(grid) =>
             ctx.self ! Outgoing(UpdateGrid(grid))
@@ -363,12 +428,12 @@ object WSClient
                   rp.userId,
                   rp.username
                 ))
-                .filterNot(p => session.muted.contains(p.userId))
+                .filterNot(p => session.mutes.contains(p.userId))
                 .toSeq
             ))
             Behaviors.same
           case InRoom.AddParticipant(participant) =>
-            if (!session.muted.contains(participant.userId)) {
+            if (!session.mutes.contains(participant.userId)) {
               ctx.self ! Outgoing(AddParticipant(Participant(
                 participant.userId,
                 participant.username
@@ -376,7 +441,7 @@ object WSClient
             }
             Behaviors.same
           case InRoom.RemoveParticipant(participant) =>
-            if (!session.muted.contains(participant.userId)) {
+            if (!session.mutes.contains(participant.userId)) {
               ctx.self ! Outgoing(RemoveParticipant(Participant(
                 participant.userId,
                 participant.username
@@ -384,7 +449,7 @@ object WSClient
             }
             Behaviors.same
           case Messaging.MessageSent(participant, message) =>
-            if (!session.muted.contains(participant.userId)) {
+            if (!session.mutes.contains(participant.userId)) {
               ctx.self ! Outgoing(RoomMessage(
                 Participant(
                   participant.userId,
@@ -459,9 +524,10 @@ object WSClient
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[Command]
+    ctx: ActorContext[Command],
+    jwt: JwtExtension
   ): Future[SessionContext] =
-    validateToken(resume.token) match {
+    jwt.validateToken(resume.token, Map("scope" -> "access")) match {
       case Failure(exception) =>
         ctx.log.warn(s"Got bad token: ${exception.getMessage}")
         createNewSession(geo)
@@ -491,7 +557,7 @@ object WSClient
           providerId = userProvider.providerId,
           providerName = provider.name,
           token = resume.token,
-          muted = mutes,
+          mutes = mutes,
           airings = Set.empty,
           grid = grid
         ).setAiringsFromGrid(grid)
@@ -501,7 +567,8 @@ object WSClient
   def createNewSession(context: GeoContext)(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    jwt: JwtExtension
   ): Future[SessionContext] = {
     val defaultProvider: GracenoteDefaultProvider =
       getDefaultProvider(context)
@@ -511,7 +578,8 @@ object WSClient
         userId = None,
         role = UserRole.Anon,
         active = true,
-        verified = false
+        verified = false,
+        created = Some(LocalDateTime.now(ZoneId.of("UTC")))
       ))
       userMeta <- upsertUserMeta(UserMeta(
         userId = user.userId.get,
@@ -528,9 +596,11 @@ object WSClient
       ))
       mutes <- getUserMutes(user.userId.get)
       provider <- getProvider(defaultProvider.value)
-      token <- Future.fromTry(createToken(
+      token <- Future.fromTry(jwt.createToken(
         subject = user.userId.get.toString,
-        claims = Map(),
+        claims = Map(
+          "scope" -> "access"
+        ),
         expiry = Duration.ofDays(365L)
       ))
       _ <- addUserActivity(UserActivity(
@@ -544,9 +614,69 @@ object WSClient
       providerId = provider.get.providerId.get,
       providerName = provider.get.name,
       token = token,
-      muted = mutes,
+      mutes = mutes,
       airings = Set.empty,
       grid = grid
     ).setAiringsFromGrid(grid)
   }
+
+  def registerAccount(session: SessionContext, register: RegisterAccount)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    mail: MailExtension,
+    jwt: JwtExtension
+  ): Future[SessionContext] = {
+    import com.github.t3hnar.bcrypt._
+
+    for {
+      user <- upsertUser(session.user.copy(
+        role = UserRole.Registered
+      ))
+      meta <- upsertUserMeta(session.userMeta.copy(
+        email = Some(register.email)
+      ))
+      hashed <- Future.fromTry(register.password.bcryptSafe(10))
+      _ <- upsertUserPrivate(UserPrivate(
+        userId = session.user.userId.get,
+        password = hashed
+      ))
+      _ <- addUserActivity(UserActivity(
+        userId = session.user.userId.get,
+        action = UserActivityType.Registered,
+      ))
+      token <- Future.fromTry(jwt.createToken(
+        session.user.userId.get.toString,
+        Map("scope" -> "register"),
+        Duration.of(20, ChronoUnit.MINUTES)
+      ))
+      _ <- mail.accountRegistration(
+        register.email,
+        token
+      )
+    } yield session.copy(
+      user = user,
+      userMeta = meta
+    )
+  }
+
+  def verifyAccount(session: SessionContext, token: String)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    jwt: JwtExtension
+  ): Future[SessionContext] = for {
+    validJwt <- Future.fromTry(jwt.validateToken(
+      token,
+      Map("scope" -> "register")
+    ))
+    _ = if (validJwt != session.user.userId.get) {
+      throw new RuntimeException(s"Validate token doesn't match current user")
+    }
+    user <- upsertUser(session.user.copy(
+      verified = true
+    ))
+  } yield session.copy(
+    user = user
+  )
 }

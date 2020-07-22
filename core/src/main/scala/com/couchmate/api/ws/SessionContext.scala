@@ -11,7 +11,7 @@ case class SessionContext(
   providerId: Long,
   providerName: String,
   token: String,
-  muted: Seq[UUID],
+  mutes: Seq[UUID],
   airings: Set[GridAiring],
   grid: Grid,
 ) {
