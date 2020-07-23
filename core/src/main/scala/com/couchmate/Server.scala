@@ -4,12 +4,12 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorSystem, Behavior, PostStop}
 import akka.cluster.typed.{Cluster, Join}
 import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model.Uri
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import akka.util.Timeout
 import com.couchmate.api.ApiServer
-import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, SingletonExtension}
+import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.util.akka.extensions.{DatabaseExtension, JwtExtension, PromExtension, RoomExtension, SingletonExtension}
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
@@ -85,6 +85,12 @@ object Server {
 
     val metrics: PromExtension =
       PromExtension(ctx.system)
+
+    implicit val db: Database =
+      DatabaseExtension(ctx.system).db
+
+    implicit val jwt: JwtExtension =
+      JwtExtension(ctx.system)
 
     implicit val timeout: Timeout = 30 seconds
 

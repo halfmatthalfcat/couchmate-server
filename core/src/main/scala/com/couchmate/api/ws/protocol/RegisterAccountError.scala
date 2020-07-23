@@ -14,6 +14,7 @@ object RegisterAccountErrorCause
   case object TokenExpired    extends RegisterAccountErrorCause
   case object BadToken        extends RegisterAccountErrorCause
   case object UserMismatch    extends RegisterAccountErrorCause
+  case object UserNotFound    extends RegisterAccountErrorCause
   case object UnknownError    extends RegisterAccountErrorCause
 }
 

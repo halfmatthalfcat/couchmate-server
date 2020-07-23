@@ -1,15 +1,16 @@
 package com.couchmate.api
 
 import akka.actor.typed.scaladsl.ActorContext
-import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.management.scaladsl.AkkaManagement
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.couchmate.Server
+import com.couchmate.api.http.UserRoutes
 import com.couchmate.api.ws.Commands._
 import com.couchmate.api.ws.protocol.Protocol
+import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.util.akka.WSActor
+import com.couchmate.util.akka.extensions.JwtExtension
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
 import fr.davit.akka.http.metrics.prometheus.marshalling.PrometheusMarshallers._
@@ -25,6 +26,10 @@ trait Routes
 
   def routes(
     registry: PrometheusRegistry,
+  )(
+    implicit
+    db: Database,
+    jwt: JwtExtension
   ): Route = cors() {
     concat(
       path("metrics") {
@@ -44,6 +49,7 @@ trait Routes
           )
         )
       },
+      UserRoutes()
     )
   }
 }

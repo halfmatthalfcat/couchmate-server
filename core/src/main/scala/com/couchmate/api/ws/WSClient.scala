@@ -1,6 +1,5 @@
 package com.couchmate.api.ws
 
-import java.time.temporal.ChronoUnit
 import java.time.{Duration, LocalDateTime, ZoneId}
 import java.util.UUID
 
@@ -28,7 +27,6 @@ import com.neovisionaries.i18n.CountryCode
 import io.prometheus.client.Histogram
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 object WSClient
@@ -344,8 +342,18 @@ object WSClient
             Behaviors.same
 
           case Connected.AccountVerified(session) =>
-            ws ! Outgoing(VerifyAccountSuccess(true))
+            ws ! Outgoing(VerifyAccountSuccess)
             inSession(session, geo, ws, init = false, None)
+          case Connected.AccountVerifiedFailed(ex) => ex match {
+            case RegisterAccountError(cause) =>
+              ws ! Outgoing(VerifyAccountFailed(cause))
+              Behaviors.same
+            case _ =>
+              ws ! Outgoing(VerifyAccountFailed(
+                RegisterAccountErrorCause.UnknownError
+              ))
+              Behaviors.same
+          }
 
           case Connected.EmailValidated(exists, valid) =>
             ws ! Outgoing(ValidateEmailResponse(exists, valid))
@@ -793,13 +801,13 @@ object WSClient
     userId <- Future.fromTry(jwt.validateToken(
       token,
       Map("scope" -> "register")
-    )) recover {
-      case ExpiredJwtError => RegisterAccountError(
+    )) recoverWith {
+      case ExpiredJwtError => Future.failed(RegisterAccountError(
         RegisterAccountErrorCause.TokenExpired
-      )
-      case _ => RegisterAccountError(
+      ))
+      case _ => Future.failed(RegisterAccountError(
         RegisterAccountErrorCause.BadToken
-      )
+      ))
     }
     _ <- if (userId != session.user.userId.get) {
       Future.failed(RegisterAccountError(RegisterAccountErrorCause.UserMismatch))

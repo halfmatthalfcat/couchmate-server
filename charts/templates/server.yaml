@@ -93,6 +93,7 @@ metadata:
     external-dns.alpha.kubernetes.io/ttl: "120"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "10800"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "10800"
+    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   tls:
     - hosts:
@@ -102,7 +103,7 @@ spec:
     - host: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
       http:
         paths:
-          - path: /ws
+          - path: /(ws|register|reset)
             backend:
               serviceName: server
               servicePort: 80

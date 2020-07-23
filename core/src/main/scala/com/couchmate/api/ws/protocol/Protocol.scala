@@ -104,8 +104,9 @@ case class RegisterAccountFailure(
 case class VerifyAccount(
   token: String,
 ) extends Protocol
-case class VerifyAccountSuccess(
-  verified: Boolean
+case object VerifyAccountSuccess extends Protocol
+case class VerifyAccountFailed(
+  cause: RegisterAccountErrorCause
 ) extends Protocol
 
 case class GetProviders(

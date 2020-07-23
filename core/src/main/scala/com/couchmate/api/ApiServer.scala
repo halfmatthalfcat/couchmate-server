@@ -4,11 +4,12 @@ import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.{ActorSystem => ClassicActorSystem}
 import akka.http.scaladsl.Http
-import akka.management.scaladsl.AkkaManagement
 import akka.stream.Materializer
 import com.couchmate.Server
-import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsRoute._
+import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.util.akka.extensions.JwtExtension
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsSettings
+import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsRoute._
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -22,6 +23,8 @@ class ApiServer(
   implicit
   val ec: ExecutionContext,
   val ctx: ActorContext[Server.Command],
+  db: Database,
+  jwt: JwtExtension
 ) extends Routes {
   private[this] implicit val actorSystem: ClassicActorSystem =
     ctx.system.toClassic
@@ -47,6 +50,8 @@ object ApiServer {
     implicit
     ec: ExecutionContext,
     ctx: ActorContext[Server.Command],
+    db: Database,
+    jwt: JwtExtension
   ): Future[Http.ServerBinding] = new ApiServer(
     host,
     port,
