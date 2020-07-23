@@ -133,5 +133,6 @@ jobs:
           --set app.db.name=defaultdb \
           --set app.db.password=${{ secrets.DO_PG_DEV_PW }} \
           --set app.mailgun.apiKey=${{ secrets.MAILGUN_API_KEY }} \
+          --set app.mailgun.validationKey=${{ secrets.MAILGUN_VALIDATION_KEY }} \
           couchmate \
           ./charts

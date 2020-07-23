@@ -40,6 +40,8 @@ spec:
               value: {{.Values.app.db.password}}
             - name: MAILGUN_API_KEY
               value: {{.Values.app.mailgun.apiKey}}
+            - name: MAILGUN_VALIDATION_KEY
+              value: {{.Values.app.mailgun.validationKey}}
           readinessProbe:
             httpGet:
               path: /ready

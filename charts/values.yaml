@@ -21,6 +21,7 @@ app:
     name:
   mailgun:
     apiKey:
+    validationKey:
 
 images:
   org: couchmate
