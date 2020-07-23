@@ -22,6 +22,7 @@ import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.{Chatroom, RoomParticipant}
 import com.couchmate.util.akka.AkkaUtils
 import com.couchmate.util.akka.extensions.{DatabaseExtension, JwtExtension, MailExtension, PromExtension, RoomExtension, SingletonExtension}
+import com.couchmate.util.jwt.Jwt.ExpiredJwtError
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.neovisionaries.i18n.CountryCode
 import io.prometheus.client.Histogram
@@ -298,6 +299,27 @@ object WSClient
             }
             Behaviors.same
 
+          case Incoming(ForgotPassword(email)) =>
+            ctx.pipeToSelf(sendForgotPassword(email)) {
+              case Success(_) => Connected.ForgotPasswordSent
+              case Failure(ex) => Connected.ForgotPasswordSentFailed(ex)
+            }
+            Behaviors.same
+
+          case Incoming(ForgotPasswordReset(password, token)) =>
+            ctx.pipeToSelf(forgotPassword(token, password)) {
+              case Success(_) => Connected.ForgotPasswordComplete
+              case Failure(ex) => Connected.ForgotPasswordFailed(ex)
+            }
+            Behaviors.same
+
+          case Incoming(ResetPassword(currentPassword, newPassword)) =>
+            ctx.pipeToSelf(passwordReset(session, currentPassword, newPassword)) {
+              case Success(_) => Connected.PasswordResetComplete
+              case Failure(ex) => Connected.PasswordResetFailed(ex)
+            }
+            Behaviors.same
+
           case Connected.AccountRegistered(session) =>
             ws ! Outgoing(RegisterAccountSuccess(User(
               session.user.userId.get,
@@ -313,6 +335,13 @@ object WSClient
               geo.country
             )
             inSession(session, geo, ws, init = false, None)
+          case Connected.AccountRegisteredFailed(ex) => ex match {
+            case RegisterAccountError(cause) =>
+              ws ! Outgoing(RegisterAccountFailure(cause))
+            case _ =>
+              ws ! Outgoing(RegisterAccountFailure(RegisterAccountErrorCause.UnknownError))
+          }
+            Behaviors.same
 
           case Connected.AccountVerified(session) =>
             ws ! Outgoing(VerifyAccountSuccess(true))
@@ -328,6 +357,51 @@ object WSClient
 
           case Connected.LoggedIn(session) =>
             inSession(session, geo, ws, init = true, None)
+          case Connected.LoggedInFailed(ex) => ex match {
+            case LoginError(cause) =>
+              ws ! Outgoing(LoginFailure(cause))
+            case _ =>
+              ws ! Outgoing(LoginFailure(LoginErrorCause.Unknown))
+          }
+            Behaviors.same
+
+          case Connected.ForgotPasswordSent =>
+            ws ! Outgoing(ForgotPasswordResponse(true))
+            Behaviors.same
+          case Connected.ForgotPasswordSentFailed(ex) =>
+            ctx.log.error(s"Unable to send forgot password email", ex)
+            ws ! Outgoing(ForgotPasswordResponse(false))
+            Behaviors.same
+
+          case Connected.ForgotPasswordComplete =>
+            ws ! Outgoing(ForgotPasswordResetSuccess)
+            Behaviors.same
+          case Connected.ForgotPasswordFailed(ex) => ex match {
+            case ForgotPasswordError(cause) =>
+              ws ! Outgoing(ForgotPasswordResetFailed(cause))
+              Behaviors.same
+            case ex: Throwable =>
+              ctx.log.error("Unable to complete forgot password", ex)
+              ws ! Outgoing(ForgotPasswordResetFailed(
+                ForgotPasswordErrorCause.Unknown
+              ))
+              Behaviors.same
+          }
+
+          case Connected.PasswordResetComplete =>
+            ws ! Outgoing(ResetPasswordSuccess)
+            Behaviors.same
+          case Connected.PasswordResetFailed(ex) => ex match {
+            case PasswordResetError(cause) =>
+              ws ! Outgoing(ResetPasswordFailed(cause))
+              Behaviors.same
+            case ex: Throwable =>
+              ctx.log.error("Unable to reset password", ex)
+              ws ! Outgoing(ResetPasswordFailed(
+                PasswordResetErrorCause.Unknown
+              ))
+              Behaviors.same
+          }
 
           case Connected.UpdateGrid(grid) =>
             ctx.self ! Outgoing(UpdateGrid(grid))
@@ -716,13 +790,20 @@ object WSClient
     db: Database,
     jwt: JwtExtension
   ): Future[SessionContext] = for {
-    validJwt <- Future.fromTry(jwt.validateToken(
+    userId <- Future.fromTry(jwt.validateToken(
       token,
       Map("scope" -> "register")
-    ))
-    _ = if (validJwt != session.user.userId.get) {
-      throw new RuntimeException(s"Validate token doesn't match current user")
+    )) recover {
+      case ExpiredJwtError => RegisterAccountError(
+        RegisterAccountErrorCause.TokenExpired
+      )
+      case _ => RegisterAccountError(
+        RegisterAccountErrorCause.BadToken
+      )
     }
+    _ <- if (userId != session.user.userId.get) {
+      Future.failed(RegisterAccountError(RegisterAccountErrorCause.UserMismatch))
+    } else { Future.successful() }
     user <- upsertUser(session.user.copy(
       verified = true
     ))
@@ -776,5 +857,81 @@ object WSClient
       airings = Set(),
       grid
     ).setAiringsFromGrid(grid)
+  }
+
+  def sendForgotPassword(email: String)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    mail: MailExtension,
+    jwt: JwtExtension
+  ): Future[Unit] = for {
+    user <- getUserByEmail(email)
+    token <- user.fold[Future[String]](
+      Future.failed(ForgotPasswordError(ForgotPasswordErrorCause.NoAccountExists))
+    )(user => Future.fromTry(jwt.createToken(
+      user.userId.get.toString,
+      Map("scope" -> "forgot"),
+      Duration.ofMinutes(20),
+    )))
+    _ <- mail.forgotPassword(email, token)
+  } yield ()
+
+  def forgotPassword(token: String, password: String)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    jwt: JwtExtension
+  ): Future[Unit] = {
+    import com.github.t3hnar.bcrypt._
+
+    for {
+      userId <- Future.fromTry(jwt.validateToken(
+        token,
+        Map("scope" -> "forgot")
+      )) recoverWith {
+        case ExpiredJwtError => Future.failed(ForgotPasswordError(
+          ForgotPasswordErrorCause.TokenExpired
+        ))
+        case _ => Future.failed(ForgotPasswordError(
+          ForgotPasswordErrorCause.BadToken
+        ))
+      }
+      hashedPw <- Future.fromTry(password.bcryptSafe(10))
+      _ <- upsertUserPrivate(UserPrivate(
+        userId,
+        hashedPw
+      ))
+    } yield ()
+  }
+
+  def passwordReset(
+    session: SessionContext,
+    oldPassword: String,
+    newPassword: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Unit] = {
+    import com.github.t3hnar.bcrypt._
+
+    for {
+      userPrivate <- getUserPrivate(session.user.userId.get)
+      valid <- userPrivate.fold[Future[Boolean]](
+        Future.failed(PasswordResetError(
+          PasswordResetErrorCause.Unknown
+        )))(uP => Future.fromTry(oldPassword.isBcryptedSafe(uP.password)))
+      _ <- if (!valid) {
+        Future.failed(PasswordResetError(
+          PasswordResetErrorCause.BadPassword
+        ))
+      } else { Future.successful() }
+      hashedPw <- Future.fromTry(newPassword.bcryptSafe(10))
+      _ <- upsertUserPrivate(UserPrivate(
+        session.user.userId.get,
+        hashedPw
+      ))
+    } yield ()
   }
 }

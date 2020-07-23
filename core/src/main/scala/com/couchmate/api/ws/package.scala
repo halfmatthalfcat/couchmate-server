@@ -73,6 +73,15 @@ package object ws {
       case class LoggedIn(session: SessionContext) extends Command
       case class LoggedInFailed(ex: Throwable) extends Command
 
+      case object ForgotPasswordSent extends Command
+      case class ForgotPasswordSentFailed(ex: Throwable) extends Command
+
+      case object ForgotPasswordComplete extends Command
+      case class ForgotPasswordFailed(ex: Throwable) extends Command
+
+      case object PasswordResetComplete extends Command
+      case class PasswordResetFailed(ex: Throwable) extends Command
+
       case class ProviderUpdated(
         providerId: Long,
         providerName: String,

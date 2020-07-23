@@ -44,10 +44,35 @@ case class Login(
   password: String
 ) extends Protocol
 case class LoginFailure(
-  cause: LoginError
+  cause: LoginErrorCause
 ) extends Protocol
 
 case object Logout extends Protocol
+
+case class ForgotPassword(
+  email: String
+) extends Protocol
+case class ForgotPasswordResponse(
+  success: Boolean
+) extends Protocol
+
+case class ForgotPasswordReset(
+  password: String,
+  token: String
+) extends Protocol
+case object ForgotPasswordResetSuccess extends Protocol
+case class ForgotPasswordResetFailed(
+  cause: ForgotPasswordErrorCause
+) extends Protocol
+
+case class ResetPassword(
+  currentPassword: String,
+  newPassword: String
+) extends Protocol
+case object ResetPasswordSuccess extends Protocol
+case class ResetPasswordFailed(
+  cause: PasswordResetErrorCause
+) extends Protocol
 
 case class ValidateEmail(
   email: String
@@ -73,7 +98,7 @@ case class RegisterAccountSuccess(
   user: User
 ) extends Protocol
 case class RegisterAccountFailure(
-  cause: RegisterAccountError
+  cause: RegisterAccountErrorCause
 ) extends Protocol
 
 case class VerifyAccount(
