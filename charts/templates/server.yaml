@@ -42,6 +42,8 @@ spec:
               value: {{.Values.app.mailgun.apiKey}}
             - name: MAILGUN_VALIDATION_KEY
               value: {{.Values.app.mailgun.validationKey}}
+            - name: HOSTNAME
+              value: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
           readinessProbe:
             httpGet:
               path: /ready

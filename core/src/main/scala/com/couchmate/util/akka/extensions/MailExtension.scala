@@ -4,12 +4,13 @@ import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
 import com.couchmate.util.mail.Fragments._
 import com.couchmate.util.mail.MailgunCallback
 import com.typesafe.config.{Config, ConfigFactory}
-import net.sargue.mailgun.{Configuration, Mail, MailBuilder}
+import net.sargue.mailgun.{Configuration, Mail}
 
 import scala.concurrent.{Future, Promise}
 
 class MailExtension(system: ActorSystem[_]) extends Extension {
   private[this] val config: Config = ConfigFactory.load()
+  private[this] val hostname: String = config.getString("hostname")
   private[this] val apiKey: String = config.getString("mailgun.apiKey")
 
   private[this] val mailgunConfiguration: Configuration =
@@ -27,7 +28,7 @@ class MailExtension(system: ActorSystem[_]) extends Extension {
       ),
       row(
         emailText("Click the following "),
-        emailLink("link", s"https://couchmate.com/register?token=$token"),
+        emailLink("link", s"https://${hostname}/register?token=$token"),
         emailText(" to successfully register your account.")
       )
     ).toString).build().sendAsync(MailgunCallback(p))
@@ -43,7 +44,7 @@ class MailExtension(system: ActorSystem[_]) extends Extension {
       ),
       row(
         emailText("Click this "),
-        emailLink("link", s"https://couchmate.com/reset?token=$token"),
+        emailLink("link", s"https://${hostname}/reset?token=$token"),
         emailText(" to reset your password.")
       )
     ).toString).build().sendAsync(MailgunCallback(p))
