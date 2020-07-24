@@ -18,11 +18,9 @@ class MailExtension(system: ActorSystem[_]) extends Extension {
       .apiKey(apiKey)
       .from("Couchmate", "no-reply@couchmate.com")
 
-  private[this] val mail: MailBuilder = Mail.using(mailgunConfiguration)
-
   def accountRegistration(emailAddress: String, token: String): Future[Boolean] = {
     val p: Promise[Boolean] = Promise[Boolean]()
-    mail.to(emailAddress).subject("Couchmate Account Registration").html(email(
+    Mail.using(mailgunConfiguration).to(emailAddress).subject("Couchmate Account Registration").html(email(
       banner("Couchmate Account Registration"),
       row(
         emailText("You're almost there!")
@@ -38,7 +36,7 @@ class MailExtension(system: ActorSystem[_]) extends Extension {
 
   def forgotPassword(emailAddress: String, token: String): Future[Boolean] = {
     val p: Promise[Boolean] = Promise[Boolean]()
-    mail.to(emailAddress).subject("Couchmate Forgot Password").html(email(
+    Mail.using(mailgunConfiguration).to(emailAddress).subject("Couchmate Forgot Password").html(email(
       banner("Couchmate Forgot Password"),
       row(
         emailText("Ruh Roh! Let's get you back to chatting."),
