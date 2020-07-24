@@ -74,7 +74,7 @@ object UserRoutes
             onComplete(for {
               userId <- Future.fromTry(jwt.validateToken(
                 token,
-                Map("scope" -> "reset")
+                Map("scope" -> "forgot")
               )) recoverWith {
                 case ExpiredJwtError => Future.failed(ForgotPasswordError(
                   ForgotPasswordErrorCause.TokenExpired

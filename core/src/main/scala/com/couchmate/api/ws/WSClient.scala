@@ -879,7 +879,7 @@ object WSClient
       Future.failed(ForgotPasswordError(ForgotPasswordErrorCause.NoAccountExists))
     )(user => Future.fromTry(jwt.createToken(
       user.userId.get.toString,
-      Map("scope" -> "reset"),
+      Map("scope" -> "forgot"),
       Duration.ofMinutes(20),
     )))
     _ <- mail.forgotPassword(email, token)
