@@ -4,19 +4,26 @@ import java.time.{Duration, LocalDateTime, ZoneId, ZoneOffset}
 import java.util.{Date, UUID}
 
 import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
-import com.couchmate.util.jwt.Jwt.{ExpiredJwtError, InvalidClaimsError, InvalidJwtError, JwtClaims}
-import com.nimbusds.jose.{JOSEException, JWSAlgorithm, JWSHeader}
-import com.nimbusds.jose.crypto.{MACSigner, MACVerifier}
+import com.couchmate.util.jwt.Jwt.{ExpiredJwtError, InvalidClaimsError, InvalidJwtError}
+import com.nimbusds.jose.crypto.{MACSigner, MACVerifier, PasswordBasedDecrypter, PasswordBasedEncrypter}
+import com.nimbusds.jose._
 import com.nimbusds.jwt.{JWTClaimsSet, SignedJWT}
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.util.{Failure, Success, Try}
+
+case class CMJwtClaims(
+  userId: UUID,
+  claims: JWTClaimsSet
+)
 
 class JwtExtension(system: ActorSystem[_]) extends Extension {
   private[this] val config: Config = ConfigFactory.load()
 
   private[this] lazy val secret =
     config.getString("jwt.secret")
+  private[this] lazy val encryptString =
+    config.getString("jwt.encrypt")
   private[this] lazy val issuer =
     config.getString("jwt.issuer")
   private[this] lazy val expiry =
@@ -24,6 +31,16 @@ class JwtExtension(system: ActorSystem[_]) extends Extension {
 
   private[this] lazy val signer: MACSigner =
     new MACSigner(this.secret)
+
+  private[this] lazy val encrypter: PasswordBasedEncrypter =
+    new PasswordBasedEncrypter(
+      encryptString,
+      10,
+      1000
+    )
+
+  private[this] lazy val decrypter: PasswordBasedDecrypter =
+    new PasswordBasedDecrypter(encryptString)
 
   private[this] lazy val verifier: MACVerifier =
     new MACVerifier(this.secret)
@@ -35,6 +52,7 @@ class JwtExtension(system: ActorSystem[_]) extends Extension {
   ): Try[String] = {
     val claimsSet = new JWTClaimsSet.Builder()
     claimsSet.subject(subject)
+    claimsSet.issuer(issuer)
     claims.foreach {
       case (key, value) =>
         claimsSet.claim(key, value)
@@ -51,10 +69,20 @@ class JwtExtension(system: ActorSystem[_]) extends Extension {
       new JWSHeader(JWSAlgorithm.HS256),
       claimsSet.build()
     )
-
     try {
       signedJwt.sign(signer)
-      Success(signedJwt.serialize())
+
+      val jweObject: JWEObject = new JWEObject(
+        new JWEHeader.Builder(
+          JWEAlgorithm.PBES2_HS512_A256KW,
+          EncryptionMethod.A256GCM
+        ).contentType("JWT").build(),
+        new Payload(signedJwt)
+      )
+
+      jweObject.encrypt(encrypter)
+
+      Success(jweObject.serialize)
     } catch {
       case ex: JOSEException => Failure(ex)
     }
@@ -63,10 +91,18 @@ class JwtExtension(system: ActorSystem[_]) extends Extension {
   def validateToken(
     token: String,
     claims: Map[String, String] = Map()
-  ): Try[UUID] = {
+  ): Try[CMJwtClaims] = {
     try {
-      val signedJWT = SignedJWT.parse(token)
-      val verified = signedJWT.verify(verifier)
+      val jweObject: JWEObject =
+        JWEObject.parse(token)
+
+      jweObject.decrypt(decrypter)
+
+      val signedJWT = jweObject.getPayload.toSignedJWT
+
+      val verified =
+        signedJWT.verify(verifier)
+
       val expired = signedJWT
         .getJWTClaimsSet
         .getExpirationTime
@@ -94,7 +130,10 @@ class JwtExtension(system: ActorSystem[_]) extends Extension {
       } else if (!hasClaims) {
         Failure(InvalidClaimsError)
       } else {
-        Success(UUID.fromString(signedJWT.getJWTClaimsSet.getSubject))
+        Success(CMJwtClaims(
+          UUID.fromString(signedJWT.getJWTClaimsSet.getSubject),
+          signedJWT.getJWTClaimsSet
+        ))
       }
     } catch {
       case ex: Throwable => Failure(ex)

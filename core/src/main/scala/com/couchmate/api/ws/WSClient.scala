@@ -20,7 +20,7 @@ import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.{Chatroom, RoomParticipant}
 import com.couchmate.util.akka.AkkaUtils
-import com.couchmate.util.akka.extensions.{DatabaseExtension, JwtExtension, MailExtension, PromExtension, RoomExtension, SingletonExtension}
+import com.couchmate.util.akka.extensions.{CMJwtClaims, DatabaseExtension, JwtExtension, MailExtension, PromExtension, RoomExtension, SingletonExtension}
 import com.couchmate.util.jwt.Jwt.ExpiredJwtError
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.neovisionaries.i18n.CountryCode
@@ -273,10 +273,10 @@ object WSClient
           case Incoming(register: RegisterAccount) =>
             if (session.user.role == UserRole.Anon) {
               ctx.pipeToSelf(registerAccount(session, register)) {
-                case Success(session) => Connected.AccountRegistered(session)
+                case Success(_) => Connected.AccountRegistrationSent
                 case Failure(ex) =>
                   ctx.log.error("Failed to register", ex)
-                  Connected.AccountRegisteredFailed(ex)
+                  Connected.AccountRegistrationSentFailed(ex)
               }
             }
             Behaviors.same
@@ -318,8 +318,23 @@ object WSClient
             }
             Behaviors.same
 
-          case Connected.AccountRegistered(session) =>
-            ws ! Outgoing(RegisterAccountSuccess(User(
+          case Connected.AccountRegistrationSent =>
+            ws ! Outgoing(RegisterAccountSentSuccess)
+            metrics.incRegistered(
+              geo.timezone,
+              geo.country
+            )
+            Behaviors.same
+          case Connected.AccountRegistrationSentFailed(ex) => ex match {
+            case RegisterAccountError(cause) =>
+              ws ! Outgoing(RegisterAccountSentFailure(cause))
+            case _ =>
+              ws ! Outgoing(RegisterAccountSentFailure(RegisterAccountErrorCause.UnknownError))
+          }
+            Behaviors.same
+
+          case Connected.AccountVerified(session) =>
+            ws ! Outgoing(VerifyAccountSuccess(User(
               session.user.userId.get,
               verified = false,
               session.user.role,
@@ -328,21 +343,6 @@ object WSClient
               token = session.token,
               mutes = session.mutes,
             )))
-            metrics.incRegistered(
-              geo.timezone,
-              geo.country
-            )
-            inSession(session, geo, ws, init = false, None)
-          case Connected.AccountRegisteredFailed(ex) => ex match {
-            case RegisterAccountError(cause) =>
-              ws ! Outgoing(RegisterAccountFailure(cause))
-            case _ =>
-              ws ! Outgoing(RegisterAccountFailure(RegisterAccountErrorCause.UnknownError))
-          }
-            Behaviors.same
-
-          case Connected.AccountVerified(session) =>
-            ws ! Outgoing(VerifyAccountSuccess)
             inSession(session, geo, ws, init = false, None)
           case Connected.AccountVerifiedFailed(ex) => ex match {
             case RegisterAccountError(cause) =>
@@ -654,9 +654,9 @@ object WSClient
       case Failure(exception) =>
         ctx.log.warn(s"Got bad token: ${exception.getMessage}")
         createNewSession(geo)
-      case Success(value) => getUser(value) flatMap {
+      case Success(CMJwtClaims(userId, _)) => getUser(userId) flatMap {
         case None =>
-          ctx.log.warn(s"Couldn't find user $value")
+          ctx.log.warn(s"Couldn't find user $userId")
           createNewSession(geo)
         case Some(user @ InternalUser(Some(userId), _, _, _, _)) => for {
           userMeta <- getUserMeta(userId).map(_.getOrElse(
@@ -750,7 +750,7 @@ object WSClient
     ctx: ActorContext[Command],
     mail: MailExtension,
     jwt: JwtExtension
-  ): Future[SessionContext] = {
+  ): Future[Unit] = {
     import com.github.t3hnar.bcrypt._
 
     (for {
@@ -758,34 +758,21 @@ object WSClient
         case true => Future.failed(RegisterAccountError(EmailExists))
         case false => Future.successful()
       }
-      user <- upsertUser(session.user.copy(
-        role = UserRole.Registered
-      ))
-      meta <- upsertUserMeta(session.userMeta.copy(
-        email = Some(register.email)
-      ))
       hashed <- Future.fromTry(register.password.bcryptSafe(10))
-      _ <- upsertUserPrivate(UserPrivate(
-        userId = session.user.userId.get,
-        password = hashed
-      ))
-      _ <- addUserActivity(UserActivity(
-        userId = session.user.userId.get,
-        action = UserActivityType.Registered,
-      ))
       token <- Future.fromTry(jwt.createToken(
         session.user.userId.get.toString,
-        Map("scope" -> "register"),
+        Map(
+          "scope" -> "register",
+          "email" -> register.email,
+          "password" -> hashed
+        ),
         Duration.ofMinutes(20)
       ))
       _ <- mail.accountRegistration(
         register.email,
         token
       )
-    } yield session.copy(
-      user = user,
-      userMeta = meta
-    )) recoverWith {
+    } yield ()) recoverWith {
       case ex: Throwable =>
         ctx.log.error("Failed to register account", ex)
         Future.failed(RegisterAccountError(RegisterAccountErrorCause.UnknownError))
@@ -798,7 +785,7 @@ object WSClient
     db: Database,
     jwt: JwtExtension
   ): Future[SessionContext] = for {
-    userId <- Future.fromTry(jwt.validateToken(
+    claims <- Future.fromTry(jwt.validateToken(
       token,
       Map("scope" -> "register")
     )) recoverWith {
@@ -809,14 +796,35 @@ object WSClient
         RegisterAccountErrorCause.BadToken
       ))
     }
+    userId = claims.userId
+    email = claims.claims.getStringClaim("email")
+    hashedPw = claims.claims.getStringClaim("password")
+    // TODO: this _could_ cause issues in the future but for now it's a safety feature
+    // This basically assumes that the (anon) user who requested to regiser is going to be
+    // The same one who is ultimately registering.
+    // This could _not_ be the case if the user registers on a different device (web)
+    // Where the userId is different and would hit this mismatch
     _ <- if (userId != session.user.userId.get) {
       Future.failed(RegisterAccountError(RegisterAccountErrorCause.UserMismatch))
     } else { Future.successful() }
     user <- upsertUser(session.user.copy(
+      role = UserRole.Registered,
       verified = true
     ))
+    meta <- upsertUserMeta(session.userMeta.copy(
+      email = Some(email)
+    ))
+    _ <- upsertUserPrivate(UserPrivate(
+      userId = session.user.userId.get,
+      password = hashedPw
+    ))
+    _ <- addUserActivity(UserActivity(
+      userId = session.user.userId.get,
+      action = UserActivityType.Registered,
+    ))
   } yield session.copy(
-    user = user
+    user = user,
+    userMeta = meta
   )
 
   def login(session: SessionContext, email: String, password: String)(
@@ -894,7 +902,7 @@ object WSClient
     import com.github.t3hnar.bcrypt._
 
     for {
-      userId <- Future.fromTry(jwt.validateToken(
+      claims <- Future.fromTry(jwt.validateToken(
         token,
         Map("scope" -> "forgot")
       )) recoverWith {
@@ -907,7 +915,7 @@ object WSClient
       }
       hashedPw <- Future.fromTry(password.bcryptSafe(10))
       _ <- upsertUserPrivate(UserPrivate(
-        userId,
+        claims.userId,
         hashedPw
       ))
     } yield ()

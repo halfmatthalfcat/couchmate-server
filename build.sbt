@@ -100,7 +100,7 @@ lazy val core = (project in file("core"))
       // Misc
       "org.julienrf"                %%  "play-json-derived-codecs"      % "7.0.0",
       "com.typesafe"                %   "config"                        % "1.4.0",
-      "com.nimbusds"                %   "nimbus-jose-jwt"               % "4.27",
+      "com.nimbusds"                %   "nimbus-jose-jwt"               % "8.3",
       "ch.qos.logback"              %   "logback-classic"               % "1.2.3",
       "com.github.halfmatthalfcat"  %%  "scala-moniker"                 % "0.0.1",
       "com.enragedginger"           %%  "akka-quartz-scheduler"         % "1.8.4-akka-2.6.x",
@@ -142,7 +142,7 @@ lazy val core = (project in file("core"))
           </developer>
         </developers>,
     publishMavenStyle := true,
-    addCommandAlias("db", "runMain com.couchmate.data.db.Migrations")
+    addCommandAlias("jwt", "runMain com.couchmate.util.jwt.Jwt")
   )
 
 lazy val tsSettings = Seq(

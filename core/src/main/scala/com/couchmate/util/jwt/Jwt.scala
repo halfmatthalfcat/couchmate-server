@@ -1,20 +1,13 @@
 package com.couchmate.util.jwt
 
-import enumeratum._
+import java.math.BigInteger
+import java.security.SecureRandom
 
 object Jwt {
-  sealed trait JwtClaims extends EnumEntry
+  private[this] val random = new SecureRandom()
 
-  object JwtClaims
-    extends Enum[JwtClaims]
-      with PlayJsonEnum[JwtClaims] {
-
-    val values = findValues
-
-    case object Access        extends JwtClaims
-    case object Registration  extends JwtClaims
-    case object PasswordReset extends JwtClaims
-
+  def main(args: Array[String]): Unit = {
+    System.out.println(new BigInteger(32 * 5, random).toString(32))
   }
 
   case object InvalidJwtError     extends Throwable

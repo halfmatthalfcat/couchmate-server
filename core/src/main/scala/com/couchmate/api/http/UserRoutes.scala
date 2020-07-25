@@ -1,15 +1,13 @@
 package com.couchmate.api.http
 
-import java.util.UUID
-
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.couchmate.api.ws.WSClient.upsertUserPrivate
-import com.couchmate.api.ws.protocol.{ForgotPasswordError, ForgotPasswordErrorCause, ForgotPasswordReset, ForgotPasswordResetFailed, ForgotPasswordResetSuccess, Protocol, RegisterAccountError, RegisterAccountErrorCause, ResetPasswordFailed, ResetPasswordSuccess, VerifyAccountFailed, VerifyAccountSuccess}
+import com.couchmate.api.ws.WSClient.addUserActivity
+import com.couchmate.api.ws.protocol._
+import com.couchmate.common.dao.{UserDAO, UserMetaDAO, UserPrivateDAO}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.dao.{UserDAO, UserPrivateDAO}
-import com.couchmate.common.models.data.{User, UserPrivate}
+import com.couchmate.common.models.data._
 import com.couchmate.util.akka.extensions.JwtExtension
 import com.couchmate.util.jwt.Jwt.ExpiredJwtError
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
@@ -21,6 +19,7 @@ import scala.util.{Failure, Success}
 object UserRoutes
   extends PlayJsonSupport
   with UserDAO
+  with UserMetaDAO
   with UserPrivateDAO {
 
   def apply()(
@@ -31,9 +30,9 @@ object UserRoutes
   ): Route = concat(
     path("register") {
       get {
-        parameter(Symbol("token")) { token =>
+        parameter(Symbol("token")) { token: String =>
           onComplete(for {
-            userId <- Future.fromTry[UUID](jwt.validateToken(
+            claims <- Future.fromTry(jwt.validateToken(
               token,
               Map("scope" -> "register")
             )) recoverWith {
@@ -44,17 +43,38 @@ object UserRoutes
                 RegisterAccountErrorCause.BadToken
               ))
             }
+            userId = claims.userId
+            email = claims.claims.getStringClaim("email")
+            password = claims.claims.getStringClaim("password")
             user <- getUser(userId)
             _ <- user.fold[Future[User]](
               Future.failed(RegisterAccountError(
                 RegisterAccountErrorCause.UserNotFound
               ))
             )(u => upsertUser(u.copy(
+              role = UserRole.Registered,
               verified = true
             )))
+            userMeta <- getUserMeta(userId)
+            _ <- userMeta.fold[Future[UserMeta]](
+              Future.failed(RegisterAccountError(
+                RegisterAccountErrorCause.UnknownError
+              ))
+            )(uM => upsertUserMeta(uM.copy(
+              userId = userId,
+              email = Some(email)
+            )))
+            _ <- upsertUserPrivate(UserPrivate(
+              userId = userId,
+              password = password
+            ))
+            _ <- addUserActivity(UserActivity(
+              userId = userId,
+              action = UserActivityType.Registered,
+            ))
           } yield ()) {
             case Success(_) =>
-              complete(200 -> Json.toJson[Protocol](VerifyAccountSuccess))
+              complete(200 -> Json.toJson[Protocol](VerifyAccountSuccessWeb))
             case Failure(RegisterAccountError(cause)) =>
               complete(200 -> Json.toJson[Protocol](VerifyAccountFailed(cause)))
             case _ =>
@@ -72,7 +92,7 @@ object UserRoutes
             import com.github.t3hnar.bcrypt._
 
             onComplete(for {
-              userId <- Future.fromTry(jwt.validateToken(
+              claims <- Future.fromTry(jwt.validateToken(
                 token,
                 Map("scope" -> "forgot")
               )) recoverWith {
@@ -85,7 +105,7 @@ object UserRoutes
               }
               hashedPw <- Future.fromTry(password.bcryptSafe(10))
               _ <- upsertUserPrivate(UserPrivate(
-                userId,
+                claims.userId,
                 hashedPw
               ))
             } yield ()) {

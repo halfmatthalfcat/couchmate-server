@@ -94,17 +94,18 @@ case class RegisterAccount(
   email: String,
   password: String,
 ) extends Protocol
-case class RegisterAccountSuccess(
-  user: User
-) extends Protocol
-case class RegisterAccountFailure(
+case object RegisterAccountSentSuccess extends Protocol
+case class RegisterAccountSentFailure(
   cause: RegisterAccountErrorCause
 ) extends Protocol
 
 case class VerifyAccount(
   token: String,
 ) extends Protocol
-case object VerifyAccountSuccess extends Protocol
+case class VerifyAccountSuccess(
+  user: User
+) extends Protocol
+case object VerifyAccountSuccessWeb extends Protocol
 case class VerifyAccountFailed(
   cause: RegisterAccountErrorCause
 ) extends Protocol
