@@ -12,7 +12,7 @@ class UserTable(tag: Tag) extends Table[User](tag, "user") {
   def role: Rep[UserRole] = column[UserRole]("role")
   def active: Rep[Boolean] = column[Boolean]("active", O.Default(true))
   def verified: Rep[Boolean] = column[Boolean]("verified", O.Default(false))
-  def created: Rep[Option[LocalDateTime]] = column[Option[LocalDateTime]]("created", O.SqlType("timestamp default now()"))
+  def created: Rep[LocalDateTime] = column[LocalDateTime]("created", O.SqlType("timestamp default now()"))
   def * = (
     userId.?,
     role,
