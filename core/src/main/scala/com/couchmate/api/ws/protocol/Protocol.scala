@@ -90,6 +90,16 @@ case class ValidateUsernameResponse(
   valid: Boolean
 ) extends Protocol
 
+case class UpdateUsername(
+  username: String
+) extends Protocol
+case class UpdateUsernameSuccess(
+  user: User
+) extends Protocol
+case class UpdateUsernameFailure(
+  cause: UpdateUsernameErrorCause
+) extends Protocol
+
 case class RegisterAccount(
   email: String,
   password: String,

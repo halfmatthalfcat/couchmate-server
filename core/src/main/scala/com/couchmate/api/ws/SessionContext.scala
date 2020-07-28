@@ -4,6 +4,7 @@ import java.util.UUID
 
 import com.couchmate.common.models.api.grid.{Grid, GridAiring}
 import com.couchmate.common.models.data.{RoomStatusType, User, UserMeta}
+import com.couchmate.common.models.api.user.{ User => ExternalUser }
 
 case class SessionContext(
   user: User,
@@ -32,4 +33,15 @@ case class SessionContext(
           airing.status == RoomStatusType.Open
         )
     }
+
+  def getClientUser: ExternalUser = ExternalUser(
+    user.userId.get,
+    user.created,
+    user.verified,
+    user.role,
+    userMeta.username,
+    userMeta.email,
+    token,
+    mutes,
+  )
 }

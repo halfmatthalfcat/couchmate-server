@@ -64,6 +64,9 @@ package object ws {
       case class UsernameValidated(exists: Boolean, valid: Boolean) extends Command
       case class UsernameValidatedFailed(ex: Throwable) extends Command
 
+      case class UsernameUpdated(session: SessionContext) extends Command
+      case class UsernameUpdatedFailed(ex: Throwable) extends Command
+
       case object AccountRegistrationSent extends Command
       case class AccountRegistrationSentFailed(ex: Throwable) extends Command
 

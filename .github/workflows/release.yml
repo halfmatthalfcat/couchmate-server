@@ -76,4 +76,4 @@ jobs:
       - name: Version chart
         run: helm release ./chart -t ${{ github.event.release.tag_name }}
       - name: Release chart
-        run: helm upgrade --install --atomic --cleanup-on-fail --set registry.token=${{ secrets.GITHUB_TOKEN }},external-dns.cloudflare.apiKey=${{ secrets.CF_TOKEN }} couchmate ./charts
+        run: helm upgrade --install --atomic --cleanup-on-fail --set registry.token=${{ secrets.GH_PAT }},external-dns.cloudflare.apiKey=${{ secrets.CF_TOKEN }} couchmate ./charts

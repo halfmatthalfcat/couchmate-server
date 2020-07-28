@@ -10,7 +10,7 @@ case class User (
   role: UserRole,
   active: Boolean,
   verified: Boolean,
-  created: Option[LocalDateTime] = None
+  created: LocalDateTime
 )
 
 object User extends JsonConfig {

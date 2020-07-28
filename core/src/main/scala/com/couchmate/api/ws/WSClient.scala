@@ -7,6 +7,7 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.Materializer
 import com.couchmate.Server
+import com.couchmate.api.ws.Commands.Connected.{UsernameUpdated, UsernameUpdatedFailed}
 import com.couchmate.api.ws.protocol.RegisterAccountErrorCause.EmailExists
 import com.couchmate.api.ws.protocol._
 import com.couchmate.api.ws.util.MessageMonitor
@@ -165,15 +166,7 @@ object WSClient
 
       if (init && roomRestore.nonEmpty && session.roomIsOpen(roomRestore.get)) {
         ws ! Outgoing(SetSession(
-          User(
-            userId = session.user.userId.get,
-            username = session.userMeta.username,
-            email = session.userMeta.email,
-            token = session.token,
-            verified = session.user.verified,
-            role = session.user.role,
-            mutes = session.mutes
-          ),
+          session.getClientUser,
           session.providerName,
           session.token,
         ))
@@ -193,15 +186,7 @@ object WSClient
         )
       } else if (init) {
         ws ! Outgoing(SetSession(
-          User(
-            userId = session.user.userId.get,
-            username = session.userMeta.username,
-            email = session.userMeta.email,
-            token = session.token,
-            verified = session.user.verified,
-            role = session.user.role,
-            mutes = session.mutes
-          ),
+          session.getClientUser,
           session.providerName,
           session.token,
         ))
@@ -253,7 +238,7 @@ object WSClient
             Behaviors.same
 
           case Incoming(ValidateUsername(username)) =>
-            val usernameRegex = "^[a-zA-Z0-9]{0,16}$".r
+            val usernameRegex = "^[a-zA-Z0-9]{1,16}$".r
             if (usernameRegex.matches(username)) {
               ctx.pipeToSelf(usernameExists(username)) {
                 case Success(exists) => Connected.UsernameValidated(
@@ -297,6 +282,13 @@ object WSClient
             }
             Behaviors.same
 
+          case Incoming(Logout) =>
+            ctx.pipeToSelf(createNewSession(geo)) {
+              case Success(session) => Connected.LoggedIn(session)
+              case Failure(ex: Throwable) => Connected.LoggedInFailed(ex)
+            }
+            Behaviors.same
+
           case Incoming(ForgotPassword(email)) =>
             ctx.pipeToSelf(sendForgotPassword(email)) {
               case Success(_) => Connected.ForgotPasswordSent
@@ -318,6 +310,19 @@ object WSClient
             }
             Behaviors.same
 
+          case Incoming(UpdateUsername(username)) =>
+            if (session.user.verified) {
+              ctx.pipeToSelf(updateUsername(session, username)) {
+                case Success(session) => UsernameUpdated(session)
+                case Failure(ex) => UsernameUpdatedFailed(ex)
+              }
+            } else {
+              ws ! Outgoing(UpdateUsernameFailure(
+                UpdateUsernameErrorCause.AccountNotRegistered
+              ))
+            }
+            Behaviors.same
+
           case Connected.AccountRegistrationSent =>
             ws ! Outgoing(RegisterAccountSentSuccess)
             metrics.incRegistered(
@@ -334,15 +339,7 @@ object WSClient
             Behaviors.same
 
           case Connected.AccountVerified(session) =>
-            ws ! Outgoing(VerifyAccountSuccess(User(
-              session.user.userId.get,
-              verified = false,
-              session.user.role,
-              session.userMeta.username,
-              session.userMeta.email,
-              token = session.token,
-              mutes = session.mutes,
-            )))
+            ws ! Outgoing(VerifyAccountSuccess(session.getClientUser))
             inSession(session, geo, ws, init = false, None)
           case Connected.AccountVerifiedFailed(ex) => ex match {
             case RegisterAccountError(cause) =>
@@ -361,6 +358,19 @@ object WSClient
 
           case Connected.UsernameValidated(exists, valid) =>
             ws ! Outgoing(ValidateUsernameResponse(exists, valid))
+            Behaviors.same
+
+          case Connected.UsernameUpdated(session) =>
+            ws ! Outgoing(UpdateUsernameSuccess(session.getClientUser))
+            inSession(session, geo, ws, init = false, None)
+          case Connected.UsernameUpdatedFailed(ex) => ex match {
+            case UpdateUsernameError(cause) =>
+              ws ! Outgoing(UpdateUsernameFailure(cause))
+            case _ =>
+              ws ! Outgoing(UpdateUsernameFailure(
+                UpdateUsernameErrorCause.Unknown
+              ))
+          }
             Behaviors.same
 
           case Connected.LoggedIn(session) =>
@@ -702,7 +712,7 @@ object WSClient
         role = UserRole.Anon,
         active = true,
         verified = false,
-        created = Some(LocalDateTime.now(ZoneId.of("UTC")))
+        created = LocalDateTime.now(ZoneId.of("UTC"))
       ))
       userMeta <- upsertUserMeta(UserMeta(
         userId = user.userId.get,
@@ -949,5 +959,30 @@ object WSClient
         hashedPw
       ))
     } yield ()
+  }
+
+  def updateUsername(
+    session: SessionContext,
+    username: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[SessionContext] = {
+    val usernameRegex = "^[a-zA-Z0-9]{1,16}$".r
+    if (usernameRegex.matches(username)) {
+      usernameExists(username) flatMap {
+        case true => Future.failed(UpdateUsernameError(
+          UpdateUsernameErrorCause.UsernameExists
+        ))
+        case false => upsertUserMeta(session.userMeta.copy(
+          username = username
+        )) map(uM => session.copy(userMeta = uM))
+      }
+    } else {
+      Future.failed(UpdateUsernameError(
+        UpdateUsernameErrorCause.InvalidUsername
+      ))
+    }
   }
 }
