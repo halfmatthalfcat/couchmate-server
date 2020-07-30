@@ -113,6 +113,7 @@ lazy val core = (project in file("core"))
     scalacOptions ++= Seq(
       "-encoding", "UTF-8",
       "-language:postfixOps",
+      "-language:implicitConversions"
     ),
     releaseVersionBump := sbtrelease.Version.Bump.Bugfix,
     releaseProcess := Seq[ReleaseStep](

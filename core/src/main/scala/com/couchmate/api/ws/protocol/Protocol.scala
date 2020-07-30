@@ -1,14 +1,11 @@
 package com.couchmate.api.ws.protocol
 
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import com.couchmate.common.models.api.grid.Grid
-import com.couchmate.common.models.api.room.Participant
+import com.couchmate.common.models.api.room.{Message, Participant}
 import com.couchmate.common.models.api.Provider
 import com.couchmate.common.models.api.user.User
-import com.couchmate.common.models.data.UserMeta
 import com.couchmate.common.util.json.CountryCodePlayJson
 import com.neovisionaries.i18n.CountryCode
 import julienrf.json.derived
@@ -165,42 +162,13 @@ case class MuteParticipant(
 case class SendMessage(
   message: String
 ) extends Protocol
-
-case class RoomMessage(
-  messageId: String,
-  participant: Participant,
-  isSelf: Boolean,
-  message: String,
-) extends Protocol
-case class SystemMessage(
-  messageId: String,
-  message: String
-) extends Protocol
-case class DirectMessage(
-  messageId: String,
-  participant: Participant,
-  isSelf: Boolean,
-  message: String,
+case class AppendMessage(
+  message: Message
 ) extends Protocol
 
-object RoomMessage {
-  def apply(
-    participant: Participant,
-    isSelf: Boolean,
-    message: String,
-  ): RoomMessage = {
-    val instant: Instant = Instant.now()
-    val seconds: Long = instant.getEpochSecond
-    val nano: Long = instant.truncatedTo(ChronoUnit.MICROS).getNano
-
-    new RoomMessage(
-      s"$seconds.$nano",
-      participant,
-      isSelf,
-      message
-    )
-  }
-}
+case class MessageReplay(
+  messages: List[Message]
+) extends Protocol
 
 case class LockSending(
   duration: Int

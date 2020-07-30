@@ -10,7 +10,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.api.ws.protocol.Protocol
 import com.couchmate.common.models.data.{User, UserMeta}
-import com.couchmate.services.room.{RoomId, RoomParticipant}
+import com.couchmate.services.room.{RoomId, RoomMessage, RoomParticipant}
 
 package object ws {
   object Commands {
@@ -102,12 +102,12 @@ package object ws {
       case class SetParticipants(participants: Set[RoomParticipant])  extends Command
       case class AddParticipant(participant: RoomParticipant)         extends Command
       case class RemoveParticipant(participant: RoomParticipant)      extends Command
+      case class MessageReplay(messages: List[RoomMessage])           extends Command
     }
 
     object Messaging {
-      case class MessageSent(
-        participant: RoomParticipant,
-        message: String
+      case class OutgoingRoomMessage(
+        message: RoomMessage
       ) extends Command
 
       case object MessageQueued       extends Command

@@ -14,7 +14,6 @@ import com.couchmate.api.ws.util.MessageMonitor
 import com.couchmate.common.dao._
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.common.models.api.user.User
 import com.couchmate.common.models.data.{UserActivity, UserActivityType, UserMeta, UserPrivate, UserProvider, UserRole, User => InternalUser}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
 import com.couchmate.services.GridCoordinator
@@ -75,7 +74,8 @@ object WSClient
       case Chatroom.RoomParticipants(participants) => InRoom.SetParticipants(participants)
       case Chatroom.ParticipantJoined(participant) => InRoom.AddParticipant(participant)
       case Chatroom.ParticipantLeft(participant) => InRoom.RemoveParticipant(participant)
-      case Chatroom.MessageSent(participant, message) => Messaging.MessageSent(participant, message)
+      case Chatroom.OutgoingRoomMessage(message) => Messaging.OutgoingRoomMessage(message)
+      case Chatroom.MessageReplay(messages) => InRoom.MessageReplay(messages)
     }
 
     def closing: PartialCommand = {
@@ -581,15 +581,17 @@ object WSClient
               )))
             }
             Behaviors.same
-          case Messaging.MessageSent(participant, message) =>
-            if (!session.mutes.contains(participant.userId)) {
-              ctx.self ! Outgoing(RoomMessage(
-                Participant(
-                  participant.userId,
-                  participant.username
-                ),
-                isSelf = session.user.userId.contains(participant.userId),
-                message
+          case InRoom.MessageReplay(messages) =>
+            ctx.self ! Outgoing(MessageReplay(
+              messages.filterNot(_.author.map(_.userId).exists(authorId => session.mutes.contains(authorId)))
+            ))
+            Behaviors.same
+          case Messaging.OutgoingRoomMessage(message) =>
+            if (!session.mutes.exists(muteId => message.author.exists(_.userId == muteId))) {
+              ctx.self ! Outgoing(AppendMessage(
+                message.copy(
+                  isSelf = message.author.exists(_.userId == session.user.userId.get)
+                )
               ))
             }
             Behaviors.same

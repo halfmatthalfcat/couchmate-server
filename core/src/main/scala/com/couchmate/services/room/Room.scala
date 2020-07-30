@@ -14,19 +14,23 @@ import com.typesafe.config.ConfigFactory
 
 final case class Room(
   roomId: RoomId,
-  participants: List[RoomParticipant] = List.empty
+  participants: List[RoomParticipant] = List.empty,
+  messages: List[RoomMessage] = List.empty
 ) {
+  private[this] val config = ConfigFactory.load()
   private[this] val maxSize: Int =
-    ConfigFactory.load().getInt("features.room.default-size")
+    config.getInt("features.room.participant-size")
+  private[this] val cacheSize: Int =
+    config.getInt("features.room.message-cache-size")
 
-  def add(participant: RoomParticipant): Room = this.copy(
+  def addParticipant(participant: RoomParticipant): Room = this.copy(
     participants = participant :: participants
   )
 
-  def remove(userId: UUID): Room = this.copy(
+  def removeParticipant(userId: UUID): Room = this.copy(
     participants = participants.filterNot(_.userId == userId)
   )
-  def remove(actorRef: ActorRef[Command]): Room = this.copy(
+  def removeParticipant(actorRef: ActorRef[Command]): Room = this.copy(
     participants = participants.filterNot(_.actorRef == actorRef)
   )
 
@@ -43,9 +47,21 @@ final case class Room(
   def size: Int = participants.size
 
   def isFull: Boolean = participants.size >= maxSize
+
+  def addMessage(message: RoomMessage): Room = {
+    if (messages.length == cacheSize) {
+      this.copy(
+        messages = message :: messages.dropRight(1)
+      )
+    } else {
+      this.copy(
+        messages = message :: messages
+      )
+    }
+  }
 }
 
 object Room {
   implicit val ordering: Ordering[Room] =
-    Ordering.by((_: Room).size).reverse
+    Ordering.by((_: Room).size)
 }
