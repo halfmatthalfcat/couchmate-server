@@ -6,9 +6,9 @@ case class Message(
   messageId: String,
   messageType: MessageType,
   message: String,
-  author: Option[Participant] = None,
-  recipient: Option[Participant] = None,
-  isSelf: Boolean = false,
+  author: Option[Participant],
+  recipient: Option[Participant],
+  isSelf: Boolean,
 )
 
 object Message {

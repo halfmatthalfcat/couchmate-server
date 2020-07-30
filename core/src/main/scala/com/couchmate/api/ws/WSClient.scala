@@ -583,7 +583,11 @@ object WSClient
             Behaviors.same
           case InRoom.MessageReplay(messages) =>
             ctx.self ! Outgoing(MessageReplay(
-              messages.filterNot(_.author.map(_.userId).exists(authorId => session.mutes.contains(authorId)))
+              messages
+                .filterNot(_.author.map(_.userId).exists(authorId => session.mutes.contains(authorId)))
+                .map(message => message.copy(
+                  isSelf = message.author.exists(_.userId == session.user.userId.get)
+                ))
             ))
             Behaviors.same
           case Messaging.OutgoingRoomMessage(message) =>
@@ -597,7 +601,6 @@ object WSClient
             Behaviors.same
 
           case Complete | Closed =>
-            ctx.log.debug(s"Logging out ${session.user.userId.get}")
             metrics.decSession(
               session.providerId,
               session.providerName,

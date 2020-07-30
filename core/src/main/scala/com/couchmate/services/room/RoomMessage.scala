@@ -48,6 +48,7 @@ object RoomMessage {
         r.userId,
         r.username
       )),
+      self.isSelf
     )
 
   implicit def toMessageCollection(self: List[RoomMessage]): List[Message] =
