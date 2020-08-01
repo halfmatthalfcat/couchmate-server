@@ -80,6 +80,7 @@ object Chatroom
   private final case class GetAiringSuccess(airing: AiringStatus) extends Command
   private final case class GetAiringFailure(err: Throwable) extends Command
 
+  private final case object ShowEnding extends Command
   private final case object RoomEnding extends Command
 
   private sealed trait Event
@@ -137,7 +138,36 @@ object Chatroom
           metrics
         ),
         eventHandler
-      )
+      ).receiveSignal {
+        case (State(airingId, Some(status), _), RecoveryCompleted) =>
+          ctx.log.info(s"Recovered room $airingId and restarting timers")
+          ctx.log.info(Duration.between(
+            LocalDateTime.now(ZoneId.of("UTC")),
+            status.endTime.minusMinutes(
+              status.duration - Math.round(status.duration * 0.9)
+            ),
+          ).toString)
+          // Fire timer at around the 90% show completion mark
+          timers.startSingleTimer(
+            ShowEnding,
+            DurationConverters.toScala(Duration.between(
+              LocalDateTime.now(ZoneId.of("UTC")),
+              status.endTime.minusMinutes(
+                status.duration - Math.round(status.duration * 0.9)
+              ),
+            )).max(FiniteDuration(0L, SECONDS))
+          )
+          // Fire timer at show end + 15 minutes to close the room
+          timers.startSingleTimer(
+            RoomEnding,
+            DurationConverters.toScala(Duration.between(
+              LocalDateTime.now(ZoneId.of("UTC")),
+              status.endTime.plusMinutes(15),
+            )).max(FiniteDuration(0L, SECONDS))
+          )
+        case (State(airingId, _, _), RecoveryCompleted) =>
+          ctx.log.info(s"Recovered room $airingId")
+      }
     }
   }
 
@@ -154,7 +184,25 @@ object Chatroom
         case GetAiringSuccess(AiringStatus(_, _, _, _, _, Closed)) => Effect.stop()
         case GetAiringSuccess(status) => Effect
           .persist(SetAiringStatus(status))
-          .thenRun((s: State) =>
+          .thenRun((s: State) => {
+            ctx.log.info(s"Setting timers for ${s.airingId}")
+            ctx.log.info(Duration.between(
+              LocalDateTime.now(ZoneId.of("UTC")),
+              s.status.get.endTime.minusMinutes(
+                s.status.get.duration - Math.round(s.status.get.duration * 0.9)
+              ),
+            ).toString)
+            // Fire timer at around the 90% show completion mark
+            timers.startSingleTimer(
+              ShowEnding,
+              DurationConverters.toScala(Duration.between(
+                LocalDateTime.now(ZoneId.of("UTC")),
+                s.status.get.endTime.minusMinutes(
+                  s.status.get.duration - Math.round(s.status.get.duration * 0.9)
+                ),
+              )).max(FiniteDuration(0L, SECONDS))
+            )
+            // Fire timer at show end + 15 minutes to close the room
             timers.startSingleTimer(
               RoomEnding,
               DurationConverters.toScala(Duration.between(
@@ -162,15 +210,28 @@ object Chatroom
                 s.status.get.endTime.plusMinutes(15),
               )).max(FiniteDuration(0L, SECONDS))
             )
-          )
+          })
           .thenUnstashAll()
         case GetAiringFailure(_) => Effect.stop()
         case _ => Effect.stash()
       }
       case _ => command match {
+        case ShowEnding =>
+          Effect.none
+          .thenRun((s: State) => {
+            ctx.log.info(s"Show ${s.airingId} is ending, firing")
+            s.hashes.foreachEntry {
+              case (_, namedRoom) =>
+                namedRoom.broadcastAll(RoomMessage(
+                  MessageType.System,
+                  "This show is ending soon. You can still continue chatting for 15 minutes after."
+                ))
+            }
+          })
         case RoomEnding => Effect
           .stop()
           .thenRun((s: State) => {
+            ctx.log.info(s"Room ${s.airingId} is ending, firing")
             s.hashes.foreachEntry {
               case (_, namedRoom) => namedRoom.rooms.foreach { room =>
                 room.participants.foreach { participant =>

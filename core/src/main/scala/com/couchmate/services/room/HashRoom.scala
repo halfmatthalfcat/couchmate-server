@@ -82,6 +82,9 @@ case class HashRoom private (
     }
   }
 
+  def broadcastAll(message: RoomMessage): Unit =
+    rooms.foreach(_.participants.map(_.actorRef).foreach(_ ! OutgoingRoomMessage(message)))
+
   def getLastMessage(roomId: RoomId): Option[RoomMessage] =
     getRoom(roomId).flatMap(_.messages.headOption)
 }
