@@ -14,7 +14,7 @@ case class User(
   username: String,
   email: Option[String],
   token: String,
-  mutes: Seq[UUID],
+  mutes: Seq[UserMute],
 )
 
 object User {

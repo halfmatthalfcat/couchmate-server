@@ -85,6 +85,9 @@ package object ws {
       case object PasswordResetComplete extends Command
       case class PasswordResetFailed(ex: Throwable) extends Command
 
+      case class ParticipantUnmuted(session: SessionContext) extends Command
+      case class ParticipantUnmutedFailed(ex: Throwable) extends Command
+
       case class ProviderUpdated(
         providerId: Long,
         providerName: String,
@@ -103,6 +106,9 @@ package object ws {
       case class AddParticipant(participant: RoomParticipant)         extends Command
       case class RemoveParticipant(participant: RoomParticipant)      extends Command
       case class MessageReplay(messages: List[RoomMessage])           extends Command
+
+      case class ParticipantMuted(session: SessionContext)            extends Command
+      case class ParticipantMutedFailed(ex: Throwable)                extends Command
     }
 
     object Messaging {

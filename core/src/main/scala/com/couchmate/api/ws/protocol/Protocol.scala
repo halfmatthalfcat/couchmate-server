@@ -5,7 +5,7 @@ import java.util.UUID
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.room.{Message, Participant}
 import com.couchmate.common.models.api.Provider
-import com.couchmate.common.models.api.user.User
+import com.couchmate.common.models.api.user.{User, UserMute}
 import com.couchmate.common.util.json.CountryCodePlayJson
 import com.neovisionaries.i18n.CountryCode
 import julienrf.json.derived
@@ -155,8 +155,15 @@ case class AddParticipant(
 case class RemoveParticipant(
   participant: Participant
 ) extends Protocol
+
 case class MuteParticipant(
-  participant: Participant
+  userId: UUID
+) extends Protocol
+case class UnmuteParticipant(
+  userId: UUID
+) extends Protocol
+case class UpdateMutes(
+  mutes: Seq[UserMute]
 ) extends Protocol
 
 case class SendMessage(

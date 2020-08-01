@@ -3,8 +3,9 @@ package com.couchmate.common.dao
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.models.api.user.{UserMute => ExternalUserMute}
 import com.couchmate.common.models.data.UserMute
-import com.couchmate.common.tables.UserMuteTable
+import com.couchmate.common.tables.{UserMetaTable, UserMuteTable}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -12,9 +13,10 @@ trait UserMuteDAO {
 
   def getUserMutes(userId: UUID)(
     implicit
+    ec: ExecutionContext,
     db: Database
-  ): Future[Seq[UUID]] =
-    db.run(UserMuteDAO.getUserMutes(userId))
+  ): Future[Seq[ExternalUserMute]] =
+    db.run(UserMuteDAO.getUserMutes(userId).map(_.map((ExternalUserMute.apply _).tupled)))
 
   def addUserMute(userMute: UserMute)(
     implicit
@@ -45,8 +47,13 @@ object UserMuteDAO {
     UserMuteTable.table.filter(_.userId === userId).map(_.userMuteId)
   }
 
-  private[common] def getUserMutes(userId: UUID): DBIO[Seq[UUID]] =
-    getUserMutesQuery(userId).result
+  private[common] def getUserMutes(userId: UUID)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Seq[(UUID, String)]] = (for {
+    mutes <- UserMuteTable.table if mutes.userId === userId
+    users <- UserMetaTable.table if users.userId === mutes.userMuteId
+  } yield (users.userId, users.username)).result
 
   private[common] def userIsMuted(userId: UUID, muteeId: UUID): DBIO[Option[UserMute]] =
     getUserMuteQuery(userId, muteeId).result.headOption

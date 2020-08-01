@@ -7,20 +7,19 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.Materializer
 import com.couchmate.Server
-import com.couchmate.api.ws.Commands.Connected.{UsernameUpdated, UsernameUpdatedFailed}
 import com.couchmate.api.ws.protocol.RegisterAccountErrorCause.EmailExists
 import com.couchmate.api.ws.protocol._
 import com.couchmate.api.ws.util.MessageMonitor
 import com.couchmate.common.dao._
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.common.models.data.{UserActivity, UserActivityType, UserMeta, UserPrivate, UserProvider, UserRole, User => InternalUser}
+import com.couchmate.common.models.data.{UserActivity, UserActivityType, UserMeta, UserMute, UserPrivate, UserProvider, UserRole, User => InternalUser}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.{Chatroom, RoomParticipant}
 import com.couchmate.util.akka.AkkaUtils
-import com.couchmate.util.akka.extensions.{CMJwtClaims, DatabaseExtension, JwtExtension, MailExtension, PromExtension, RoomExtension, SingletonExtension}
+import com.couchmate.util.akka.extensions._
 import com.couchmate.util.jwt.Jwt.ExpiredJwtError
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.neovisionaries.i18n.CountryCode
@@ -77,6 +76,14 @@ object WSClient
       case Chatroom.OutgoingRoomMessage(message) => Messaging.OutgoingRoomMessage(message)
       case Chatroom.MessageReplay(messages) => InRoom.MessageReplay(messages)
     }
+
+    val messageMonitorAdapter: ActorRef[MessageMonitor.Command] =
+      ctx.messageAdapter {
+        case MessageMonitor.LockSending(duration) =>
+          Outgoing(LockSending(duration))
+        case MessageMonitor.UnlockSending =>
+          Outgoing(UnlockSending)
+      }
 
     def closing: PartialCommand = {
       case Complete | Connected.LogoutSuccess =>
@@ -313,13 +320,20 @@ object WSClient
           case Incoming(UpdateUsername(username)) =>
             if (session.user.verified) {
               ctx.pipeToSelf(updateUsername(session, username)) {
-                case Success(session) => UsernameUpdated(session)
-                case Failure(ex) => UsernameUpdatedFailed(ex)
+                case Success(session) => Connected.UsernameUpdated(session)
+                case Failure(ex) => Connected.UsernameUpdatedFailed(ex)
               }
             } else {
               ws ! Outgoing(UpdateUsernameFailure(
                 UpdateUsernameErrorCause.AccountNotRegistered
               ))
+            }
+            Behaviors.same
+
+          case Incoming(UnmuteParticipant(userId)) =>
+            ctx.pipeToSelf(unmuteParticipant(session, userId)) {
+              case Success(session) => Connected.ParticipantUnmuted(session)
+              case Failure(ex) => Connected.ParticipantUnmutedFailed(ex)
             }
             Behaviors.same
 
@@ -387,7 +401,6 @@ object WSClient
             ws ! Outgoing(ForgotPasswordResponse(true))
             Behaviors.same
           case Connected.ForgotPasswordSentFailed(ex) =>
-            ctx.log.error(s"Unable to send forgot password email", ex)
             ws ! Outgoing(ForgotPasswordResponse(false))
             Behaviors.same
 
@@ -399,7 +412,6 @@ object WSClient
               ws ! Outgoing(ForgotPasswordResetFailed(cause))
               Behaviors.same
             case ex: Throwable =>
-              ctx.log.error("Unable to complete forgot password", ex)
               ws ! Outgoing(ForgotPasswordResetFailed(
                 ForgotPasswordErrorCause.Unknown
               ))
@@ -414,12 +426,15 @@ object WSClient
               ws ! Outgoing(ResetPasswordFailed(cause))
               Behaviors.same
             case ex: Throwable =>
-              ctx.log.error("Unable to reset password", ex)
               ws ! Outgoing(ResetPasswordFailed(
                 PasswordResetErrorCause.Unknown
               ))
               Behaviors.same
           }
+
+          case Connected.ParticipantUnmuted(session) =>
+            ws ! Outgoing(UpdateMutes(session.mutes))
+            inSession(session, geo, ws)
 
           case Connected.UpdateGrid(grid) =>
             ctx.self ! Outgoing(UpdateGrid(grid))
@@ -464,6 +479,9 @@ object WSClient
       ))
     }
 
+    /**
+     * TODO Need to come up with a better way to recreate state in here
+     */
     def inRoom(
       session: SessionContext,
       geo: GeoContext,
@@ -481,14 +499,6 @@ object WSClient
           geo.country,
         )
       }
-
-      val messageMonitorAdapter: ActorRef[MessageMonitor.Command] =
-        ctx.messageAdapter {
-          case MessageMonitor.LockSending(duration) =>
-            Outgoing(LockSending(duration))
-          case MessageMonitor.UnlockSending =>
-            Outgoing(UnlockSending)
-        }
 
       val messageMonitor: ActorRef[MessageMonitor.Command] =
         ctx.spawnAnonymous(MessageMonitor(
@@ -531,6 +541,13 @@ object WSClient
           case Incoming(SendMessage(message)) =>
             messageMonitor ! MessageMonitor.ReceiveMessage(message)
             Behaviors.same
+          case Incoming(MuteParticipant(participant)) =>
+            ctx.pipeToSelf(muteParticipant(session, participant)) {
+              case Success(session) => InRoom.ParticipantMuted(session)
+              case Failure(ex) => InRoom.ParticipantMutedFailed(ex)
+            }
+            Behaviors.same
+
           case InRoom.RoomRejoined(airingId, roomId) =>
             messageMonitor ! MessageMonitor.Complete
             inRoom(
@@ -584,14 +601,20 @@ object WSClient
           case InRoom.MessageReplay(messages) =>
             ctx.self ! Outgoing(MessageReplay(
               messages
-                .filterNot(_.author.map(_.userId).exists(authorId => session.mutes.contains(authorId)))
+                .filterNot(_.author.map(_.userId).exists(authorId => session.mutes.exists(_.userId == authorId)))
                 .map(message => message.copy(
                   isSelf = message.author.exists(_.userId == session.user.userId.get)
                 ))
             ))
             Behaviors.same
+          case InRoom.ParticipantMuted(session) =>
+            // TODO this is inefficient
+            messageMonitor ! MessageMonitor.Complete
+            ctx.self ! Outgoing(UpdateMutes(session.mutes))
+            inRoom(session, geo, ws, room, timer)
+
           case Messaging.OutgoingRoomMessage(message) =>
-            if (!session.mutes.exists(muteId => message.author.exists(_.userId == muteId))) {
+            if (!session.mutes.exists(mute => message.author.exists(_.userId == mute.userId))) {
               ctx.self ! Outgoing(AppendMessage(
                 message.copy(
                   isSelf = message.author.exists(_.userId == session.user.userId.get)
@@ -601,6 +624,7 @@ object WSClient
             Behaviors.same
 
           case Complete | Closed =>
+            messageMonitor ! MessageMonitor.Complete
             metrics.decSession(
               session.providerId,
               session.providerName,
@@ -988,6 +1012,52 @@ object WSClient
       Future.failed(UpdateUsernameError(
         UpdateUsernameErrorCause.InvalidUsername
       ))
+    }
+  }
+
+  def muteParticipant(
+    session: SessionContext,
+    userId: UUID
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[SessionContext] = {
+    if (session.mutes.exists(_.userId == userId)) {
+      Future.successful(session)
+    } else {
+      for {
+        _ <- addUserMute(UserMute(
+          session.user.userId.get,
+          userId
+        ))
+        mutes <- getUserMutes(session.user.userId.get)
+      } yield session.copy(
+        mutes = mutes
+      )
+    }
+  }
+
+  def unmuteParticipant(
+    session: SessionContext,
+    userMuteId: UUID
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[SessionContext] = {
+    if (!session.mutes.exists(_.userId == userMuteId)) {
+      Future.successful(session)
+    } else {
+      for {
+        _ <- removeUserMute(UserMute(
+          session.user.userId.get,
+          userMuteId
+        ))
+        mutes <- getUserMutes(session.user.userId.get)
+      } yield session.copy(
+        mutes = mutes
+      )
     }
   }
 }
