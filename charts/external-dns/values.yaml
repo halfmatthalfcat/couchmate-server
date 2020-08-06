@@ -1,0 +1,10 @@
+
+doToken:
+
+external-dns:
+  provider: digitalocean
+  domainFilters:
+    - couchmate.com
+  digitalocean:
+    secretName: digitalocean-apikey
+  txtPrefix: "cname."

@@ -354,7 +354,7 @@ object WSClient
 
           case Connected.AccountVerified(session) =>
             ws ! Outgoing(VerifyAccountSuccess(session.getClientUser))
-            inSession(session, geo, ws, init = false, None)
+            inSession(session, geo, ws)
           case Connected.AccountVerifiedFailed(ex) => ex match {
             case RegisterAccountError(cause) =>
               ws ! Outgoing(VerifyAccountFailed(cause))
@@ -376,7 +376,7 @@ object WSClient
 
           case Connected.UsernameUpdated(session) =>
             ws ! Outgoing(UpdateUsernameSuccess(session.getClientUser))
-            inSession(session, geo, ws, init = false, None)
+            inSession(session, geo, ws)
           case Connected.UsernameUpdatedFailed(ex) => ex match {
             case UpdateUsernameError(cause) =>
               ws ! Outgoing(UpdateUsernameFailure(cause))

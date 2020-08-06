@@ -1,0 +1,5 @@
+
+doToken:
+
+cert-manager:
+  installCRDs: true

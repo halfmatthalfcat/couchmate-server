@@ -1,0 +1,82 @@
+# Couchmate Server Helmfile
+
+repositories:
+  - name: stable
+    url: https://kubernetes-charts.storage.googleapis.com
+  - name: incubator
+    url: https://kubernetes-charts-incubator.storage.googleapis.com
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
+  - name: jetstack
+    url: https://charts.jetstack.io
+
+environments:
+  default:
+    values:
+      - env: dev
+      - nginxIngress:
+          controllerName: couchmate-dev-nginx-ingress-controller
+          defaultBackendName: couchmate-dev-nginx-ingress-default-backend
+  production:
+    values:
+      - env: prod
+      - nginxIngress:
+          controllerName: couchmate-prod-nginx-ingress-controller
+          defaultBackendName: couchmate-prod-nginx-ingress-default-backend
+
+helmDefaults:
+  atomic: true
+  cleanupOnFail: true
+
+releases:
+  - name: nginx-ingress
+    chart: stable/nginx-ingress
+    namespace: nginx-ingress
+    version: 1.40.3
+    values:
+      - nginx-ingress.yaml
+      - controller:
+          service:
+            annotations:
+              service.beta.kubernetes.io/do-loadbalancer-name: {{.Values.nginxIngress.controllerName}}
+      - defaultBackend:
+          service:
+            annotations:
+              service.beta.kubernetes.io/do-loadbalancer-name: {{.Values.nginxIngress.defaultBackendName}}
+  - name: cert-manager
+    chart: ./cert-manager
+    namespace: cert-manager
+    values:
+      - doToken: {{.Values.doToken}}
+  - name: couchmate
+    namespace: couchmate
+    chart: ./couchmate
+    needs:
+      - cert-manager/cert-manager
+    values:
+      - ./couchmate/values.yaml
+      - env: {{.Values.env}}
+      - app:
+          db:
+            host: {{.Values.dbHost}}
+            port: {{.Values.dbPort}}
+            username: {{.Values.dbUsername}}
+            password: {{.Values.dbPassword}}
+            name: {{.Values.dbName}}
+          mailgun:
+            apiKey: {{.Values.mailgunApiKey}}
+            validationKey: {{.Values.mailgunValidationKey}}
+      - registry:
+          token: {{.Values.registryToken}}
+      - doToken: {{.Values.doToken}}
+      - images:
+          tag: {{.Values.imageTag}}
+  # Needs to be after couchmate to apply the DO api key secret
+  - name: external-dns
+    chart: ./external-dns
+    namespace: external-dns
+    version: 3.2.2
+    needs:
+      - couchmate/couchmate
+    values:
+      - doToken: {{.Values.doToken}}
