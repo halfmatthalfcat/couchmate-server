@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: {{.Values.env}}-metrics-cert
+spec:
+  secretName: {{.Values.env}}-metrics-tls
+  issuerRef:
+    name: letsencrypt-issuer
+  commonName: couchmate.com
+  dnsNames:
+    - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
+    - grafana{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com

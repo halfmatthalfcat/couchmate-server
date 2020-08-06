@@ -5,6 +5,7 @@ controller:
     enabled: true
   service:
     annotations:
+      service.beta.kubernetes.io/do-loadbalancer-name: couchmate-{{.Values.env}}-nginx-ingress-controller
       service.beta.kubernetes.io/do-loadbalancer-algorithm: 'least_connections'
       service.beta.kubernetes.io/do-loadbalancer-protocol: 'https'
       service.beta.kubernetes.io/do-loadbalancer-http-ports: '80'
@@ -15,6 +16,7 @@ controller:
 defaultBackend:
   service:
     annotations:
+      service.beta.kubernetes.io/do-loadbalancer-name: couchmate-{{.Values.env}}-nginx-ingress-default-backend
       service.beta.kubernetes.io/do-loadbalancer-algorithm: 'least_connections'
       service.beta.kubernetes.io/do-loadbalancer-protocol: 'http'
       service.beta.kubernetes.io/do-loadbalancer-http-ports: '80'

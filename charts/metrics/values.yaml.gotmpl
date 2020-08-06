@@ -1,0 +1,55 @@
+env: {{.Values.env}}
+
+clientId: {{.Values.oauthClientId}}
+clientSecret: {{.Values.oauthClientSecret}}
+doToken: {{.Values.doToken}}
+
+prometheus-operator:
+  prometheus:
+    enabled: true
+    ingress:
+      enabled: true
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        cert-manager.io/issuer: letsencrypt-issuer
+        nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
+        nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+        service.beta.kubernetes.io/do-loadbalancer-name: couchmate-{{.Values.env}}-grafana
+        service.beta.kubernetes.io/do-loadbalancer-algorithm: 'least_connections'
+        service.beta.kubernetes.io/do-loadbalancer-protocol: 'https'
+        service.beta.kubernetes.io/do-loadbalancer-http-ports: '80'
+        service.beta.kubernetes.io/do-loadbalancer-tls-ports: '443'
+        service.beta.kubernetes.io/do-loadbalancer-tls-passthrough: 'true'
+        service.beta.kubernetes.io/do-loadbalancer-redirect-http-to-https: 'true'
+        external-dns.alpha.kubernetes.io/ttl: '120'
+      hosts:
+        - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
+      tls:
+        - hosts:
+            - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
+          secretName: {{.Values.env}}-metrics-tls
+  grafana:
+    enabled: true
+    ingress:
+      enabled: true
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        cert-manager.io/issuer: letsencrypt-issuer
+        nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
+        nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+        service.beta.kubernetes.io/do-loadbalancer-name: couchmate-{{.Values.env}}-prometheus
+        service.beta.kubernetes.io/do-loadbalancer-algorithm: 'least_connections'
+        service.beta.kubernetes.io/do-loadbalancer-protocol: 'https'
+        service.beta.kubernetes.io/do-loadbalancer-http-ports: '80'
+        service.beta.kubernetes.io/do-loadbalancer-tls-ports: '443'
+        service.beta.kubernetes.io/do-loadbalancer-tls-passthrough: 'true'
+        service.beta.kubernetes.io/do-loadbalancer-redirect-http-to-https: 'true'
+        external-dns.alpha.kubernetes.io/ttl: '120'
+      hosts:
+        - grafana{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
+      tls:
+        - hosts:
+            - grafana{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
+          secretName: {{.Values.env}}-metrics-tls
+  alertmanager:
+    enabled: false

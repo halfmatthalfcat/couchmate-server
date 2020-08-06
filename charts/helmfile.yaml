@@ -14,15 +14,9 @@ environments:
   default:
     values:
       - env: dev
-      - nginxIngress:
-          controllerName: couchmate-dev-nginx-ingress-controller
-          defaultBackendName: couchmate-dev-nginx-ingress-default-backend
   production:
     values:
       - env: prod
-      - nginxIngress:
-          controllerName: couchmate-prod-nginx-ingress-controller
-          defaultBackendName: couchmate-prod-nginx-ingress-default-backend
 
 helmDefaults:
   atomic: true
@@ -34,43 +28,19 @@ releases:
     namespace: nginx-ingress
     version: 1.40.3
     values:
-      - nginx-ingress.yaml
-      - controller:
-          service:
-            annotations:
-              service.beta.kubernetes.io/do-loadbalancer-name: {{.Values.nginxIngress.controllerName}}
-      - defaultBackend:
-          service:
-            annotations:
-              service.beta.kubernetes.io/do-loadbalancer-name: {{.Values.nginxIngress.defaultBackendName}}
+      - nginx-ingress.yaml.gotmpl
   - name: cert-manager
     chart: ./cert-manager
     namespace: cert-manager
     values:
-      - doToken: {{.Values.doToken}}
+      - ./cert-manager/values.yaml.gotmpl
   - name: couchmate
     namespace: couchmate
     chart: ./couchmate
     needs:
       - cert-manager/cert-manager
     values:
-      - ./couchmate/values.yaml
-      - env: {{.Values.env}}
-      - app:
-          db:
-            host: {{.Values.dbHost}}
-            port: {{.Values.dbPort}}
-            username: {{.Values.dbUsername}}
-            password: {{.Values.dbPassword}}
-            name: {{.Values.dbName}}
-          mailgun:
-            apiKey: {{.Values.mailgunApiKey}}
-            validationKey: {{.Values.mailgunValidationKey}}
-      - registry:
-          token: {{.Values.registryToken}}
-      - doToken: {{.Values.doToken}}
-      - images:
-          tag: {{.Values.imageTag}}
+      - ./couchmate/values.yaml.gotmpl
   # Needs to be after couchmate to apply the DO api key secret
   - name: external-dns
     chart: ./external-dns
@@ -79,4 +49,9 @@ releases:
     needs:
       - couchmate/couchmate
     values:
-      - doToken: {{.Values.doToken}}
+      - ./external-dns/values.yaml.gotmpl
+  - name: metrics
+    chart: ./metrics
+    namespace: metrics
+    values:
+      - ./metrics/values.yaml.gotmpl
