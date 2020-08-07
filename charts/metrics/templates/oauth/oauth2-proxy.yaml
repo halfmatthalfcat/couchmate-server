@@ -27,7 +27,7 @@ spec:
               # For now, on every release it'll update this value
               # People will have to re-login...if it becomes an issue
               # we can just change it to a static value
-              value: {{ randAscii 32 }}
+              value: "{{ randAscii 32 }}"
           image: quay.io/oauth2-proxy/oauth2-proxy:latest
           imagePullPolicy: Always
           name: oauth2-proxy

@@ -9,6 +9,8 @@ repositories:
     url: https://charts.bitnami.com/bitnami
   - name: jetstack
     url: https://charts.jetstack.io
+  - name: ckotzbauer
+    url: https://ckotzbauer.github.io/helm-charts
 
 environments:
   default:
@@ -55,3 +57,10 @@ releases:
     namespace: metrics
     values:
       - ./metrics/values.yaml.gotmpl
+  - name: cadvisor
+    chart: ckotzbauer/cadvisor
+    namespace: cadvisor
+    version: 1.1.3
+    values:
+      - metrics:
+          enabled: true

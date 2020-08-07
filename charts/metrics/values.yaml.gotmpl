@@ -28,6 +28,8 @@ prometheus-operator:
         - hosts:
             - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
           secretName: {{.Values.env}}-metrics-tls
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: true
   grafana:
     enabled: true
     ingress:
