@@ -76,5 +76,7 @@ spec:
   tls:
     - hosts:
         - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
+      secretName: {{.Values.env}}-prometheus-tls
+    - hosts:
         - grafana{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
-      secretName: {{.Values.env}}-metrics-tls
+      secretName: {{.Values.env}}-grafana-tls

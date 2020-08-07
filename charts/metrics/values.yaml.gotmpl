@@ -27,7 +27,7 @@ prometheus-operator:
       tls:
         - hosts:
             - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
-          secretName: {{.Values.env}}-metrics-tls
+          secretName: {{.Values.env}}-prometheus-tls
     prometheusSpec:
       serviceMonitorSelectorNilUsesHelmValues: true
   grafana:
@@ -52,6 +52,6 @@ prometheus-operator:
       tls:
         - hosts:
             - grafana{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
-          secretName: {{.Values.env}}-metrics-tls
+          secretName: {{.Values.env}}-grafana-tls
   alertmanager:
     enabled: false
