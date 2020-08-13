@@ -5,7 +5,7 @@ metadata:
   labels:
     app: server
     env: {{.Values.env}}
-    release: metrics
+    release: {{.Release.Name}}
 spec:
   selector:
     matchLabels:

@@ -38,10 +38,6 @@ object WSActor extends LazyLogging {
       ))
       .collect {
         case Success(msg) => msg
-        // TODO: remove in production
-        case Failure(exception) =>
-          logger.error("Parse error", exception)
-          throw exception
       }
       .collect(incoming)
       .to(ActorSink.actorRef(

@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: couchmate-server
+  labels:
+    app: server
+    env: {{.Values.env}}
+    release: {{.Release.Name}}
+spec:
+  selector:
+    matchLabels:
+      app: server
+      env: {{.Values.env}}
+  namespaceSelector:
+    matchNames:
+      - couchmate
+  endpoints:
+    - port: http
+      path: /metrics

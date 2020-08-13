@@ -1,6 +1,12 @@
 dependencies:
 - name: prometheus-operator
-  repository: https://kubernetes-charts.storage.googleapis.com
-  version: 9.3.1
-digest: sha256:bc02aa7782721d9aaebb2e003a423cc0273429d8eb7db741abdceed101497c86
-generated: "2020-08-06T08:14:48.443863-04:00"
+  repository: https://charts.bitnami.com/bitnami
+  version: 0.29.3
+- name: timescale-prometheus
+  repository: https://charts.timescale.com/
+  version: 0.1.0-beta.1
+- name: grafana
+  repository: https://charts.bitnami.com/bitnami
+  version: 3.3.3
+digest: sha256:6094edad0ea666e79fd61e31a2baf5a8eb8768c5ca85bd2c5b8581270150d8a1
+generated: "2020-08-12T15:09:43.691936-04:00"

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-application
+data:
+  application.json: |-
+    {{fromJson (.Files.Get "dashboards/application.json") | toJson}}
