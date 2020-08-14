@@ -138,4 +138,5 @@ jobs:
           --state-values-set tsdbPassword=${{ secrets.TSDB_DEV_PASSWORD }} \
           --state-values-set tsdbName=defaultdb \
           --state-values-set tsdbUsername=doadmin \
+          --quiet \
           sync
