@@ -101,7 +101,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - run: apt-get install helmfile -yyq
+      - run: sudo apt-get install helmfile -yyq
       - name: 'Get Current Version'
         id: currentVersion
         uses: "WyriHaximus/github-action-get-previous-tag@master"
