@@ -101,7 +101,8 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - run: sudo apt-get install helmfile -yyq
+      - name: Setup helmfile
+        uses: mamezou-tech/setup-helmfile@v0.4.0
       - name: 'Get Current Version'
         id: currentVersion
         uses: "WyriHaximus/github-action-get-previous-tag@master"
@@ -115,8 +116,6 @@ jobs:
           token: ${{ secrets.DO_TOKEN }}
       - name: Set cluster
         run: doctl kubernetes cluster kubeconfig save dev-east
-      - name: Build helm dependencies
-        run: cd charts && helm dependency update
       - name: Release chart
         run: |
           helmfile \
