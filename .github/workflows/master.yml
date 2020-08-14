@@ -118,7 +118,7 @@ jobs:
         run: doctl kubernetes cluster kubeconfig save dev-east
       - name: Release chart
         run: |
-          helmfile \
+          cd charts && helmfile \
           --state-values-set doToken=${{ secrets.DO_TOKEN }} \
           --state-values-set registryToken=${{ secrets.GITHUB_TOKEN }} \
           --state-values-set imageTag=${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }} \
