@@ -802,7 +802,7 @@ object WSClient
         session.user.userId.get.toString,
         Map(
           "scope" -> "register",
-          "email" -> register.email,
+          "email" -> register.email.toLowerCase,
           "password" -> hashed
         ),
         Duration.ofMinutes(20)
@@ -875,7 +875,7 @@ object WSClient
     import com.github.t3hnar.bcrypt._
 
     for {
-      userExists <- getUserByEmail(email)
+      userExists <- getUserByEmail(email.toLowerCase)
       userPrivate <- userExists.fold[Future[Option[UserPrivate]]](
         Future.failed(LoginError(LoginErrorCause.BadCredentials))
       ) { user =>
