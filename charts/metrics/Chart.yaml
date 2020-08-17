@@ -26,9 +26,9 @@ dependencies:
   - name: prometheus-operator
     version: 0.29.3
     repository: https://charts.bitnami.com/bitnami
-  - name: timescale-prometheus
-    version: 0.1.0-beta.1
-    repository: https://charts.timescale.com/
+  - name: thanos
+    version: 2.3.1
+    repository: https://charts.bitnami.com/bitnami
   - name: grafana
     version: 3.3.3
     repository: https://charts.bitnami.com/bitnami

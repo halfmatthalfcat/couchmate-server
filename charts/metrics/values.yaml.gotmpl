@@ -5,20 +5,15 @@ clientSecret: {{.Values.oauthClientSecret}}
 doToken: {{.Values.doToken}}
 spacesKey: {{.Values.spacesKey}}
 spacesSecret: {{.Values.spacesSecret}}
-tsdbPassword: {{.Values.tsdbPassword}}
-tsdbName: {{.Values.tsdbName}}
-tsdbHost: {{.Values.tsdbHost}}
-tsdbPort: {{.Values.tsdbPort}}
 
 prometheus-operator:
   rbac:
     create: true
   prometheus:
     enabled: true
-    remoteRead:
-      - url: "http://metrics-timescale-prometheus-connector:9201/read"
-    remoteWrite:
-      - url: "http://metrics-timescale-prometheus-connector:9201/write"
+    disableCompaction: true
+    persistence:
+      enabled: true
     ingress:
       enabled: true
       annotations:
@@ -41,6 +36,41 @@ prometheus-operator:
         - hosts:
             - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
           secretName: {{.Values.env}}-prometheus-tls
+    containers:
+      - name: thanos-sidecar-2
+        image: thanosio/thanos:v0.14.0
+        args:
+          - sidecar
+          - --tsdb.path
+          - /prometheus/prometheus-db
+          - --prometheus.url
+          - "http://localhost:9090"
+          - --objstore.config-file
+          - /tmp/objstore/thanos.yaml
+          - --grpc-address
+          - 0.0.0.0:10901
+          - --http-address
+          - 0.0.0.0:10902
+        ports:
+          - name: grpc
+            containerPort: 10901
+            protocol: TCP
+          - name: http
+            containerPort: 10902
+            protocol: TCP
+        volumeMounts:
+          - name: thanos-objstore-config
+            mountPath: /tmp/objstore
+            readOnly: true
+          - name: prometheus-metrics-prometheus-operato-prometheus-db
+            mountPath: /prometheus
+    volumes:
+      - name: thanos-objstore-config
+        secret:
+          secretName: thanos-objstore-config
+          items:
+            - key: thanos.yaml
+              path: thanos.yaml
   alertmanager:
     enabled: false
   kubelet:
@@ -50,25 +80,28 @@ prometheus-operator:
           regex: '/kubepods/besteffort/.*'
           action: keep
         - sourceLabels: [container]
-          regex: '^(?!POD).*'
+          regex: '.*'
           action: keep
         - sourceLabels: [__name__, image]
           regex: container_([a-z_]+);
           action: drop
   kubeProxy:
     enabled: false
-timescale-prometheus:
-  connection:
-    user: doadmin
-    password:
-      secretTemplate: tsdb-secret
-    host:
-      nameTemplate: {{.Values.tsdbHost}}
-    port: {{.Values.tsdbPort}}
-    dbName: {{.Values.tsdbName}}
-  service:
-    loadBalancer:
-      enabled: false
+thanos:
+  existingObjstoreSecret: thanos-objstore-config
+  existingObjstoreSecretItems:
+    - key: thanos.yaml
+      path: objstore.yml
+  querier:
+    dnsDiscovery:
+      sidecarsService: metrics-prometheus-thanos
+      sidecarsNamespace: metrics
+  bucketweb:
+    enabled: true
+  compactor:
+    enabled: true
+  storegateway:
+    enabled: true
 grafana:
   admin:
     password: abcabc

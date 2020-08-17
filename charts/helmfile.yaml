@@ -11,8 +11,6 @@ repositories:
     url: https://charts.jetstack.io
   - name: ckotzbauer
     url: https://ckotzbauer.github.io/helm-charts
-  - name: timescale
-    url: https://charts.timescale.com/
 
 environments:
   default:

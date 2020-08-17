@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: thanos-objstore-config
+stringData:
+  thanos.yaml: |
+    type: S3
+    config:
+      bucket: couchmate-{{.Values.env}}-thanos-storage
+      endpoint: nyc3.digitaloceanspaces.com
+      access_key: {{.Values.spacesKey}}
+      secret_key: {{.Values.spacesSecret}}
+      trace:
+        enable: true

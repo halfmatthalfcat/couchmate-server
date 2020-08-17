@@ -9,4 +9,3 @@ spec:
   commonName: couchmate.com
   dnsNames:
     - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
-    - grafana{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
