@@ -38,19 +38,22 @@ package object ws {
     object Connected {
       case class CreateNewSessionSuccess(
         session: SessionContext,
-        geo: GeoContext
+        geo: GeoContext,
+        device: DeviceContext,
       ) extends Command
       case class CreateNewSessionFailure(err: Throwable) extends Command
 
       case class RestoreSessionSuccess(
         session: SessionContext,
-        geo: GeoContext
+        geo: GeoContext,
+        device: DeviceContext,
       ) extends Command
       case class RestoreSessionFailure(err: Throwable) extends Command
 
       case class RestoreRoomSessionSuccess(
         session: SessionContext,
         geo: GeoContext,
+        device: DeviceContext,
         airingId: UUID
       ) extends Command
       case class RestoreRoomSessionFailure(ex: Throwable) extends Command

@@ -9,6 +9,10 @@ case class UserActivity(
   userId: UUID,
   action: UserActivityType,
   created: LocalDateTime = LocalDateTime.now(ZoneId.of("UTC")),
+  os: Option[String],
+  osVersion: Option[String],
+  brand: Option[String],
+  model: Option[String]
 )
 
 object UserActivity extends JsonConfig {

@@ -122,10 +122,11 @@ object WSClient
      */
     def connected(ws: ActorRef[Command]): Behavior[Command] = Behaviors.receiveMessage(compose(
       {
-        case Incoming(InitSession(timezone, locale, region)) =>
+        case Incoming(InitSession(timezone, locale, region, os, osVersion, brand, model)) =>
           val geoContext: GeoContext = GeoContext(locale, timezone, region)
-          ctx.pipeToSelf(createNewSession(geoContext)) {
-            case Success(value) => Connected.CreateNewSessionSuccess(value, geoContext)
+          val deviceContext: DeviceContext = DeviceContext(os, osVersion, brand, model)
+          ctx.pipeToSelf(createNewSession(geoContext, deviceContext)) {
+            case Success(value) => Connected.CreateNewSessionSuccess(value, geoContext, deviceContext)
             case Failure(exception) => Connected.CreateNewSessionFailure(exception)
           }
           Behaviors.same
@@ -136,11 +137,17 @@ object WSClient
             resume.timezone,
             resume.region
           )
-          ctx.pipeToSelf(resumeSession(resume, geoContext)) {
+          val deviceContext: DeviceContext = DeviceContext(
+            resume.os,
+            resume.osVersion,
+            resume.brand,
+            resume.model
+          )
+          ctx.pipeToSelf(resumeSession(resume, geoContext, deviceContext)) {
             case Success(value) if resume.roomId.nonEmpty =>
-              Connected.RestoreRoomSessionSuccess(value, geoContext, resume.roomId.get)
+              Connected.RestoreRoomSessionSuccess(value, geoContext, deviceContext, resume.roomId.get)
             case Success(value) =>
-              Connected.RestoreSessionSuccess(value, geoContext)
+              Connected.RestoreSessionSuccess(value, geoContext, deviceContext)
             case Failure(exception) if resume.roomId.nonEmpty =>
               Connected.RestoreRoomSessionFailure(exception)
             case Failure(exception) =>
@@ -149,12 +156,12 @@ object WSClient
           }
           Behaviors.same
 
-        case Connected.CreateNewSessionSuccess(session, geo) =>
-          inSession(session, geo, ws, init = true)
-        case Connected.RestoreSessionSuccess(session, geo) =>
-          inSession(session, geo, ws, init = true)
-        case Connected.RestoreRoomSessionSuccess(session, geo, airingId) =>
-          inSession(session, geo, ws, init = true, Some(airingId))
+        case Connected.CreateNewSessionSuccess(session, geo, device) =>
+          inSession(session, geo, device, ws, init = true)
+        case Connected.RestoreSessionSuccess(session, geo, device) =>
+          inSession(session, geo, device, ws, init = true)
+        case Connected.RestoreRoomSessionSuccess(session, geo, device, airingId) =>
+          inSession(session, geo, device, ws, init = true, Some(airingId))
       },
       closing,
       outgoing(ws)
@@ -166,6 +173,7 @@ object WSClient
     def inSession(
       session: SessionContext,
       geo: GeoContext,
+      device: DeviceContext,
       ws: ActorRef[Command],
       init: Boolean = false,
       roomRestore: Option[UUID] = None,
@@ -275,7 +283,7 @@ object WSClient
 
           case Incoming(verify: VerifyAccount) =>
             if (!session.user.verified) {
-              ctx.pipeToSelf(verifyAccount(session, verify.token)) {
+              ctx.pipeToSelf(verifyAccount(session, device, verify.token)) {
                 case Success(session) => Connected.AccountVerified(session)
                 case Failure(ex) => Connected.AccountVerifiedFailed(ex)
               }
@@ -290,7 +298,7 @@ object WSClient
             Behaviors.same
 
           case Incoming(Logout) =>
-            ctx.pipeToSelf(createNewSession(geo)) {
+            ctx.pipeToSelf(createNewSession(geo, device)) {
               case Success(session) => Connected.LoggedIn(session)
               case Failure(ex: Throwable) => Connected.LoggedInFailed(ex)
             }
@@ -354,7 +362,7 @@ object WSClient
 
           case Connected.AccountVerified(session) =>
             ws ! Outgoing(VerifyAccountSuccess(session.getClientUser))
-            inSession(session, geo, ws)
+            inSession(session, geo, device, ws)
           case Connected.AccountVerifiedFailed(ex) => ex match {
             case RegisterAccountError(cause) =>
               ws ! Outgoing(VerifyAccountFailed(cause))
@@ -376,7 +384,7 @@ object WSClient
 
           case Connected.UsernameUpdated(session) =>
             ws ! Outgoing(UpdateUsernameSuccess(session.getClientUser))
-            inSession(session, geo, ws)
+            inSession(session, geo, device, ws)
           case Connected.UsernameUpdatedFailed(ex) => ex match {
             case UpdateUsernameError(cause) =>
               ws ! Outgoing(UpdateUsernameFailure(cause))
@@ -388,7 +396,7 @@ object WSClient
             Behaviors.same
 
           case Connected.LoggedIn(session) =>
-            inSession(session, geo, ws, init = true, None)
+            inSession(session, geo, device, ws, init = true, None)
           case Connected.LoggedInFailed(ex) => ex match {
             case LoginError(cause) =>
               ws ! Outgoing(LoginFailure(cause))
@@ -434,13 +442,14 @@ object WSClient
 
           case Connected.ParticipantUnmuted(session) =>
             ws ! Outgoing(UpdateMutes(session.mutes))
-            inSession(session, geo, ws)
+            inSession(session, geo, device, ws)
 
           case Connected.UpdateGrid(grid) =>
             ctx.self ! Outgoing(UpdateGrid(grid))
             inSession(
               session.setAiringsFromGrid(grid),
               geo,
+              device,
               ws
             )
 
@@ -449,6 +458,7 @@ object WSClient
             inRoom(
               session,
               geo,
+              device,
               ws,
               RoomContext(
                 airingId,
@@ -466,8 +476,12 @@ object WSClient
               geo.country,
             )
             ctx.pipeToSelf(addUserActivity(UserActivity(
-              session.user.userId.get,
-              UserActivityType.Logout,
+              userId = session.user.userId.get,
+              action = UserActivityType.Logout,
+              os = device.os,
+              osVersion = device.osVersion,
+              brand = device.brand,
+              model = device.model
             ))) {
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
@@ -485,6 +499,7 @@ object WSClient
     def inRoom(
       session: SessionContext,
       geo: GeoContext,
+      device: DeviceContext,
       ws: ActorRef[Command],
       room: RoomContext,
       timer: Histogram.Timer,
@@ -537,7 +552,7 @@ object WSClient
               geo.country,
             )
             timer.close()
-            inSession(session, geo, ws)
+            inSession(session, geo, device, ws)
           case Incoming(SendMessage(message)) =>
             messageMonitor ! MessageMonitor.ReceiveMessage(message)
             Behaviors.same
@@ -553,6 +568,7 @@ object WSClient
             inRoom(
               session,
               geo,
+              device,
               ws,
               RoomContext(
                 airingId,
@@ -570,7 +586,7 @@ object WSClient
               geo.country,
             )
             timer.close()
-            inSession(session, geo, ws)
+            inSession(session, geo, device, ws)
           case InRoom.SetParticipants(participants) =>
             ctx.self ! Outgoing(SetParticipants(
               participants
@@ -578,12 +594,12 @@ object WSClient
                   rp.userId,
                   rp.username
                 ))
-                .filterNot(p => session.mutes.contains(p.userId))
+                .filterNot(p => session.mutes.exists(_.userId == p.userId))
                 .toSeq
             ))
             Behaviors.same
           case InRoom.AddParticipant(participant) =>
-            if (!session.mutes.contains(participant.userId)) {
+            if (!session.mutes.exists(_.userId == participant.userId)) {
               ctx.self ! Outgoing(AddParticipant(Participant(
                 participant.userId,
                 participant.username
@@ -591,7 +607,7 @@ object WSClient
             }
             Behaviors.same
           case InRoom.RemoveParticipant(participant) =>
-            if (!session.mutes.contains(participant.userId)) {
+            if (!session.mutes.exists(_.userId == participant.userId)) {
               ctx.self ! Outgoing(RemoveParticipant(Participant(
                 participant.userId,
                 participant.username
@@ -611,7 +627,7 @@ object WSClient
             // TODO this is inefficient
             messageMonitor ! MessageMonitor.Complete
             ctx.self ! Outgoing(UpdateMutes(session.mutes))
-            inRoom(session, geo, ws, room, timer)
+            inRoom(session, geo, device, ws, room, timer)
 
           case Messaging.OutgoingRoomMessage(message) =>
             if (!session.mutes.exists(mute => message.author.exists(_.userId == mute.userId))) {
@@ -639,8 +655,12 @@ object WSClient
             )
             timer.close()
             ctx.pipeToSelf(addUserActivity(UserActivity(
-              session.user.userId.get,
-              UserActivityType.Logout,
+              userId = session.user.userId.get,
+              action = UserActivityType.Logout,
+              os = device.os,
+              osVersion = device.osVersion,
+              brand = device.brand,
+              model = device.model
             ))) {
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
@@ -681,7 +701,8 @@ object WSClient
 
   def resumeSession(
     resume: RestoreSession,
-    geo: GeoContext
+    geo: GeoContext,
+    device: DeviceContext
   )(
     implicit
     ec: ExecutionContext,
@@ -692,11 +713,11 @@ object WSClient
     jwt.validateToken(resume.token, Map("scope" -> "access")) match {
       case Failure(exception) =>
         ctx.log.warn(s"Got bad token: ${exception.getMessage}")
-        createNewSession(geo)
+        createNewSession(geo, device)
       case Success(CMJwtClaims(userId, _)) => getUser(userId) flatMap {
         case None =>
           ctx.log.warn(s"Couldn't find user $userId")
-          createNewSession(geo)
+          createNewSession(geo, device)
         case Some(user @ InternalUser(Some(userId), _, _, _, _)) => for {
           userMeta <- getUserMeta(userId).map(_.getOrElse(
             throw new RuntimeException(s"Could not find userMeta for $userId")
@@ -710,8 +731,12 @@ object WSClient
           ))
           grid <- getGrid(userProvider.providerId)
           _ <- addUserActivity(UserActivity(
-            userId,
-            UserActivityType.Login
+            userId = userId,
+            action = UserActivityType.Login,
+            os = device.os,
+            osVersion = device.osVersion,
+            brand = device.brand,
+            model = device.model
           ))
         } yield SessionContext(
           user = user,
@@ -726,7 +751,7 @@ object WSClient
       }
     }
 
-  def createNewSession(context: GeoContext)(
+  def createNewSession(context: GeoContext, device: DeviceContext)(
     implicit
     ec: ExecutionContext,
     db: Database,
@@ -766,8 +791,12 @@ object WSClient
         expiry = Duration.ofDays(365L)
       ))
       _ <- addUserActivity(UserActivity(
-        user.userId.get,
-        UserActivityType.Login
+        userId = user.userId.get,
+        action = UserActivityType.Login,
+        os = device.os,
+        osVersion = device.osVersion,
+        brand = device.brand,
+        model = device.model
       ))
       grid <- getGrid(defaultProvider.value)
     } yield SessionContext(
@@ -818,7 +847,7 @@ object WSClient
     }
   }
 
-  def verifyAccount(session: SessionContext, token: String)(
+  def verifyAccount(session: SessionContext, device: DeviceContext, token: String)(
     implicit
     ec: ExecutionContext,
     db: Database,
@@ -860,6 +889,10 @@ object WSClient
     _ <- addUserActivity(UserActivity(
       userId = session.user.userId.get,
       action = UserActivityType.Registered,
+      os = device.os,
+      osVersion = device.osVersion,
+      brand = device.brand,
+      model = device.model
     ))
   } yield session.copy(
     user = user,

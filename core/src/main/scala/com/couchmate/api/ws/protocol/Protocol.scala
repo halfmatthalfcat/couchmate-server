@@ -21,14 +21,22 @@ object Protocol extends CountryCodePlayJson {
 case class InitSession(
   timezone: String,
   locale: String,
-  region: String
+  region: String,
+  os: Option[String],
+  osVersion: Option[String],
+  brand: Option[String],
+  model: Option[String]
 ) extends Protocol
 case class RestoreSession(
   token: String,
   roomId: Option[UUID],
   timezone: String,
   locale: String,
-  region: String
+  region: String,
+  os: Option[String],
+  osVersion: Option[String],
+  brand: Option[String],
+  model: Option[String]
 ) extends Protocol
 case class SetSession(
   user: User,

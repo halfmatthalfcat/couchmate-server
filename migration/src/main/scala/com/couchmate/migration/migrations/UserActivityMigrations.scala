@@ -15,4 +15,13 @@ object UserActivityMigrations {
     )
   )()
 
+  val addDeviceMetrics = MigrationItem(26L, UserActivityTable.table)(
+    _.addColumns(
+      _.os,
+      _.osVersion,
+      _.brand,
+      _.model
+    )
+  )()
+
 }

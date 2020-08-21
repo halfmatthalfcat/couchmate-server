@@ -10,6 +10,7 @@ import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data._
 import com.couchmate.util.akka.extensions.JwtExtension
 import com.couchmate.util.jwt.Jwt.ExpiredJwtError
+import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 import play.api.libs.json.Json
 
@@ -20,7 +21,8 @@ object UserRoutes
   extends PlayJsonSupport
   with UserDAO
   with UserMetaDAO
-  with UserPrivateDAO {
+  with UserPrivateDAO
+  with LazyLogging {
 
   def apply()(
     implicit
@@ -71,13 +73,19 @@ object UserRoutes
             _ <- addUserActivity(UserActivity(
               userId = userId,
               action = UserActivityType.Registered,
+              os = None,
+              osVersion = None,
+              brand = None,
+              model = None
             ))
           } yield ()) {
             case Success(_) =>
               complete(200 -> Json.toJson[Protocol](VerifyAccountSuccessWeb))
             case Failure(RegisterAccountError(cause)) =>
+              logger.error(s"Failed to register - $cause")
               complete(200 -> Json.toJson[Protocol](VerifyAccountFailed(cause)))
             case _ =>
+              logger.error(s"Failed to register - Unknown")
               complete(200 -> Json.toJson[Protocol](VerifyAccountFailed(
                 RegisterAccountErrorCause.UnknownError
               )))

@@ -37,6 +37,7 @@ object Migrations extends LazyLogging {
     JournalMigrations.init,
     SnapshotMigrations.init,
     ListingJobMigrations.init,
+    UserActivityMigrations.addDeviceMetrics
   )
 
   private[this] def applyMigrations()(
