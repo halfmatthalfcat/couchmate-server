@@ -33,6 +33,10 @@ object ListingJob
 
   final case class AddListener(actorRef: ActorRef[Command]) extends Command
   final case class JobEnded(providerId: Long, grid: Grid) extends Command
+  final case class JobFailed(providerId: Long, err: Throwable) extends Command
+
+  final case class Ping(actorRef: ActorRef[Command]) extends Command
+  final case class Pong(providerId: Long) extends Command
 
   private final case class ProviderSuccess(provider: Provider) extends Command
   private final case class ProviderFailure(err: Throwable) extends Command
@@ -144,12 +148,15 @@ object ListingJob
 
       case ProviderFailure(err) =>
         ctx.log.error(s"Unable to get provider", err)
+        parent ! JobFailed(providerId, err)
         Behaviors.stopped
       case SportsFailure(err) =>
         ctx.log.error(s"Unable to get sports", err)
+        parent ! JobFailed(providerId, err)
         Behaviors.stopped
       case JobFailure(err) =>
         ctx.log.error(s"Unable to make job", err)
+        parent ! JobFailed(providerId, err)
         Behaviors.stopped
     }
 
@@ -219,10 +226,11 @@ object ListingJob
            removed = prev.removed + curr.removed,
            skipped = prev.skipped + curr.skipped
          )).log(s"${providerId}")
-          .alsoTo(Sink.foreachAsync(1)(_ => upsertListingJob(
+          .alsoTo(Sink.foreachAsync(1)(plan => upsertListingJob(
             state.job.copy(
               completed = Some(LocalDateTime.now(ZoneId.of("UTC"))),
-              status = ListingJobStatus.Complete
+              status = ListingJobStatus.Complete,
+              lastSlot = Some(plan.startTime.plusHours(pullType.value))
             )
           ).map(_ => ())))
         )
@@ -239,13 +247,21 @@ object ListingJob
                 status = ListingJobStatus.Error
               )
             )
+            ctx.self ! JobFailure(exception)
         }
 
       def job(listeners: Seq[ActorRef[Command]]): Behavior[Command] = Behaviors.receiveMessage {
-        case AddListener(listener) => job(listeners :+ listener)
+        case Ping(actorRef) =>
+          actorRef ! Pong(providerId)
+          Behaviors.same
+        case AddListener(listener) =>
+          job(listeners :+ listener)
         case ended: JobEnded =>
           listeners.foreach(_ ! ended)
           parent ! ended
+          Behaviors.stopped
+        case JobFailure(err) =>
+          parent ! JobFailed(providerId, err)
           Behaviors.stopped
       }
 

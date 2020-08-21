@@ -104,7 +104,7 @@ object WSClient
       case outgoing: Outgoing =>
         ws ! outgoing
         Behaviors.same
-    };
+    }
 
     /**
      * Initial Client State
@@ -457,7 +457,7 @@ object WSClient
               metrics.startTimeInRoom()
             )
 
-          case Complete | Closed =>
+          case Complete | Closed | ConnFailure(_) | Failed(_) =>
             ctx.log.debug(s"Logging out ${session.user.userId.get}")
             metrics.decSession(
               session.providerId,
@@ -623,7 +623,7 @@ object WSClient
             }
             Behaviors.same
 
-          case Complete | Closed =>
+          case Complete | Closed | ConnFailure(_) | Failed(_) =>
             messageMonitor ! MessageMonitor.Complete
             metrics.decSession(
               session.providerId,
