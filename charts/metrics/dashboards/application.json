@@ -268,7 +268,7 @@
       },
       "lines": true,
       "linewidth": 1,
-      "nullPointMode": "null",
+      "nullPointMode": "null as zero",
       "percentage": false,
       "pluginVersion": "7.1.2",
       "pointradius": 2,
@@ -306,11 +306,12 @@
       },
       "yaxes": [
         {
+          "decimals": 0,
           "format": "short",
           "label": null,
           "logBase": 1,
           "max": null,
-          "min": null,
+          "min": "0",
           "show": true
         },
         {
@@ -360,7 +361,7 @@
       },
       "lines": true,
       "linewidth": 1,
-      "nullPointMode": "null",
+      "nullPointMode": "null as zero",
       "percentage": false,
       "pluginVersion": "7.1.2",
       "pointradius": 2,
@@ -565,7 +566,7 @@
       },
       "lines": true,
       "linewidth": 1,
-      "nullPointMode": "null",
+      "nullPointMode": "null as zero",
       "percentage": false,
       "pluginVersion": "7.1.2",
       "pointradius": 2,
@@ -609,6 +610,7 @@
       },
       "yaxes": [
         {
+          "decimals": 0,
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -663,7 +665,7 @@
       },
       "lines": true,
       "linewidth": 1,
-      "nullPointMode": "null",
+      "nullPointMode": "null as zero",
       "percentage": false,
       "pluginVersion": "7.1.2",
       "pointradius": 2,
@@ -756,7 +758,7 @@
       },
       "lines": true,
       "linewidth": 1,
-      "nullPointMode": "null",
+      "nullPointMode": "null as zero",
       "percentage": false,
       "pluginVersion": "7.1.2",
       "pointradius": 2,
