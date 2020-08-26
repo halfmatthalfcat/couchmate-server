@@ -7,6 +7,7 @@ import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
+import com.couchmate.common.models.api.grid.AiringConversion
 import com.couchmate.common.models.data.{Airing, AiringStatus, RoomStatusType}
 import com.couchmate.common.tables.AiringTable
 import slick.sql.SqlStreamingAction
@@ -105,6 +106,23 @@ trait AiringDAO {
     db: Database
   ): Future[Option[AiringStatus]] =
     db.run(AiringDAO.getAiringStatus(airingId).headOption)
+
+  def getAiringFromGracenote(convert: AiringConversion)(
+    implicit
+    db: Database
+  ): Future[Option[UUID]] =
+    db.run(AiringDAO.getAiringFromGracenote(convert).headOption)
+
+  def getAiringsFromGracenote(converts: Seq[AiringConversion])(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Seq[UUID]] =
+    Future.sequence(
+      converts.map(c =>
+        db.run(AiringDAO.getAiringFromGracenote(c).headOption)
+      )
+    ).map(_.filter(_.isDefined).map(_.get))
 }
 
 object AiringDAO {
@@ -228,4 +246,24 @@ object AiringDAO {
         FROM    airing as a
         WHERE   airing_id = $airingId
       """.as[AiringStatus]
+
+  private[common] def getAiringFromGracenote(convert: AiringConversion) =
+    sql"""
+         SELECT a.airing_id
+         FROM   airing as a
+         JOIN   lineup as l
+         ON     l.airing_id = a.airing_id
+         JOIN   show as s
+         ON     s.show_id = a.show_id
+         JOIN   provider_channel pc
+         ON     l.provider_channel_id = pc.provider_channel_id
+         JOIN   provider as p
+         ON     p.provider_id = pc.provider_id
+         JOIN   channel as c
+         ON     c.channel_id = pc.channel_id
+         WHERE  p.ext_id = ${convert.provider} AND
+                c.ext_id = ${convert.extChannelId} AND
+                s.ext_id = ${convert.extShowId} AND
+                a.start_time = ${convert.startTime}
+         """.as[UUID]
 }

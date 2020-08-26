@@ -108,3 +108,7 @@ spec:
             backend:
               serviceName: server
               servicePort: 80
+          - path: /api/.+
+            backend:
+              serviceName: server
+              servicePort: 80

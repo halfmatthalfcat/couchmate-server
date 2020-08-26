@@ -63,7 +63,10 @@ object Server {
     }
   }
 
-  def apply(host: String, port: Int, config: Config): Behavior[Command] = Behaviors.setup { implicit ctx =>
+  def apply(host: String, port: Int)(
+    implicit
+    config: Config
+  ): Behavior[Command] = Behaviors.setup { implicit ctx =>
 
     implicit val ec: ExecutionContext =
       ctx.executionContext
@@ -112,14 +115,13 @@ object Server {
   }
 
   def main(args: Array[String]): Unit = {
-    val config: Config =
+    implicit val config: Config =
       ConfigFactory.load()
 
     ActorSystem(
       Server(
         "0.0.0.0",
         8080,
-        config,
       ),
       "couchmate",
     )
