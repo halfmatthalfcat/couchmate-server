@@ -231,6 +231,8 @@ object WSClient
                 session.userMeta.username,
                 chatAdapter
               )
+            } else {
+              ws ! Outgoing(RoomClosed)
             }
             Behaviors.same
 

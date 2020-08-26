@@ -149,6 +149,7 @@ case class UpdateGrid(
 case class JoinRoom(
   airingId: UUID
 ) extends Protocol
+case object RoomClosed extends Protocol
 case object LeaveRoom extends Protocol
 case object RoomEnded extends Protocol
 case class RoomJoined(
