@@ -10,11 +10,11 @@ import slick.jdbc.GetResult
 
 case class AiringStatus(
   airingId: Option[UUID],
-  shortCode: Option[String],
   showId: Long,
   startTime: LocalDateTime,
   endTime: LocalDateTime,
   duration: Int,
+  shortCode: Option[String],
   status: RoomStatusType
 )
 

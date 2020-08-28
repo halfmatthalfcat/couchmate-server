@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 import com.couchmate.common.tables.AiringTable
 import com.couchmate.migration.db.MigrationItem
 import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.models.data.Airing
 import slick.dbio.Effect
 import slick.sql.FixedSqlAction
 
@@ -38,13 +39,7 @@ object AiringMigrations {
       .table
       .filter(_.airingId === row.airingId)
       .map(_.shortCode)
-      .update(Some(new Random(
-        System.currentTimeMillis + Random.nextLong
-      )
-        .alphanumeric
-        .take(7)
-        .mkString("")
-      ))))
+      .update(Some(Airing.generateShortcode))))
   } yield updates
 
 

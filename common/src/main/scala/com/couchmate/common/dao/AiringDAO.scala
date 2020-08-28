@@ -186,7 +186,8 @@ object AiringDAO {
     ec: ExecutionContext
   ): DBIO[Airing] = airing.airingId.fold[DBIO[Airing]](
     (AiringTable.table returning AiringTable.table) += airing.copy(
-      airingId = Some(UUID.randomUUID())
+      airingId = Some(UUID.randomUUID()),
+      shortCode = Some(Airing.generateShortcode)
     )
   ) { (airingId: UUID) => for {
     _ <- AiringTable

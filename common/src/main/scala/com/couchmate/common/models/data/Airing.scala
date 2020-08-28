@@ -8,6 +8,8 @@ import com.couchmate.common.db.PgProfile.plainAPI._
 import play.api.libs.json.{Format, Json}
 import slick.jdbc.GetResult
 
+import scala.util.Random
+
 case class Airing(
   airingId: Option[UUID],
   shortCode: Option[String],
@@ -20,4 +22,11 @@ case class Airing(
 object Airing extends JsonConfig {
   implicit val format: Format[Airing] = Json.format[Airing]
   implicit val rowParser: GetResult[Airing] = RowParser[Airing]
+
+  def generateShortcode: String = new Random(
+    System.currentTimeMillis + Random.nextLong
+  )
+    .alphanumeric
+    .take(7)
+    .mkString("")
 }

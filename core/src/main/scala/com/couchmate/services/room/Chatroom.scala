@@ -212,7 +212,9 @@ object Chatroom
             )
           })
           .thenUnstashAll()
-        case GetAiringFailure(_) => Effect.stop()
+        case GetAiringFailure(ex) =>
+          ctx.log.error("Couldnt get airing", ex)
+          Effect.stop()
         case _ => Effect.stash()
       }
       case _ => command match {
