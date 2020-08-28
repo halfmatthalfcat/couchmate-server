@@ -231,7 +231,7 @@ object AiringDAO {
 
   private[common] def getAiringStatus(airingId: UUID): SqlStreamingAction[Seq[AiringStatus], AiringStatus, Effect] =
     sql"""
-       SELECT  a.*, CASE
+       SELECT  a.airing_id, a.show_id, a.start_time, a.end_time, a.duration, CASE
         WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 15 AND
                 EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 > 0
                 THEN ${RoomStatusType.PreGame}
