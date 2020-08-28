@@ -10,6 +10,7 @@ import slick.jdbc.GetResult
 
 case class Airing(
   airingId: Option[UUID],
+  shortCode: Option[String],
   showId: Long,
   startTime: LocalDateTime,
   endTime: LocalDateTime,

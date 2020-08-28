@@ -92,7 +92,7 @@ object GridDAO {
     startTime: LocalDateTime,
     endTime: LocalDateTime,
   ): SqlStreamingAction[Seq[GridAiring], GridAiring, Effect] = {
-    sql"""SELECT            a.airing_id, a.start_time, a.end_time, a.duration,
+    sql"""SELECT            a.airing_id, a.short_code, a.start_time, a.end_time, a.duration,
                             pc.provider_channel_id, pc.channel, c.callsign,
                             s.title, s.description, s.type,
                             se.series_name,

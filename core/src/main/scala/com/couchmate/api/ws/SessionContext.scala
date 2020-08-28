@@ -34,6 +34,9 @@ case class SessionContext(
         )
     }
 
+  def getAiringFromShortcode(shortCode: String): Option[GridAiring] =
+    this.airings.find(_.shortCode == shortCode)
+
   def getClientUser: ExternalUser = ExternalUser(
     user.userId.get,
     user.created,

@@ -119,10 +119,7 @@ object ShowDAO {
            ON     CONFLICT (ext_id) DO UPDATE
            SET    type = shw.type,
                   episode_id = shw.episode_id,
-                  sport_event_id = shw.sport_event_id,
-                  title = shw.title,
-                  description = shw.description,
-                  original_air_date = shw.original_air_date
+                  sport_event_id = shw.sport_event_id
            RETURNING show_id, ext_id, type, episode_id, sport_event_id, title, description, original_air_date
          )  SELECT show_id, ext_id, type, episode_id, sport_event_id, title, description, original_air_date FROM sel
             UNION  ALL

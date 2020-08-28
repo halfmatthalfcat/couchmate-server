@@ -107,20 +107,20 @@ trait AiringDAO {
   ): Future[Option[AiringStatus]] =
     db.run(AiringDAO.getAiringStatus(airingId).headOption)
 
-  def getAiringFromGracenote(convert: AiringConversion)(
+  def getShortcodeFromGracenote(convert: AiringConversion)(
     implicit
     db: Database
-  ): Future[Option[UUID]] =
-    db.run(AiringDAO.getAiringFromGracenote(convert).headOption)
+  ): Future[Option[String]] =
+    db.run(AiringDAO.getShortcodeFromGracenote(convert).headOption)
 
-  def getAiringsFromGracenote(converts: Seq[AiringConversion])(
+  def getShortcodesFromGracenote(converts: Seq[AiringConversion])(
     implicit
     db: Database,
     ec: ExecutionContext
-  ): Future[Seq[UUID]] =
+  ): Future[Seq[String]] =
     Future.sequence(
       converts.map(c =>
-        db.run(AiringDAO.getAiringFromGracenote(c).headOption)
+        db.run(AiringDAO.getShortcodeFromGracenote(c).headOption)
       )
     ).map(_.filter(_.isDefined).map(_.get))
 }
@@ -198,22 +198,22 @@ object AiringDAO {
 
   private[common] def addOrGetAiring(a: Airing) =
     sql"""
-         WITH input_rows(airing_id, show_id, start_time, end_time, duration) AS (
-          VALUES (${a.airingId}::uuid, ${a.showId}, ${a.startTime}::timestamp, ${a.endTime}::timestamp, ${a.duration})
+         WITH input_rows(airing_id, short_code, show_id, start_time, end_time, duration) AS (
+          VALUES (${a.airingId}::uuid, ${a.shortCode}, ${a.showId}, ${a.startTime}::timestamp, ${a.endTime}::timestamp, ${a.duration})
          ), ins AS (
-          INSERT INTO airing AS a (airing_id, show_id, start_time, end_time, duration)
+          INSERT INTO airing AS a (airing_id, short_code, show_id, start_time, end_time, duration)
           SELECT * FROM input_rows
           ON CONFLICT (show_id, start_time, end_time) DO NOTHING
-          RETURNING airing_id, show_id, start_time, end_time, duration
+          RETURNING airing_id, short_code, show_id, start_time, end_time, duration
          ), sel AS (
-          SELECT airing_id, show_id, start_time, end_time, duration
+          SELECT airing_id, short_code, show_id, start_time, end_time, duration
           FROM ins
           UNION ALL
-          SELECT a.airing_id, show_id, start_time, end_time, a.duration
+          SELECT a.airing_id, a.short_code, show_id, start_time, end_time, a.duration
           FROM input_rows
           JOIN airing as a USING (show_id, start_time, end_time)
          ), ups AS (
-           INSERT INTO airing AS air (airing_id, show_id, start_time, end_time, duration)
+           INSERT INTO airing AS air (airing_id, short_code, show_id, start_time, end_time, duration)
            SELECT i.*
            FROM   input_rows i
            LEFT   JOIN sel   s USING (show_id, start_time, end_time)
@@ -221,10 +221,9 @@ object AiringDAO {
            ON     CONFLICT (show_id, start_time, end_time) DO UPDATE
            SET    show_id = air.show_id,
                   start_time = air.start_time,
-                  end_time = air.end_time,
-                  duration = air.duration
-           RETURNING airing_id, show_id, start_time, end_time, duration
-         )  SELECT airing_id, show_id, start_time, end_time, duration FROM sel
+                  end_time = air.end_time
+           RETURNING airing_id, short_code, show_id, start_time, end_time, duration
+         )  SELECT airing_id, short_code, show_id, start_time, end_time, duration FROM sel
             UNION  ALL
             TABLE  ups;
          """.as[Airing]
@@ -247,9 +246,9 @@ object AiringDAO {
         WHERE   airing_id = $airingId
       """.as[AiringStatus]
 
-  private[common] def getAiringFromGracenote(convert: AiringConversion) =
+  private[common] def getShortcodeFromGracenote(convert: AiringConversion) =
     sql"""
-         SELECT a.airing_id
+         SELECT a.short_code
          FROM   airing as a
          JOIN   lineup as l
          ON     l.airing_id = a.airing_id
@@ -265,5 +264,5 @@ object AiringDAO {
                 c.ext_id = ${convert.extChannelId} AND
                 s.ext_id = ${convert.extShowId} AND
                 a.start_time = ${convert.startTime}
-         """.as[UUID]
+         """.as[String]
 }

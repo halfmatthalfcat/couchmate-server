@@ -26,7 +26,7 @@ import com.neovisionaries.i18n.CountryCode
 import io.prometheus.client.Histogram
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 object WSClient
   extends AkkaUtils
@@ -224,15 +224,22 @@ object WSClient
       Behaviors.receiveMessage(compose(
         {
           case Incoming(JoinRoom(airingId)) =>
-            if (session.roomIsOpen(airingId)) {
-              lobby.join(
-                airingId,
+            Try(UUID.fromString(airingId)) match {
+              case Success(value) if session.roomIsOpen(value) => lobby.join(
+                value,
                 session.user.userId.get,
                 session.userMeta.username,
                 chatAdapter
               )
-            } else {
-              ws ! Outgoing(RoomClosed)
+              case _ => session.getAiringFromShortcode(airingId) match {
+                case Some(airing) if session.roomIsOpen(airing.airingId) => lobby.join(
+                  airing.airingId,
+                  session.user.userId.get,
+                  session.userMeta.username,
+                  chatAdapter
+                )
+                case _ => ws ! Outgoing(RoomClosed)
+              }
             }
             Behaviors.same
 

@@ -37,7 +37,8 @@ object Migrations extends LazyLogging {
     JournalMigrations.init,
     SnapshotMigrations.init,
     ListingJobMigrations.init,
-    UserActivityMigrations.addDeviceMetrics
+    UserActivityMigrations.addDeviceMetrics,
+    AiringMigrations.addShortcodeSupport,
   )
 
   private[this] def applyMigrations()(
@@ -56,7 +57,7 @@ object Migrations extends LazyLogging {
         .map(item => (for {
           _ <- item.up
           migrated <- MigrationDAO.addMigration(Migration(
-            item.migrationId + currentMigrations.size,
+            item.migrationId,
           ))
         } yield migrated).transactionally)
 

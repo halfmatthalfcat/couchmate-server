@@ -11,6 +11,7 @@ import slick.jdbc.GetResult
 
 case class GridAiring(
   airingId: UUID,
+  shortCode: String,
   startTime: LocalDateTime,
   endTime: LocalDateTime,
   duration: Int,

@@ -21,6 +21,7 @@ import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.util.Random
 
 object ListingStreams
   extends PlayJsonSupport
@@ -154,7 +155,14 @@ object ListingStreams
       showId = show.showId.get,
       startTime = gracenoteAiring.startTime,
       endTime = gracenoteAiring.endTime,
-      duration = gracenoteAiring.duration
+      duration = gracenoteAiring.duration,
+      shortCode = Some(new Random(
+        System.currentTimeMillis + Random.nextLong
+      )
+        .alphanumeric
+        .take(7)
+        .mkString("")
+      )
     )
   ))
 

@@ -26,7 +26,7 @@ object ListingRoutes
   ): Route = path("convert") {
     post {
       entity(as[Seq[AiringConversion]]) { conversions =>
-        onComplete(getAiringsFromGracenote(conversions)) {
+        onComplete(getShortcodesFromGracenote(conversions)) {
           case Success(value) => complete(StatusCodes.OK -> value)
           case Failure(exception) =>
             logger.error(s"Couldn't get conversions: ${exception.getMessage}")
