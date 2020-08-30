@@ -45,15 +45,15 @@ object Chatroom
   ) extends Command
 
   final case class RoomJoined(
-    airingId: UUID,
+    airingId: String,
     roomId: RoomId
   ) extends Command
   final case class RoomRejoined(
-    airingId: UUID,
+    airingId: String,
     roomId: RoomId
   ) extends Command
   final case class RoomEnded(
-    airingId: UUID,
+    airingId: String,
     roomId: RoomId
   ) extends Command
   final case class RoomParticipants(
@@ -104,12 +104,12 @@ object Chatroom
   ) extends Event
 
   final case class State(
-    airingId: UUID,
+    airingId: String,
     status: Option[AiringStatus],
     hashes: Map[String, HashRoom]
   )
 
-  def apply(airingId: UUID, persistenceId: PersistenceId): Behavior[Command] = Behaviors.setup { implicit ctx =>
+  def apply(airingId: String, persistenceId: PersistenceId): Behavior[Command] = Behaviors.setup { implicit ctx =>
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val db: Database = DatabaseExtension(ctx.system).db
     val metrics: PromExtension =

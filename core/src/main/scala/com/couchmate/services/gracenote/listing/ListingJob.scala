@@ -13,7 +13,7 @@ import com.couchmate.common.dao.{GridDAO, ListingJobDAO, ProviderDAO}
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.thirdparty.gracenote.{GracenoteAiringPlanResult, GracenoteChannelAiring, GracenoteSlotAiring, GracenoteSport}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.{ListingJobStatus, Provider, ListingJob => ListingJobModel}
+import com.couchmate.common.models.data.{Lineup, ListingJobStatus, Provider, ListingJob => ListingJobModel}
 import com.couchmate.common.util.DateUtils
 import com.couchmate.services.GracenoteCoordinator
 import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
@@ -210,8 +210,8 @@ object ListingJob
                plan.startTime,
                0, 0, plan.skip.size
              )) {
-               case (acc, lineup) if lineup.active => acc.copy(added = acc.added + 1)
-               case (acc, lineup) if !lineup.active => acc.copy(removed = acc.removed + 1)
+               case (acc, lineup: Lineup) if lineup.active => acc.copy(added = acc.added + 1)
+               case (acc, lineup: Lineup) if !lineup.active => acc.copy(removed = acc.removed + 1)
                case (acc, _) => acc
              }
            })
@@ -225,14 +225,13 @@ object ListingJob
            added = prev.added + curr.added,
            removed = prev.removed + curr.removed,
            skipped = prev.skipped + curr.skipped
-         )).log(s"${providerId}")
-          .alsoTo(Sink.foreachAsync(1)(plan => upsertListingJob(
+         ))
+          .mapAsync(1)(plan => upsertListingJob(
             state.job.copy(
               completed = Some(LocalDateTime.now(ZoneId.of("UTC"))),
               status = ListingJobStatus.Complete,
               lastSlot = Some(plan.startTime.plusHours(pullType.value))
-            )
-          ).map(_ => ())))
+            )))
         )
         .run
         .flatMap(_ => getGrid(providerId))

@@ -151,18 +151,11 @@ object ListingStreams
   })).mapAsync(1)(show => getOrAddLineup(
     providerChannelId,
     Airing(
-      airingId = Some(UUID.randomUUID()),
+      airingId = Some(Airing.generateShortcode),
       showId = show.showId.get,
       startTime = gracenoteAiring.startTime,
       endTime = gracenoteAiring.endTime,
-      duration = gracenoteAiring.duration,
-      shortCode = Some(new Random(
-        System.currentTimeMillis + Random.nextLong
-      )
-        .alphanumeric
-        .take(7)
-        .mkString("")
-      )
+      duration = gracenoteAiring.duration
     )
   ))
 

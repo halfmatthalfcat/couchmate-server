@@ -64,7 +64,7 @@ object ListingUpdater
       StartUpdate,
       None
     )
-
+    
     def commandHandler: (State, Command) => Effect[Event, State] = {
       (_, command) => command match {
         case StartUpdate => Effect.none

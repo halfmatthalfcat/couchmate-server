@@ -40,7 +40,7 @@ trait LineupDAO {
 
   def getLineupForProviderChannelAndAiring(
     providerChannelId: Long,
-    airingId: UUID
+    airingId: String
   )(
     implicit
     db: Database
@@ -50,7 +50,7 @@ trait LineupDAO {
   def getLineupForProviderChannelAndAiring$()(
     implicit
     session: SlickSession
-  ): Flow[(Long, UUID), Option[Lineup], NotUsed] =
+  ): Flow[(Long, String), Option[Lineup], NotUsed] =
     Slick.flowWithPassThrough(
       (LineupDAO.getLineupForProviderChannelAndAiring _).tupled
     )
@@ -119,7 +119,7 @@ object LineupDAO {
     lineupsExistForProviderQuery(providerId).result
 
   private[this] lazy val getLineupForProviderChannelAndAiringQuery = Compiled {
-    (providerChannelId: Rep[Long], airingId: Rep[UUID]) =>
+    (providerChannelId: Rep[Long], airingId: Rep[String]) =>
       LineupTable.table.filter { l =>
         l.providerChannelId === providerChannelId &&
         l.airingId === airingId
@@ -128,7 +128,7 @@ object LineupDAO {
 
   private[common] def getLineupForProviderChannelAndAiring(
     providerChannelId: Long,
-    airingId: UUID
+    airingId: String
   ): DBIO[Option[Lineup]] =
     getLineupForProviderChannelAndAiringQuery(
       providerChannelId,
@@ -154,7 +154,7 @@ object LineupDAO {
   private[common] def addOrGetLineup(l: Lineup) =
     sql"""
           WITH input_rows(provider_channel_id, airing_id, active) AS (
-            VALUES (${l.providerChannelId}, ${l.airingId}::uuid, ${l.active})
+            VALUES (${l.providerChannelId}, ${l.airingId}, ${l.active})
           ), ins AS (
             INSERT INTO lineup as l (provider_channel_id, airing_id, active)
             SELECT * from input_rows

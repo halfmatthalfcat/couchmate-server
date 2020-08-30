@@ -9,7 +9,7 @@ import com.couchmate.common.db.PgProfile.plainAPI._
 import slick.jdbc.GetResult
 
 case class AiringStatus(
-  airingId: Option[UUID],
+  airingId: Option[String],
   showId: Long,
   startTime: LocalDateTime,
   endTime: LocalDateTime,

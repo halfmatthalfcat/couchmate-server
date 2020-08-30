@@ -176,7 +176,7 @@ object WSClient
       device: DeviceContext,
       ws: ActorRef[Command],
       init: Boolean = false,
-      roomRestore: Option[UUID] = None,
+      roomRestore: Option[String] = None,
     ): Behavior[Command] = Behaviors.setup { _ =>
 
       if (init && roomRestore.nonEmpty && session.roomIsOpen(roomRestore.get)) {
@@ -224,22 +224,15 @@ object WSClient
       Behaviors.receiveMessage(compose(
         {
           case Incoming(JoinRoom(airingId)) =>
-            Try(UUID.fromString(airingId)) match {
-              case Success(value) if session.roomIsOpen(value) => lobby.join(
-                value,
+            if (session.roomIsOpen(airingId)) {
+              lobby.join(
+                airingId,
                 session.user.userId.get,
                 session.userMeta.username,
                 chatAdapter
               )
-              case _ => session.getAiringFromShortcode(airingId) match {
-                case Some(airing) if session.roomIsOpen(airing.airingId) => lobby.join(
-                  airing.airingId,
-                  session.user.userId.get,
-                  session.userMeta.username,
-                  chatAdapter
-                )
-                case _ => ws ! Outgoing(RoomClosed)
-              }
+            } else {
+              ws ! Outgoing(RoomClosed)
             }
             Behaviors.same
 

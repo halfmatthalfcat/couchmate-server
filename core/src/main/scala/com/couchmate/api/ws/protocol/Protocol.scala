@@ -29,7 +29,7 @@ case class InitSession(
 ) extends Protocol
 case class RestoreSession(
   token: String,
-  roomId: Option[UUID],
+  roomId: Option[String],
   timezone: String,
   locale: String,
   region: String,
@@ -153,7 +153,7 @@ case object RoomClosed extends Protocol
 case object LeaveRoom extends Protocol
 case object RoomEnded extends Protocol
 case class RoomJoined(
-  airingId: UUID
+  airingId: String
 ) extends Protocol
 case class SetParticipants(
   participants: Seq[Participant]

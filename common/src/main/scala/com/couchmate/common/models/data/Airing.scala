@@ -1,7 +1,6 @@
 package com.couchmate.common.models.data
 
 import java.time.LocalDateTime
-import java.util.UUID
 
 import com.couchmate.common.util.slick.RowParser
 import com.couchmate.common.db.PgProfile.plainAPI._
@@ -11,8 +10,7 @@ import slick.jdbc.GetResult
 import scala.util.Random
 
 case class Airing(
-  airingId: Option[UUID],
-  shortCode: Option[String],
+  airingId: Option[String],
   showId: Long,
   startTime: LocalDateTime,
   endTime: LocalDateTime,

@@ -8,15 +8,13 @@ import com.couchmate.common.models.data.Airing
 import com.couchmate.common.util.slick.WithTableQuery
 
 class AiringTable(tag: Tag) extends Table[Airing](tag, "airing") {
-  def airingId: Rep[UUID] = column[UUID]("airing_id", O.PrimaryKey, O.SqlType("uuid"))
-  def shortCode: Rep[Option[String]] = column[Option[String]]("short_code")
+  def airingId: Rep[String] = column[String]("airing_id", O.PrimaryKey)
   def showId: Rep[Long] = column[Long]("show_id")
   def startTime: Rep[LocalDateTime] = column[LocalDateTime]("start_time", O.SqlType("timestamp"))
   def endTime: Rep[LocalDateTime] = column[LocalDateTime]("end_time", O.SqlType("timestamp"))
   def duration: Rep[Int] = column[Int]("duration")
   def * = (
     airingId.?,
-    shortCode,
     showId,
     startTime,
     endTime,
@@ -47,12 +45,6 @@ class AiringTable(tag: Tag) extends Table[Airing](tag, "airing") {
   def endTimeIdx = index(
     "airing_end_time_idx",
     endTime
-  )
-
-  def shortcodeIdx = index(
-    "short_code_idx",
-    shortCode,
-    unique = true
   )
 }
 

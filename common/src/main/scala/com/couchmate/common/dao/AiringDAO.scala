@@ -1,7 +1,6 @@
 package com.couchmate.common.dao
 
 import java.time.LocalDateTime
-import java.util.UUID
 
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
@@ -16,7 +15,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 trait AiringDAO {
 
-  def getAiring(airingId: UUID)(
+  def getAiring(airingId: String)(
     implicit
     db: Database
   ): Future[Option[Airing]] = {
@@ -26,7 +25,7 @@ trait AiringDAO {
   def getAiring$()(
     implicit
     session: SlickSession
-  ): Flow[UUID, Option[Airing], NotUsed] =
+  ): Flow[String, Option[Airing], NotUsed] =
     Slick.flowWithPassThrough(AiringDAO.getAiring)
 
   def getAiringsByStart(startTime: LocalDateTime)(
@@ -101,36 +100,36 @@ trait AiringDAO {
   ): Flow[Airing, Airing, NotUsed] =
     Slick.flowWithPassThrough(AiringDAO.upsertAiring)
 
-  def getAiringStatus(airingId: UUID)(
+  def getAiringStatus(airingId: String)(
     implicit
     db: Database
   ): Future[Option[AiringStatus]] =
     db.run(AiringDAO.getAiringStatus(airingId).headOption)
 
-  def getShortcodeFromGracenote(convert: AiringConversion)(
+  def getAiringFromGracenote(convert: AiringConversion)(
     implicit
     db: Database
   ): Future[Option[String]] =
-    db.run(AiringDAO.getShortcodeFromGracenote(convert).headOption)
+    db.run(AiringDAO.getAiringFromGracenote(convert).headOption)
 
-  def getShortcodesFromGracenote(converts: Seq[AiringConversion])(
+  def getAiringsFromGracenote(converts: Seq[AiringConversion])(
     implicit
     db: Database,
     ec: ExecutionContext
   ): Future[Seq[String]] =
     Future.sequence(
       converts.map(c =>
-        db.run(AiringDAO.getShortcodeFromGracenote(c).headOption)
+        db.run(AiringDAO.getAiringFromGracenote(c).headOption)
       )
     ).map(_.filter(_.isDefined).map(_.get))
 }
 
 object AiringDAO {
-  private[this] lazy val getAiringQuery = Compiled { (airingId: Rep[UUID]) =>
+  private[this] lazy val getAiringQuery = Compiled { (airingId: Rep[String]) =>
     AiringTable.table.filter(_.airingId === airingId)
   }
 
-  private[common] def getAiring(airingId: UUID): DBIO[Option[Airing]] =
+  private[common] def getAiring(airingId: String): DBIO[Option[Airing]] =
     getAiringQuery(airingId).result.headOption
 
   private[this] lazy val getAiringByShowStartAndEndQuery = Compiled {
@@ -186,10 +185,9 @@ object AiringDAO {
     ec: ExecutionContext
   ): DBIO[Airing] = airing.airingId.fold[DBIO[Airing]](
     (AiringTable.table returning AiringTable.table) += airing.copy(
-      airingId = Some(UUID.randomUUID()),
-      shortCode = Some(Airing.generateShortcode)
+      airingId = Some(Airing.generateShortcode)
     )
-  ) { (airingId: UUID) => for {
+  ) { (airingId: String) => for {
     _ <- AiringTable
       .table
       .filter(_.airingId === airingId)
@@ -199,22 +197,22 @@ object AiringDAO {
 
   private[common] def addOrGetAiring(a: Airing) =
     sql"""
-         WITH input_rows(airing_id, short_code, show_id, start_time, end_time, duration) AS (
-          VALUES (${a.airingId}::uuid, ${a.shortCode}, ${a.showId}, ${a.startTime}::timestamp, ${a.endTime}::timestamp, ${a.duration})
+         WITH input_rows(airing_id, show_id, start_time, end_time, duration) AS (
+          VALUES (${a.airingId}, ${a.showId}, ${a.startTime}::timestamp, ${a.endTime}::timestamp, ${a.duration})
          ), ins AS (
-          INSERT INTO airing AS a (airing_id, short_code, show_id, start_time, end_time, duration)
+          INSERT INTO airing AS a (airing_id, show_id, start_time, end_time, duration)
           SELECT * FROM input_rows
           ON CONFLICT (show_id, start_time, end_time) DO NOTHING
-          RETURNING airing_id, short_code, show_id, start_time, end_time, duration
+          RETURNING airing_id, show_id, start_time, end_time, duration
          ), sel AS (
-          SELECT airing_id, short_code, show_id, start_time, end_time, duration
+          SELECT airing_id, show_id, start_time, end_time, duration
           FROM ins
           UNION ALL
-          SELECT a.airing_id, a.short_code, show_id, start_time, end_time, a.duration
+          SELECT a.airing_id, a.show_id, start_time, end_time, a.duration
           FROM input_rows
           JOIN airing as a USING (show_id, start_time, end_time)
          ), ups AS (
-           INSERT INTO airing AS air (airing_id, short_code, show_id, start_time, end_time, duration)
+           INSERT INTO airing AS air (airing_id, show_id, start_time, end_time, duration)
            SELECT i.*
            FROM   input_rows i
            LEFT   JOIN sel   s USING (show_id, start_time, end_time)
@@ -223,13 +221,13 @@ object AiringDAO {
            SET    show_id = air.show_id,
                   start_time = air.start_time,
                   end_time = air.end_time
-           RETURNING airing_id, short_code, show_id, start_time, end_time, duration
-         )  SELECT airing_id, short_code, show_id, start_time, end_time, duration FROM sel
+           RETURNING airing_id, show_id, start_time, end_time, duration
+         )  SELECT airing_id, show_id, start_time, end_time, duration FROM sel
             UNION  ALL
             TABLE  ups;
          """.as[Airing]
 
-  private[common] def getAiringStatus(airingId: UUID): SqlStreamingAction[Seq[AiringStatus], AiringStatus, Effect] =
+  private[common] def getAiringStatus(airingId: String): SqlStreamingAction[Seq[AiringStatus], AiringStatus, Effect] =
     sql"""
        SELECT  a.airing_id, a.show_id, a.start_time, a.end_time, a.duration, CASE
         WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 15 AND
@@ -247,9 +245,9 @@ object AiringDAO {
         WHERE   airing_id = $airingId
       """.as[AiringStatus]
 
-  private[common] def getShortcodeFromGracenote(convert: AiringConversion) =
+  private[common] def getAiringFromGracenote(convert: AiringConversion) =
     sql"""
-         SELECT a.short_code
+         SELECT a.airing_id
          FROM   airing as a
          JOIN   lineup as l
          ON     l.airing_id = a.airing_id

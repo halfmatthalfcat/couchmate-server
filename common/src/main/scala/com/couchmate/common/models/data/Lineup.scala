@@ -1,16 +1,13 @@
 package com.couchmate.common.models.data
 
-import java.util.UUID
-
 import com.couchmate.common.util.slick.RowParser
-import com.couchmate.common.db.PgProfile.plainAPI._
 import play.api.libs.json.{Format, Json}
 import slick.jdbc.GetResult
 
 case class Lineup(
   lineupId: Option[Long],
   providerChannelId: Long,
-  airingId: UUID,
+  airingId: String,
   active: Boolean
 ) extends Product with Serializable
 

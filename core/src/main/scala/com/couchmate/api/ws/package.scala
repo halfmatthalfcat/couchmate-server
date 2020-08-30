@@ -4,12 +4,9 @@ package com.couchmate.api
  * WS Protocol
  */
 
-import java.util.UUID
-
 import akka.actor.typed.{ActorRef, Behavior}
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.api.ws.protocol.Protocol
-import com.couchmate.common.models.data.{User, UserMeta}
 import com.couchmate.services.room.{RoomId, RoomMessage, RoomParticipant}
 
 package object ws {
@@ -54,7 +51,7 @@ package object ws {
         session: SessionContext,
         geo: GeoContext,
         device: DeviceContext,
-        airingId: UUID
+        airingId: String
       ) extends Command
       case class RestoreRoomSessionFailure(ex: Throwable) extends Command
 
@@ -102,9 +99,9 @@ package object ws {
     }
 
     object InRoom {
-      case class RoomJoined(airingId: UUID, roomId: RoomId)           extends Command
-      case class RoomRejoined(airingId: UUID, roomId: RoomId)         extends Command
-      case class RoomEnded(airingId: UUID, roomId: RoomId)            extends Command
+      case class RoomJoined(airingId: String, roomId: RoomId)           extends Command
+      case class RoomRejoined(airingId: String, roomId: RoomId)         extends Command
+      case class RoomEnded(airingId: String, roomId: RoomId)            extends Command
       case class SetParticipants(participants: Set[RoomParticipant])  extends Command
       case class AddParticipant(participant: RoomParticipant)         extends Command
       case class RemoveParticipant(participant: RoomParticipant)      extends Command

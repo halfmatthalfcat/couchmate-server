@@ -10,8 +10,7 @@ import play.api.libs.json.{Json, OFormat}
 import slick.jdbc.GetResult
 
 case class GridAiring(
-  airingId: UUID,
-  shortCode: String,
+  airingId: String,
   startTime: LocalDateTime,
   endTime: LocalDateTime,
   duration: Int,

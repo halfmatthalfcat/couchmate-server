@@ -16,7 +16,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
   private[this] val shardRegion: ActorRef[ShardingEnvelope[Chatroom.Command]] =
     sharding.init(Entity(Chatroom.TypeKey)(
       context => Chatroom(
-        UUID.fromString(context.entityId),
+        context.entityId,
         PersistenceId(
           context.entityTypeKey.name,
           context.entityId
@@ -25,7 +25,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
     ))
 
   def join(
-    airingId: UUID,
+    airingId: String,
     userId: UUID,
     username: String,
     actorRef: ActorRef[Chatroom.Command]
@@ -37,7 +37,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
   }
 
   def leave(
-    airingId: UUID,
+    airingId: String,
     roomId: RoomId,
     participant: RoomParticipant,
   ): Unit = {
@@ -51,7 +51,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
   }
 
   def message(
-    airingId: UUID,
+    airingId: String,
     roomId: RoomId,
     userId: UUID,
     message: String

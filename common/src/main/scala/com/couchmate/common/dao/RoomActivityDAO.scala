@@ -13,7 +13,7 @@ import scala.concurrent.Future
 
 trait RoomActivityDAO {
 
-  def getRoomCount(airingId: UUID)(
+  def getRoomCount(airingId: String)(
     implicit
     db: Database
   ): Future[Int] =
@@ -22,7 +22,7 @@ trait RoomActivityDAO {
   def getRoomCount$()(
     implicit
     session: SlickSession
-  ): Flow[UUID, Int, NotUsed] =
+  ): Flow[String, Int, NotUsed] =
     Slick.flowWithPassThrough(RoomActivityDAO.getRoomCount)
 
   def addRoomActivity(roomActivity: RoomActivity)(
@@ -47,7 +47,7 @@ object RoomActivityDAO {
           userId -> query.map(_.created).max
       }
 
-  private[this] lazy val getRoomCountQuery = Compiled { (airingId: Rep[UUID]) =>
+  private[this] lazy val getRoomCountQuery = Compiled { (airingId: Rep[String]) =>
     (for {
       counts <- getUserLatestQuery
       ra <- RoomActivityTable.table if (
@@ -59,7 +59,7 @@ object RoomActivityDAO {
     } yield ra).length
   }
 
-  private[common] def getRoomCount(airingId: UUID): DBIO[Int] =
+  private[common] def getRoomCount(airingId: String): DBIO[Int] =
     getRoomCountQuery(airingId).result
 
   private[common] def addRoomActivity(roomActivity: RoomActivity): DBIO[RoomActivity] =

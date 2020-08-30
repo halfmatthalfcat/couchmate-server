@@ -25,7 +25,7 @@ case class SessionContext(
       }
     )
 
-  def roomIsOpen(airingId: UUID): Boolean =
+  def roomIsOpen(airingId: String): Boolean =
     this.airings.exists { airing =>
       airing.airingId == airingId &&
         (
@@ -33,9 +33,6 @@ case class SessionContext(
           airing.status == RoomStatusType.Open
         )
     }
-
-  def getAiringFromShortcode(shortCode: String): Option[GridAiring] =
-    this.airings.find(_.shortCode == shortCode)
 
   def getClientUser: ExternalUser = ExternalUser(
     user.userId.get,

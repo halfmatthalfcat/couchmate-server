@@ -49,6 +49,6 @@ object AiringMigrations {
     ).addIndexes(
       _.shortcodeIdx
     )
-  )(backfillShortcodes)
+  )()
 
 }

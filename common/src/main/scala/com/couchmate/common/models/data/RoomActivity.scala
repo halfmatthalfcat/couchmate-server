@@ -6,7 +6,7 @@ import java.util.UUID
 import play.api.libs.json.{Format, Json}
 
 case class RoomActivity(
-  airingId: UUID,
+  airingId: String,
   userId: UUID,
   action: RoomActivityType,
   created: LocalDateTime = LocalDateTime.now(ZoneId.of("UTC")),
