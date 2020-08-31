@@ -119,16 +119,19 @@ object ListingStreams
     randomFactor = 0,
     maxRestarts = 3
   )(() => Source.future(gracenoteAiring match {
-    case GracenoteAiring(_, _, _, program) if program.seriesId.nonEmpty =>
-      episode(program).recoverWith {
-        case ex: Throwable =>
-          System.out.println(s"Episode failed")
-          Future.failed(ex)
-      }
     case GracenoteAiring(_, _, _, program) if program.sportsId.nonEmpty =>
       sport(program, sports).recoverWith {
         case ex: Throwable =>
           System.out.println(s"Sport failed")
+          Future.failed(ex)
+      }
+    case GracenoteAiring(_, _, _, program) if (
+      program.seriesId.nonEmpty &&
+      program.sportsId.isEmpty
+    ) =>
+      episode(program).recoverWith {
+        case ex: Throwable =>
+          System.out.println(s"Episode failed")
           Future.failed(ex)
       }
     case GracenoteAiring(_, _, _, program) => addOrGetShow(Show(

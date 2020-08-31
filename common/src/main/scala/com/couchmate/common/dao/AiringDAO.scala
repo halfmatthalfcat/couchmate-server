@@ -7,9 +7,10 @@ import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.api.grid.AiringConversion
-import com.couchmate.common.models.data.{Airing, AiringStatus, RoomStatusType, Show}
-import com.couchmate.common.tables.{AiringTable, ShowTable}
-import slick.sql.SqlStreamingAction
+import com.couchmate.common.models.data.{Airing, AiringStatus, RoomStatusType, Series, Show, ShowDetailed, SportEvent}
+import com.couchmate.common.tables.{AiringTable, EpisodeTable, SeriesTable, ShowTable, SportEventTable}
+import slick.dbio.Effect
+import slick.sql.{SqlAction, SqlStreamingAction}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -110,8 +111,18 @@ trait AiringDAO {
     implicit
     db: Database,
     ec: ExecutionContext
-  ): Future[Option[Show]] =
-    db.run(AiringDAO.getShowFromAiring(airingId))
+  ): Future[Option[ShowDetailed]] =
+    db.run(AiringDAO.getShowFromAiring(airingId)).map {
+      case Some((s: Show, series: Option[Series], se: Option[SportEvent])) => Some(ShowDetailed(
+        `type` = s.`type`,
+        title = s.title,
+        description = s.description,
+        seriesTitle = series.map(_.seriesName),
+        sportEventTitle = se.map(_.sportEventTitle),
+        originalAirDate = s.originalAirDate,
+      ))
+      case _ => Option.empty
+    }
 
   def getAiringFromGracenote(convert: AiringConversion)(
     implicit
@@ -205,10 +216,13 @@ object AiringDAO {
   private[common] def getShowFromAiring(airingId: String)(
     implicit
     ec: ExecutionContext
-  ): DBIO[Option[Show]] = (for {
+  ): DBIO[Option[(Show, Option[Series], Option[SportEvent])]] = (for {
     a <- AiringTable.table if a.airingId === airingId
-    s <- ShowTable.table if s.showId === a.showId
-  } yield s).result.headOption
+    ((s, _), series) <- (ShowTable.table
+                  .joinLeft(EpisodeTable.table).on(_.episodeId === _.episodeId)
+                  .joinLeft(SeriesTable.table).on(_._2.map(_.seriesId).flatten === _.seriesId)) if s.showId === a.showId
+    (_, se) <- ShowTable.table.joinLeft(SportEventTable.table).on(_.sportEventId === _.sportEventId)
+  } yield (s, series, se)).result.headOption
 
   private[common] def addOrGetAiring(a: Airing) =
     sql"""
