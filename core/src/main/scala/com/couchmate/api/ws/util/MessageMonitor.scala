@@ -38,7 +38,7 @@ object MessageMonitor {
       config.getBoolean("features.anon.throttle")
 
     def accepting: Behavior[Command] = Behaviors.receiveMessagePartial {
-      case ReceiveMessage(message) => lobby.message(
+      case ReceiveMessage(message) if message.nonEmpty => lobby.message(
           room.airingId,
           room.roomId,
           session.user.userId.get,

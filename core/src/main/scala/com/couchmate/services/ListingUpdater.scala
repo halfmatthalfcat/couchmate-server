@@ -75,9 +75,10 @@ object ListingUpdater
         case AddProviders(providers) =>
           Effect
             .persist(ProvidersAdded(providers))
-            .thenRun((s: State) => s.currentJob.fold(
+            .thenRun((s: State) => s.currentJob.fold({
+              ctx.log.info(s"Starting ${s.jobs.head}, remaining: ${s.jobs.tail.mkString(", ")}")
               ctx.self ! StartJob(s.jobs.head)
-            )(job => ctx.ask(job.actorRef, ListingJob.Ping){
+            })(job => ctx.ask(job.actorRef, ListingJob.Ping){
               case Success(ListingJob.Pong(providerId)) => JobAlive(providerId)
               case Failure(_) => JobDead(job.providerId)
             }))
