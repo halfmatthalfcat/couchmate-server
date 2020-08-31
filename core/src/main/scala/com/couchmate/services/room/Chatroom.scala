@@ -181,7 +181,7 @@ object Chatroom
   ): (State, Command) => Effect[Event, State] =
     (prevState, command) => prevState match {
       case State(_, None, _) => command match {
-        case GetAiringSuccess(AiringStatus(_, _, _, _, _, _, Closed)) => Effect.stop()
+        case GetAiringSuccess(AiringStatus(_, _, _, _, _, Closed)) => Effect.stop()
         case GetAiringSuccess(status) => Effect
           .persist(SetAiringStatus(status))
           .thenRun((s: State) => {
