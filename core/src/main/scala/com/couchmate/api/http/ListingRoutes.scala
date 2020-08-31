@@ -23,16 +23,28 @@ object ListingRoutes
     ec: ExecutionContext,
     db: Database,
     config: Config
-  ): Route = path("convert") {
-    post {
-      entity(as[Seq[AiringConversion]]) { conversions =>
-        onComplete(getAiringsFromGracenote(conversions)) {
+  ): Route = concat(
+    path("convert") {
+      post {
+        entity(as[Seq[AiringConversion]]) { conversions =>
+          onComplete(getAiringsFromGracenote(conversions)) {
+            case Success(value) => complete(StatusCodes.OK -> value)
+            case Failure(exception) =>
+              logger.error(s"Couldn't get conversions: ${exception.getMessage}")
+              complete(StatusCodes.InternalServerError)
+          }
+        }
+      }
+    },
+    path("detail" / Segment) { airingId: String =>
+      get {
+        onComplete(getShowFromAiring(airingId)) {
           case Success(value) => complete(StatusCodes.OK -> value)
           case Failure(exception) =>
-            logger.error(s"Couldn't get conversions: ${exception.getMessage}")
+            logger.error(s"Couldn't get show for ${airingId}: ${exception.getMessage}")
             complete(StatusCodes.InternalServerError)
         }
       }
     }
-  }
+  )
 }

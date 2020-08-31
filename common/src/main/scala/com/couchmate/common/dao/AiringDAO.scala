@@ -7,8 +7,8 @@ import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.api.grid.AiringConversion
-import com.couchmate.common.models.data.{Airing, AiringStatus, RoomStatusType}
-import com.couchmate.common.tables.AiringTable
+import com.couchmate.common.models.data.{Airing, AiringStatus, RoomStatusType, Show}
+import com.couchmate.common.tables.{AiringTable, ShowTable}
 import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -106,6 +106,13 @@ trait AiringDAO {
   ): Future[Option[AiringStatus]] =
     db.run(AiringDAO.getAiringStatus(airingId).headOption)
 
+  def getShowFromAiring(airingId: String)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Option[Show]] =
+    db.run(AiringDAO.getShowFromAiring(airingId))
+
   def getAiringFromGracenote(convert: AiringConversion)(
     implicit
     db: Database
@@ -194,6 +201,14 @@ object AiringDAO {
       .update(airing)
     updated <- AiringDAO.getAiring(airingId)
   } yield updated.get}.transactionally
+
+  private[common] def getShowFromAiring(airingId: String)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Option[Show]] = (for {
+    a <- AiringTable.table if a.airingId === airingId
+    s <- ShowTable.table if s.showId === a.showId
+  } yield s).result.headOption
 
   private[common] def addOrGetAiring(a: Airing) =
     sql"""

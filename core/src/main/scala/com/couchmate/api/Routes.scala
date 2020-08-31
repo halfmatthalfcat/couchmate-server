@@ -54,7 +54,7 @@ trait Routes
       UserRoutes(),
       pathPrefix("api") {
         withApiKey(
-          ListingRoutes()
+          pathPrefix("listing")(ListingRoutes())
         )
       }
     )
