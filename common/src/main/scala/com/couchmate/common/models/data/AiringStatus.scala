@@ -14,7 +14,6 @@ case class AiringStatus(
   startTime: LocalDateTime,
   endTime: LocalDateTime,
   duration: Int,
-  shortCode: Option[String],
   status: RoomStatusType
 )
 
