@@ -47,7 +47,7 @@ trait PrometheusMetrics {
   ): Unit = registered
     .labels(
       tz,
-      country.map(_.getAlpha3).getOrElse("N/A")
+      country.flatMap(c => Option(c.getAlpha3)).getOrElse("N/A")
     ).inc()
 
   def incSession(
@@ -73,7 +73,7 @@ trait PrometheusMetrics {
       providerId.toString,
       provider,
       tz,
-      country.map(_.getAlpha3).getOrElse("N/A")
+      country.flatMap(c => Option(c.getAlpha3)).getOrElse("N/A")
     ).dec()
 
   def incAttendance(
@@ -86,7 +86,7 @@ trait PrometheusMetrics {
       providerId.toString,
       provider,
       tz,
-      country.map(_.getAlpha3).getOrElse("N/A")
+      country.flatMap(c => Option(c.getAlpha3)).getOrElse("N/A")
     ).inc()
 
   def decAttendance(
@@ -99,7 +99,7 @@ trait PrometheusMetrics {
       providerId.toString,
       provider,
       tz,
-      country.map(_.getAlpha3).getOrElse("N/A")
+      country.flatMap(c => Option(c.getAlpha3)).getOrElse("N/A")
     ).dec()
 
   def startTimeInRoom(): Histogram.Timer =
