@@ -72,7 +72,7 @@ prometheus-operator:
             - key: thanos.yaml
               path: thanos.yaml
   alertmanager:
-    enabled: false
+    enabled: true
   kubelet:
     serviceMonitor:
       cAdvisorMetricRelabelings:
@@ -107,6 +107,8 @@ grafana:
     password: abcabc
   persistence:
     enabled: false
+  imageRenderer:
+    enabled: true
   datasources:
     secretName: data-providers-secret
   dashboardsProvider:
@@ -116,6 +118,10 @@ grafana:
       fileName: application.json
     - configMapName: grafana-dashboard-resources
       fileName: resources.json
+  extraConfigmaps:
+    - name: alert-notification-channels
+      mountPath: /opt/bitnami/grafana/conf/provisioning/notifiers
+      readOnly: true
   ingress:
     enabled: true
     annotations:

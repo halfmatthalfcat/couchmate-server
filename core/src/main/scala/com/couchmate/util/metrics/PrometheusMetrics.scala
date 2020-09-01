@@ -60,7 +60,7 @@ trait PrometheusMetrics {
       providerId.toString,
       provider,
       tz,
-      country.map(_.getAlpha3).getOrElse("N/A")
+      country.flatMap(c => Option(c.getAlpha3)).getOrElse("N/A")
     ).inc()
 
   def decSession(
