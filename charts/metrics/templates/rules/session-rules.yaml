@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: alertmanager-session-rules
+  labels:
+    role: alert-rules
+spec:
+  groups:
+    - name: sessions
+      rules:
+        - alert: sessions_up_10_percent
+          annotations:
+            description: {{`"{{$labels.provider}} is up {{$value}}%."`}}
+            summary: Sessions have increased at or above 10%
+          expr: |-
+            (
+              sum(
+                rate(cm_sessions[1m])
+              ) by (provider) / sum(
+                rate(cm_sessions[1m] offset 1m)
+              ) by (provider)
+            ) / 100 >= 10
+          for: 5m
+          labels:
+            severity: info

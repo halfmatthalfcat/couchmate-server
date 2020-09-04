@@ -63,14 +63,14 @@ object ProviderDAO {
     ProviderTable.table.filter(_.providerId === providerId)
   }
 
-  def getProvider(providerId: Long): DBIO[Option[Provider]] =
+  private[common] def getProvider(providerId: Long): DBIO[Option[Provider]] =
     getProviderQuery(providerId).result.headOption
 
   private[this] lazy val getProvidersForTypeQuery = Compiled { (`type`: Rep[String]) =>
     ProviderTable.table.filter(_.`type` === `type`)
   }
 
-  def getProvidersForType(`type`: String): DBIO[Seq[Provider]] =
+  private[common] def getProvidersForType(`type`: String): DBIO[Seq[Provider]] =
     getProvidersForTypeQuery(`type`).result
 
   private[this] lazy val getProviderForExtAndOwnerQuery = Compiled {
@@ -81,13 +81,13 @@ object ProviderDAO {
       }
   }
 
-  def getProviderForExtAndOwner(
+  private[common] def getProviderForExtAndOwner(
     extId: String,
     providerOwnerId: Option[Long]
   ): DBIO[Option[Provider]] =
     getProviderForExtAndOwnerQuery(extId, providerOwnerId).result.headOption
 
-  def upsertProvider(provider: Provider)(
+  private[common] def upsertProvider(provider: Provider)(
     implicit
     ec: ExecutionContext
   ): DBIO[Provider] =

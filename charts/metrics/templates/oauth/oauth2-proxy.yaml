@@ -73,6 +73,13 @@ spec:
               serviceName: cm-{{.Values.env}}-metrics-proxy
               servicePort: 4180
             path: /oauth2
+    - host: alert{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
+      http:
+        paths:
+          - backend:
+              serviceName: cm-{{.Values.env}}-metrics-proxy
+              servicePort: 4180
+            path: /oauth2
   tls:
     - hosts:
         - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
@@ -80,3 +87,6 @@ spec:
     - hosts:
         - grafana{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
       secretName: {{.Values.env}}-grafana-tls
+    - hosts:
+        - alert{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
+      secretName: {{.Values.env}}-alert-tls

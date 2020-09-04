@@ -49,6 +49,7 @@ trait PgProfile
     implicit val gnProgramTypeMapper = enumMappedColumn(GracenoteProgramType)
     implicit val showTypeMapper = enumMappedColumn(ShowType)
     implicit val listingJobStatusMapper = enumMappedColumn(ListingJobStatus)
+    implicit val userReportMapper = enumMappedColumn(UserReportType)
 
     implicit val countryCodeMappedColumn: BaseColumnType[CountryCode] =
       MappedColumnType.base[CountryCode, String](

@@ -38,7 +38,8 @@ object Migrations extends LazyLogging {
     SnapshotMigrations.init,
     ListingJobMigrations.init,
     UserActivityMigrations.addDeviceMetrics,
-    AiringMigrations.addShortcodeSupport,
+    UserReportMigrations.init,
+    UserWordBlockMigrations.init
   )
 
   private[this] def applyMigrations()(
