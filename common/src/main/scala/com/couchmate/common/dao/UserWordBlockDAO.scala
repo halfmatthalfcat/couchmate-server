@@ -22,6 +22,13 @@ trait UserWordBlockDAO {
     ec: ExecutionContext
   ): Future[Boolean] =
     db.run(UserWordBlockDAO.addUserWordBlock(userWordBlock))
+
+  def removeUserWordBlock(userWordBlock: UserWordBlock)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Boolean] =
+    db.run(UserWordBlockDAO.removeUserWordBlock(userWordBlock))
 }
 
 object UserWordBlockDAO {
@@ -37,6 +44,18 @@ object UserWordBlockDAO {
     ec: ExecutionContext
   ): DBIO[Boolean] =
     (UserWordBlockTable.table += userWordBlock) map {
+      case 1 => true
+      case _ => false
+    }
+
+  private[common] def removeUserWordBlock(userWordBlock: UserWordBlock)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Boolean] =
+    UserWordBlockTable.table.filter { uwb =>
+      uwb.userId === userWordBlock.userId &&
+      uwb.word === userWordBlock.word
+    }.delete map {
       case 1 => true
       case _ => false
     }

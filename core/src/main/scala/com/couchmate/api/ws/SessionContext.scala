@@ -1,7 +1,5 @@
 package com.couchmate.api.ws
 
-import java.util.UUID
-
 import com.couchmate.common.models.api.grid.{Grid, GridAiring}
 import com.couchmate.common.models.data.{RoomStatusType, User, UserMeta}
 import com.couchmate.common.models.api.user.{UserMute, User => ExternalUser}
@@ -13,6 +11,7 @@ case class SessionContext(
   providerName: String,
   token: String,
   mutes: Seq[UserMute],
+  wordMutes: Seq[String],
   airings: Set[GridAiring],
   grid: Grid,
 ) {
@@ -43,5 +42,6 @@ case class SessionContext(
     userMeta.email,
     token,
     mutes,
+    wordMutes
   )
 }

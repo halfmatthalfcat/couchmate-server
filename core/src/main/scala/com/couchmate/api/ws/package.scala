@@ -88,6 +88,12 @@ package object ws {
       case class ParticipantUnmuted(session: SessionContext) extends Command
       case class ParticipantUnmutedFailed(ex: Throwable) extends Command
 
+      case class WordBlocked(session: SessionContext) extends Command
+      case class WordBlockFailed(ex: Throwable)       extends Command
+
+      case class WordUnblocked(session: SessionContext) extends Command
+      case class WordUnblockFailed(ex: Throwable)       extends Command
+
       case class ProviderUpdated(
         providerId: Long,
         providerName: String,
@@ -109,6 +115,9 @@ package object ws {
 
       case class ParticipantMuted(session: SessionContext)            extends Command
       case class ParticipantMutedFailed(ex: Throwable)                extends Command
+
+      case object ParticipantReported                                 extends Command
+      case class ParticipantReportFailed(ex: Throwable)               extends Command
     }
 
     object Messaging {

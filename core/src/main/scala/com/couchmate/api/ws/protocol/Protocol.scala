@@ -6,6 +6,7 @@ import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.room.{Message, Participant}
 import com.couchmate.common.models.api.Provider
 import com.couchmate.common.models.api.user.{User, UserMute}
+import com.couchmate.common.models.data.UserReportType
 import com.couchmate.common.util.json.CountryCodePlayJson
 import com.neovisionaries.i18n.CountryCode
 import julienrf.json.derived
@@ -174,6 +175,18 @@ case class UnmuteParticipant(
 case class UpdateMutes(
   mutes: Seq[UserMute]
 ) extends Protocol
+
+case class ReportParticipant(
+  userId: UUID,
+  userReportType: UserReportType,
+  message: Option[String]
+) extends Protocol
+case object ReportSuccess extends Protocol
+case object ReportFailed extends Protocol
+
+case class MuteWord(word: String) extends Protocol
+case class UnmuteWord(word: String)
+case class UpdateWordMutes(words: Seq[String]) extends Protocol
 
 case class SendMessage(
   message: String
