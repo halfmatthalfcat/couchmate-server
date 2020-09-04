@@ -87,7 +87,7 @@ object ProviderDAO {
   ): DBIO[Option[Provider]] =
     getProviderForExtAndOwnerQuery(extId, providerOwnerId).result.headOption
 
-  private[common] def upsertProvider(provider: Provider)(
+  def upsertProvider(provider: Provider)(
     implicit
     ec: ExecutionContext
   ): DBIO[Provider] =

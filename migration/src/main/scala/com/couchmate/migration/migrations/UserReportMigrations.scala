@@ -5,7 +5,7 @@ import com.couchmate.migration.db.MigrationItem
 
 object UserReportMigrations {
 
-  val init = MigrationItem(28L, UserReportTable.table)(
+  val init = MigrationItem(27L, UserReportTable.table)(
     _.create.addColumns(
       _.userReportId,
       _.created,

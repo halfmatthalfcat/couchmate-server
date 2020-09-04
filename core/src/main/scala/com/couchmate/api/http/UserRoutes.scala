@@ -3,9 +3,8 @@ package com.couchmate.api.http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.couchmate.api.ws.WSClient.addUserActivity
 import com.couchmate.api.ws.protocol._
-import com.couchmate.common.dao.{UserDAO, UserMetaDAO, UserPrivateDAO}
+import com.couchmate.common.dao.{UserActivityDAO, UserDAO, UserMetaDAO, UserPrivateDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data._
 import com.couchmate.util.akka.extensions.JwtExtension
@@ -22,6 +21,7 @@ object UserRoutes
   with UserDAO
   with UserMetaDAO
   with UserPrivateDAO
+  with UserActivityDAO
   with LazyLogging {
 
   def apply()(

@@ -5,7 +5,7 @@ import com.couchmate.migration.db.MigrationItem
 
 object UserWordBlockMigrations {
 
-  val init = MigrationItem(29L, UserWordBlockTable.table)(
+  val init = MigrationItem(28L, UserWordBlockTable.table)(
     _.create.addColumns(
       _.userId,
       _.word,

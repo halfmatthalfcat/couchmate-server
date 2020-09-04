@@ -330,13 +330,13 @@ object WSClient
             Behaviors.same
 
           case Incoming(MuteWord(word)) =>
-            ctx.pipeToSelf(UserActions.addWordBlock(session, word)) {
+            ctx.pipeToSelf(UserActions.addWordBlock(session, word.toLowerCase)) {
               case Success(value) => Connected.WordBlocked(value)
               case Failure(exception) => Connected.WordBlockFailed(exception)
             }
             Behaviors.same
           case Incoming(UnmuteWord(word)) =>
-            ctx.pipeToSelf(UserActions.removeWordBlock(session, word)) {
+            ctx.pipeToSelf(UserActions.removeWordBlock(session, word.toLowerCase)) {
               case Success(value) => Connected.WordUnblocked(value)
               case Failure(exception) => Connected.WordUnblockFailed(exception)
             }

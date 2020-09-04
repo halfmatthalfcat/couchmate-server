@@ -185,7 +185,7 @@ case object ReportSuccess extends Protocol
 case object ReportFailed extends Protocol
 
 case class MuteWord(word: String) extends Protocol
-case class UnmuteWord(word: String)
+case class UnmuteWord(word: String) extends Protocol
 case class UpdateWordMutes(words: Seq[String]) extends Protocol
 
 case class SendMessage(

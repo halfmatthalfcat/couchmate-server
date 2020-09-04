@@ -6,7 +6,7 @@ import akka.actor.typed.scaladsl.ActorContext
 import com.couchmate.api.ws.Commands.Command
 import com.couchmate.api.ws.{DeviceContext, GeoContext, SessionContext}
 import com.couchmate.api.ws.protocol.{LoginError, LoginErrorCause, RestoreSession}
-import com.couchmate.common.dao.{GridDAO, ProviderDAO, UserActivityDAO, UserDAO, UserMetaDAO, UserMuteDAO, UserPrivateDAO, UserProviderDAO}
+import com.couchmate.common.dao.{GridDAO, ProviderDAO, UserActivityDAO, UserDAO, UserMetaDAO, UserMuteDAO, UserPrivateDAO, UserProviderDAO, UserWordBlockDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{UserActivity, UserActivityType, UserMeta, UserMute, UserPrivate, UserProvider, UserRole, User => InternalUser}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
@@ -22,6 +22,7 @@ object SessionActions
   with UserMetaDAO
   with UserPrivateDAO
   with UserMuteDAO
+  with UserWordBlockDAO
   with UserActivityDAO
   with UserProviderDAO
   with ProviderDAO
@@ -53,6 +54,7 @@ object SessionActions
             throw new RuntimeException(s"Could not find userMeta for $userId")
           ))
           mutes <- getUserMutes(userId)
+          wordMutes <- getUserWordBlocks(userId)
           userProvider <- getUserProvider(userId).map(_.getOrElse(
             throw new RuntimeException(s"Could not find userProvider for $userId")
           ))
@@ -75,6 +77,7 @@ object SessionActions
           providerName = provider.name,
           token = resume.token,
           mutes = mutes,
+          wordMutes = wordMutes,
           airings = Set.empty,
           grid = grid
         ).setAiringsFromGrid(grid)
@@ -112,6 +115,7 @@ object SessionActions
         defaultProvider.value
       ))
       mutes <- getUserMutes(user.userId.get)
+      wordMutes <- getUserWordBlocks(user.userId.get)
       provider <- getProvider(defaultProvider.value)
       token <- Future.fromTry(jwt.createToken(
         subject = user.userId.get.toString,
@@ -136,6 +140,7 @@ object SessionActions
       providerName = provider.get.name,
       token = token,
       mutes = mutes,
+      wordMutes = wordMutes,
       airings = Set.empty,
       grid = grid
     ).setAiringsFromGrid(grid)
@@ -174,6 +179,7 @@ object SessionActions
       ))
       userMeta <- getUserMeta(user.userId.get)
       mutes <- getUserMutes(user.userId.get)
+      wordMutes <- getUserWordBlocks(user.userId.get)
       userProvider <- getUserProvider(user.userId.get)
       provider <- getProvider(userProvider.get.providerId)
       grid <- getGrid(userProvider.get.providerId)
@@ -184,6 +190,7 @@ object SessionActions
       provider.get.name,
       token,
       mutes,
+      wordMutes,
       airings = Set(),
       grid
     ).setAiringsFromGrid(grid)
