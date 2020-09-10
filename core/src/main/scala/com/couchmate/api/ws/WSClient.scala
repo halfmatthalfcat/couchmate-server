@@ -6,7 +6,7 @@ import akka.stream.Materializer
 import com.couchmate.Server
 import com.couchmate.api.ws.actions.{SessionActions, UserActions}
 import com.couchmate.api.ws.protocol._
-import com.couchmate.api.ws.util.MessageMonitor
+import com.couchmate.api.ws.util.{ConnectionMonitor, MessageMonitor}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.room.Participant
 import com.couchmate.common.models.data.{UserActivity, UserActivityType, UserRole}
@@ -88,13 +88,21 @@ object WSClient
         Behaviors.same
     }
 
+    def ping(connMon: ActorRef[ConnectionMonitor.Command]): PartialCommand = {
+      case Incoming(Pong) =>
+        connMon ! ConnectionMonitor.ReceivePong
+        Behaviors.same
+    }
+
     /**
      * Initial Client State
      */
     def run(): Behavior[Command] = Behaviors.receiveMessage(compose(
       {
         case SocketConnected(ws) =>
-          connected(ws)
+          val connectionMonitor: ActorRef[ConnectionMonitor.Command] =
+            ctx.spawnAnonymous(ConnectionMonitor(ws))
+          connected(ws, connectionMonitor)
       },
       closing
     ))
@@ -102,7 +110,10 @@ object WSClient
     /**
      * Client Established Connection With Socket Actor
      */
-    def connected(ws: ActorRef[Command]): Behavior[Command] = Behaviors.receiveMessage(compose(
+    def connected(
+      ws: ActorRef[Command],
+      connMon: ActorRef[ConnectionMonitor.Command]
+    ): Behavior[Command] = Behaviors.receiveMessage(compose(
       {
         case Incoming(InitSession(timezone, locale, region, os, osVersion, brand, model)) =>
           val geoContext: GeoContext = GeoContext(locale, timezone, region)
@@ -139,14 +150,15 @@ object WSClient
           Behaviors.same
 
         case Connected.CreateNewSessionSuccess(session, geo, device) =>
-          inSession(session, geo, device, ws, init = true)
+          inSession(session, geo, device, ws, connMon, init = true)
         case Connected.RestoreSessionSuccess(session, geo, device) =>
-          inSession(session, geo, device, ws, init = true)
+          inSession(session, geo, device, ws, connMon, init = true)
         case Connected.RestoreRoomSessionSuccess(session, geo, device, airingId) =>
-          inSession(session, geo, device, ws, init = true, Some(airingId))
+          inSession(session, geo, device, ws, connMon, init = true, Some(airingId))
       },
       closing,
-      outgoing(ws)
+      outgoing(ws),
+      ping(connMon)
     ))
 
     /**
@@ -157,6 +169,7 @@ object WSClient
       geo: GeoContext,
       device: DeviceContext,
       ws: ActorRef[Command],
+      connMon: ActorRef[ConnectionMonitor.Command],
       init: Boolean = false,
       roomRestore: Option[String] = None,
     ): Behavior[Command] = Behaviors.setup { _ =>
@@ -359,7 +372,7 @@ object WSClient
 
           case Connected.AccountVerified(session) =>
             ws ! Outgoing(VerifyAccountSuccess(session.getClientUser))
-            inSession(session, geo, device, ws)
+            inSession(session, geo, device, ws, connMon)
           case Connected.AccountVerifiedFailed(ex) => ex match {
             case RegisterAccountError(cause) =>
               ws ! Outgoing(VerifyAccountFailed(cause))
@@ -381,7 +394,7 @@ object WSClient
 
           case Connected.UsernameUpdated(session) =>
             ws ! Outgoing(UpdateUsernameSuccess(session.getClientUser))
-            inSession(session, geo, device, ws)
+            inSession(session, geo, device, ws, connMon)
           case Connected.UsernameUpdatedFailed(ex) => ex match {
             case UpdateUsernameError(cause) =>
               ws ! Outgoing(UpdateUsernameFailure(cause))
@@ -393,7 +406,7 @@ object WSClient
             Behaviors.same
 
           case Connected.LoggedIn(session) =>
-            inSession(session, geo, device, ws, init = true, None)
+            inSession(session, geo, device, ws, connMon, init = true, None)
           case Connected.LoggedInFailed(ex) => ex match {
             case LoginError(cause) =>
               ws ! Outgoing(LoginFailure(cause))
@@ -439,14 +452,14 @@ object WSClient
 
           case Connected.ParticipantUnmuted(session) =>
             ws ! Outgoing(UpdateMutes(session.mutes))
-            inSession(session, geo, device, ws)
+            inSession(session, geo, device, ws, connMon)
 
           case Connected.WordBlocked(session) =>
             ws ! Outgoing(UpdateWordMutes(session.wordMutes))
-            inSession(session, geo, device, ws)
+            inSession(session, geo, device, ws, connMon)
           case Connected.WordUnblocked(session) =>
             ws ! Outgoing(UpdateWordMutes(session.wordMutes))
-            inSession(session, geo, device, ws)
+            inSession(session, geo, device, ws, connMon)
 
           case Connected.UpdateGrid(grid) =>
             ctx.self ! Outgoing(UpdateGrid(grid))
@@ -454,7 +467,8 @@ object WSClient
               session.setAiringsFromGrid(grid),
               geo,
               device,
-              ws
+              ws,
+              connMon,
             )
 
           case InRoom.RoomJoined(airingId, roomId) =>
@@ -464,6 +478,7 @@ object WSClient
               geo,
               device,
               ws,
+              connMon,
               RoomContext(
                 airingId,
                 roomId
@@ -493,7 +508,8 @@ object WSClient
             Behaviors.same
         },
         closing,
-        outgoing(ws)
+        outgoing(ws),
+        ping(connMon)
       ))
     }
 
@@ -505,6 +521,7 @@ object WSClient
       geo: GeoContext,
       device: DeviceContext,
       ws: ActorRef[Command],
+      connMon: ActorRef[ConnectionMonitor.Command],
       room: RoomContext,
       timer: Histogram.Timer,
       rejoining: Boolean = false
@@ -556,7 +573,7 @@ object WSClient
               geo.country,
             )
             timer.close()
-            inSession(session, geo, device, ws)
+            inSession(session, geo, device, ws, connMon)
 
           case Incoming(SendMessage(message)) =>
             messageMonitor ! MessageMonitor.ReceiveMessage(message)
@@ -590,6 +607,7 @@ object WSClient
               geo,
               device,
               ws,
+              connMon,
               RoomContext(
                 airingId,
                 roomId
@@ -606,7 +624,7 @@ object WSClient
               geo.country,
             )
             timer.close()
-            inSession(session, geo, device, ws)
+            inSession(session, geo, device, ws, connMon)
           case InRoom.SetParticipants(participants) =>
             ctx.self ! Outgoing(SetParticipants(
               participants
@@ -647,7 +665,7 @@ object WSClient
             // TODO this is inefficient
             messageMonitor ! MessageMonitor.Complete
             ctx.self ! Outgoing(UpdateMutes(session.mutes))
-            inRoom(session, geo, device, ws, room, timer)
+            inRoom(session, geo, device, ws, connMon, room, timer)
 
           case Messaging.OutgoingRoomMessage(message) =>
             if (!session.mutes.exists(mute => message.author.exists(_.userId == mute.userId))) {
@@ -688,7 +706,8 @@ object WSClient
             Behaviors.same
         },
         closing,
-        outgoing(ws)
+        outgoing(ws),
+        ping(connMon)
       ))
     }
 

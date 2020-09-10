@@ -19,6 +19,9 @@ object Protocol extends CountryCodePlayJson {
     derived.flat.oformat((__ \ "ttype").format[String])
 }
 
+case object Ping extends Protocol
+case object Pong extends Protocol
+
 case class InitSession(
   timezone: String,
   locale: String,
