@@ -60,12 +60,14 @@ object ListingJob
     provider: Option[Provider] = None,
     sports: Option[Seq[GracenoteSport]] = None,
     job: Option[ListingJobModel] = None,
+    startTime: LocalDateTime
   )
 
   private final case class JobState(
     provider: Provider,
     sports: Seq[GracenoteSport],
-    job: ListingJobModel
+    job: ListingJobModel,
+    startTime: LocalDateTime
   )
 
   def apply(
@@ -115,6 +117,7 @@ object ListingJob
             provider = provider,
             sports = state.sports.get,
             job = state.job.get,
+            startTime = state.startTime,
           ))
         } else {
           start(state.copy(
@@ -127,6 +130,7 @@ object ListingJob
             provider = state.provider.get,
             sports = sports,
             job = state.job.get,
+            startTime = state.startTime,
           ))
         } else {
           start(state.copy(
@@ -138,7 +142,8 @@ object ListingJob
           run(JobState(
             provider = state.provider.get,
             sports = state.sports.get,
-            job = state.job.get
+            job = state.job.get,
+            startTime = state.startTime,
           ))
         } else {
           start(state.copy(
@@ -166,7 +171,7 @@ object ListingJob
       // May be a product of weak nodes and just not enough time for it to respond
       implicit val timeout: Timeout = 30 minutes
 
-      slots(pullType)
+      slots(pullType, state.startTime)
         .via(ActorFlow.ask[
           LocalDateTime,
           GracenoteCoordinator.Command,
@@ -226,18 +231,23 @@ object ListingJob
            removed = prev.removed + curr.removed,
            skipped = prev.skipped + curr.skipped
          ))
-          .mapAsync(1)(plan => upsertListingJob(
-            state.job.copy(
-              completed = Some(LocalDateTime.now(ZoneId.of("UTC"))),
-              status = ListingJobStatus.Complete,
-              lastSlot = Some(plan.startTime.plusHours(pullType.value))
-            )))
         )
         .run
         .flatMap(_ => getGrid(providerId))
         .onComplete {
           case Success(value) =>
-            ctx.self ! JobEnded(providerId, value)
+            upsertListingJob(
+              state.job.copy(
+                completed = Some(LocalDateTime.now(ZoneId.of("UTC"))),
+                status = ListingJobStatus.Complete,
+                lastSlot = Some(state.startTime.plusHours(pullType.value))
+              )
+            ) onComplete {
+              case Success(_) =>
+                ctx.self ! JobEnded(providerId, value)
+              case Failure(exception) =>
+                ctx.self ! JobFailure(exception)
+            }
           case Failure(exception) =>
             ctx.log.error(s"Listing job for $providerId failed", exception)
             upsertListingJob(
@@ -267,6 +277,10 @@ object ListingJob
       job(Seq(initiate))
     }
 
-    start(PreState())
+    start(PreState(
+      startTime = DateUtils.roundNearestHour(
+        LocalDateTime.now(ZoneId.of("UTC"))
+      )
+    ))
   }
 }

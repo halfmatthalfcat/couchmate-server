@@ -101,7 +101,7 @@ object WSClient
       {
         case SocketConnected(ws) =>
           val connectionMonitor: ActorRef[ConnectionMonitor.Command] =
-            ctx.spawnAnonymous(ConnectionMonitor(ws))
+            ctx.spawnAnonymous(ConnectionMonitor(ws, ctx.self))
           connected(ws, connectionMonitor)
       },
       closing

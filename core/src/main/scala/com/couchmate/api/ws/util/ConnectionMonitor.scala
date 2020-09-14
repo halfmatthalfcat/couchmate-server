@@ -26,11 +26,11 @@ object ConnectionMonitor {
   private final case object SendPing extends Command
   private final case object PoisonPill extends Command
 
-  def apply(ws: ActorRef[Commands.Command]): Behavior[Command] = Behaviors.setup { ctx =>
+  def apply(ws: ActorRef[Commands.Command], parent: ActorRef[Commands.Command]): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
       timers.startTimerAtFixedRate(SendPing, 5 seconds)
 
-      ctx.watchWith(ws, PoisonPill)
+      ctx.watchWith(parent, PoisonPill)
 
       ws ! Outgoing(Ping)
 
@@ -42,7 +42,10 @@ object ConnectionMonitor {
               lastPing = Some(LocalDateTime.now(ZoneId.of("UTC"))),
             ))
           }) { _ =>
-            if (state.deathSaves == 3) {
+            if (state.deathSaves == 6) {
+              parent ! Commands.Complete
+              Behaviors.stopped
+            } else if (state.deathSaves == 3) {
               run(state.copy(
                 status = ConnectionStatus.Lost
               ))
@@ -82,6 +85,7 @@ object ConnectionMonitor {
             }
           }
         case PoisonPill =>
+          parent ! Commands.Complete
           Behaviors.stopped
       }
 

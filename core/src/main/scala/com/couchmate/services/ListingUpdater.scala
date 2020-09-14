@@ -73,17 +73,22 @@ object ListingUpdater
             case Failure(exception) => FailedProviders(exception)
           })
         case AddProviders(providers) =>
+          ctx.log.info(s"Pulled jobs ${providers.mkString(", ")}")
           Effect
             .persist(ProvidersAdded(providers))
             .thenRun((s: State) => s.currentJob.fold({
               ctx.log.info(s"Starting ${s.jobs.head}, remaining: ${s.jobs.tail.mkString(", ")}")
               ctx.self ! StartJob(s.jobs.head)
-            })(job => ctx.ask(job.actorRef, ListingJob.Ping){
-              case Success(ListingJob.Pong(providerId)) => JobAlive(providerId)
-              case Failure(_) => JobDead(job.providerId)
+            })(job => {
+              ctx.log.info(s"Found job ${job.providerId}, making sure its still running")
+              ctx.ask(job.actorRef, ListingJob.Ping){
+                case Success(ListingJob.Pong(providerId)) => JobAlive(providerId)
+                case Failure(_) => JobDead(job.providerId)
+              }
             }))
         case JobAlive(_) => Effect.none
         case JobDead(providerId) =>
+          ctx.log.info(s"Job $providerId was dead, restarting.")
           ctx.self ! StartJob(providerId)
           Effect.none
         case JobFinished(providerId) =>

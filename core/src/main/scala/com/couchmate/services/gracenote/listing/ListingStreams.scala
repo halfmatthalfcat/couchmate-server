@@ -33,10 +33,10 @@ object ListingStreams
   with SportEventDAO
   with LineupDAO {
 
-  def slots(pullType: ListingPullType): Source[LocalDateTime, NotUsed] =
+  def slots(pullType: ListingPullType, startTime: LocalDateTime): Source[LocalDateTime, NotUsed] =
     Source
       .fromIterator(() => Range(0, pullType.value).map(i => DateUtils.roundNearestHour(
-        LocalDateTime.now(ZoneId.of("UTC")).plusHours(i)
+        startTime.plusHours(i)
       )).iterator)
 
   def listings(
