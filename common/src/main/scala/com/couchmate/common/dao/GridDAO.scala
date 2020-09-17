@@ -32,12 +32,12 @@ trait GridDAO {
             startDate
           )))
       )
-      //count <- db.run(UserActivityDAO.getProviderUserCount(providerId).head)
+      count <- db.run(UserActivityDAO.getProviderUserCount(providerId).head)
     } yield Grid(
       providerId,
       provider.get.name,
       now,
-      //count,
+      count,
       pages,
     )
   }

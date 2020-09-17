@@ -80,6 +80,9 @@ object GridCoordinator
           }
 
           run(state + (grid.providerId -> nextState))
+        case GridFailure(err) =>
+          ctx.log.error(s"Failed to get grid", err)
+          Behaviors.same
       }
 
       run(Map())

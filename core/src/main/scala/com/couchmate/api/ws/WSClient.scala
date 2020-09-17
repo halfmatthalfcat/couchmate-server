@@ -158,6 +158,19 @@ object WSClient
           inSession(session, geo, device, ws, connMon, init = true)
         case Connected.RestoreRoomSessionSuccess(session, geo, device, airingId) =>
           inSession(session, geo, device, ws, connMon, init = true, Some(airingId))
+
+        case Connected.CreateNewSessionFailure(err) =>
+          ctx.log.error(s"Failed to create new session", err)
+          ctx.self ! Complete
+          Behaviors.same
+        case Connected.RestoreSessionFailure(err) =>
+          ctx.log.error(s"Failed to restore session", err)
+          ctx.self ! Complete
+          Behaviors.same
+        case Connected.RestoreRoomSessionFailure(ex) =>
+          ctx.log.error(s"Failed to restore room session", ex)
+          ctx.self ! Complete
+          Behaviors.same
       },
       closing,
       outgoing(ws),

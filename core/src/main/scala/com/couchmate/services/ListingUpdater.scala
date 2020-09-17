@@ -121,15 +121,19 @@ object ListingUpdater
     def eventHandler: (State, Event) => State =
       (state, event) => event match {
         case ProvidersAdded(providers) =>
-          ctx.log.info(s"Added ${providers.mkString(", ")}, Current jobs ${state.jobs.mkString(", ")}")
           state.copy(
             jobs = state.jobs ++ providers
           )
         case ProviderCompleted(providerId) =>
-          ctx.log.info(s"Completed $providerId, Current jobs ${state.jobs.tail}")
-          state.copy(
-            jobs = state.jobs.tail
-          )
+          if (state.jobs.nonEmpty) {
+            state.copy(
+              jobs = state.jobs.tail
+            )
+          } else {
+            state.copy(
+              jobs = List.empty
+            )
+          }
         case ProviderStarted(providerId, actorRef) => state.copy(
           currentJob = Some(CurrentJob(
             providerId, actorRef

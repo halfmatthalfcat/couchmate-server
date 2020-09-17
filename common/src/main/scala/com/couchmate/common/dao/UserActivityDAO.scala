@@ -41,14 +41,14 @@ object UserActivityDAO {
               SELECT    user_id, max(created) as created
               FROM      user_activity
               GROUP BY  user_id
-            ) latest
+            ) as latest
             ON    current.user_id = latest.user_id AND
                   current.created = latest.created
             JOIN  user_provider up
             ON    current.user_id = up.user_id
             WHERE current.action = 'login' AND
                   up.provider_id = $providerId
-          )
+          ) as c
          """.as[Long]
 
 }

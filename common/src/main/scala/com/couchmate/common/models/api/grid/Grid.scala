@@ -8,7 +8,7 @@ case class Grid(
   providerId: Long,
   providerName: String,
   startTime: LocalDateTime,
-  //userCount: Long,
+  userCount: Long,
   pages: Seq[GridPage],
 )
 
