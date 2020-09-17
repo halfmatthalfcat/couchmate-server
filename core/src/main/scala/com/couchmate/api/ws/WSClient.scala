@@ -508,7 +508,7 @@ object WSClient
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
             }
-            Behaviors.same
+            Behaviors.stopped
         },
         closing,
         outgoing(ws),
@@ -706,7 +706,7 @@ object WSClient
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
             }
-            Behaviors.same
+            Behaviors.stopped
         },
         closing,
         outgoing(ws),
