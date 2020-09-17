@@ -56,6 +56,8 @@ object UserActions
         token
       )
     } yield ()) recoverWith {
+      case err: RegisterAccountError =>
+        throw err
       case ex: Throwable =>
         ctx.log.error("Failed to register account", ex)
         Future.failed(RegisterAccountError(RegisterAccountErrorCause.UnknownError))

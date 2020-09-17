@@ -43,7 +43,7 @@ object SessionActions
   ): Future[SessionContext] =
     jwt.validateToken(resume.token, Map("scope" -> "access")) match {
       case Failure(exception) =>
-        ctx.log.warn(s"Got bad token: ${exception.getMessage}")
+        ctx.log.error(s"Got bad token", exception)
         createNewSession(geo, device)
       case Success(CMJwtClaims(userId, _)) => getUser(userId) flatMap {
         case None =>

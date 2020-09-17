@@ -71,6 +71,9 @@ object WSClient
       case Complete | Connected.LogoutSuccess =>
         ctx.log.debug("Connection complete")
         Behaviors.stopped
+      case Connected.LogoutFailure(ex) =>
+        ctx.log.error(s"Failed to logout", ex)
+        Behaviors.stopped
       case Closed =>
         ctx.log.debug("Connection closed")
         Behaviors.stopped

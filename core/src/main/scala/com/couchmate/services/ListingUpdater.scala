@@ -24,6 +24,7 @@ object ListingUpdater
   private final case class AddProviders(providers: Seq[Long]) extends Command
   private final case class FailedProviders(err: Throwable) extends Command
   private final case object StartUpdate extends Command
+  private final case object ColdStart extends Command
   private final case class StartJob(providerId: Long) extends Command
   private final case class JobAlive(providerId: Long) extends Command
   private final case class JobDead(providerId: Long) extends Command
@@ -65,8 +66,14 @@ object ListingUpdater
       None
     )
 
+    ctx.self ! ColdStart
+
     def commandHandler: (State, Command) => Effect[Event, State] = {
       (_, command) => command match {
+        case ColdStart => Effect.none
+            .thenRun((s: State) => s.jobs.headOption.fold(()) { providerId =>
+              ctx.self ! StartJob(providerId)
+            })
         case StartUpdate => Effect.none
           .thenRun((_: State) => ctx.pipeToSelf(getProviders) {
             case Success(value) => AddProviders(value)
@@ -94,7 +101,7 @@ object ListingUpdater
         case JobFinished(providerId) =>
           Effect.persist(ProviderCompleted(providerId))
             .thenRun((s: State) => s.jobs.headOption.fold(()){ nextProvider =>
-              ctx.log.info(s"Starting ${nextProvider}, remaining: ${s.jobs.tail.mkString(", ")}")
+              ctx.log.info(s"Starting $nextProvider, remaining: ${s.jobs.tail.mkString(", ")}")
               ctx.self ! StartJob(nextProvider)
             })
         case StartJob(providerId) =>
@@ -113,12 +120,16 @@ object ListingUpdater
 
     def eventHandler: (State, Event) => State =
       (state, event) => event match {
-        case ProvidersAdded(providers) => state.copy(
-          jobs = state.jobs ++ providers
-        )
-        case ProviderCompleted(_) => state.copy(
-          jobs = state.jobs.tail
-        )
+        case ProvidersAdded(providers) =>
+          ctx.log.info(s"Added ${providers.mkString(", ")}, Current jobs ${state.jobs.mkString(", ")}")
+          state.copy(
+            jobs = state.jobs ++ providers
+          )
+        case ProviderCompleted(providerId) =>
+          ctx.log.info(s"Completed $providerId, Current jobs ${state.jobs.tail}")
+          state.copy(
+            jobs = state.jobs.tail
+          )
         case ProviderStarted(providerId, actorRef) => state.copy(
           currentJob = Some(CurrentJob(
             providerId, actorRef
