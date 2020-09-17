@@ -408,8 +408,14 @@ object WSClient
           }
             Behaviors.same
 
-          case Connected.LoggedIn(session) =>
-            inSession(session, geo, device, ws, connMon, init = true, None)
+          case Connected.LoggedIn(s) =>
+            metrics.decSession(
+              session.providerId,
+              session.providerName,
+              geo.timezone,
+              geo.country,
+            )
+            inSession(s, geo, device, ws, connMon, init = true, None)
           case Connected.LoggedInFailed(ex) => ex match {
             case LoginError(cause) =>
               ws ! Outgoing(LoginFailure(cause))
@@ -508,7 +514,7 @@ object WSClient
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
             }
-            Behaviors.stopped
+            Behaviors.same
         },
         closing,
         outgoing(ws),
@@ -706,7 +712,7 @@ object WSClient
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
             }
-            Behaviors.stopped
+            Behaviors.same
         },
         closing,
         outgoing(ws),

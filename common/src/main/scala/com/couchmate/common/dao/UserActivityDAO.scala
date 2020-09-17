@@ -6,6 +6,7 @@ import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.UserActivity
 import com.couchmate.common.tables.UserActivityTable
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.Future
 
@@ -29,5 +30,25 @@ object UserActivityDAO {
 
   private[common] def addUserActivity(userActivity: UserActivity): DBIO[UserActivity] =
     (UserActivityTable.table returning UserActivityTable.table) += userActivity
+
+  private[common] def getProviderUserCount(providerId: Long): SqlStreamingAction[Seq[Long], Long, Effect] =
+    sql"""
+          SELECT count(*)
+          FROM (
+            SELECT current.user_id
+            FROM user_activity current
+            JOIN (
+              SELECT    user_id, max(created) as created
+              FROM      user_activity
+              GROUP BY  user_id
+            ) latest
+            ON    current.user_id = latest.user_id AND
+                  current.created = latest.created
+            JOIN  user_provider up
+            ON    current.user_id = up.user_id
+            WHERE current.action = 'login' AND
+                  up.provider_id = $providerId
+          )
+         """.as[Long]
 
 }
