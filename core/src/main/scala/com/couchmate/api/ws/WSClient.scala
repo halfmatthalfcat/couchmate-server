@@ -432,8 +432,7 @@ object WSClient
               ws ! Outgoing(UpdateUsernameFailure(
                 UpdateUsernameErrorCause.Unknown
               ))
-          }
-            Behaviors.same
+          } Behaviors.same
 
           case Connected.LoggedIn(s) =>
             metrics.decSession(
@@ -448,8 +447,7 @@ object WSClient
               ws ! Outgoing(LoginFailure(cause))
             case _ =>
               ws ! Outgoing(LoginFailure(LoginErrorCause.Unknown))
-          }
-            Behaviors.same
+          } Behaviors.same
 
           case Connected.ForgotPasswordSent =>
             ws ! Outgoing(ForgotPasswordResponse(true))
@@ -541,7 +539,7 @@ object WSClient
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
             }
-            Behaviors.same
+            Behaviors.receiveMessage(compose(closing))
         },
         closing,
         outgoing(ws),
@@ -739,7 +737,7 @@ object WSClient
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
             }
-            Behaviors.same
+            Behaviors.receiveMessage(compose(closing))
         },
         closing,
         outgoing(ws),

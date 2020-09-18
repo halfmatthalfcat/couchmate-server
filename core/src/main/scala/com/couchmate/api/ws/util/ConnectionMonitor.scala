@@ -85,7 +85,6 @@ object ConnectionMonitor {
             }
           }
         case PoisonPill =>
-          parent ! Commands.Complete
           Behaviors.stopped
       }
 
