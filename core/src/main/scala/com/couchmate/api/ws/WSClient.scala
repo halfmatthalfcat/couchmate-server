@@ -304,9 +304,17 @@ object WSClient
             Behaviors.same
 
           case Incoming(Login(email, password)) =>
-            ctx.pipeToSelf(SessionActions.login(session, email, password)) {
-              case Success(session) => Connected.LoggedIn(session)
-              case Failure(ex: Throwable) => Connected.LoggedInFailed(ex)
+            ctx.pipeToSelf(SessionActions.login(session, device, email, password)) {
+              case Success(s) =>
+                metrics.decSession(
+                  session.providerId,
+                  session.providerName,
+                  geo.timezone,
+                  geo.country,
+                )
+                Connected.LoggedIn(s)
+              case Failure(ex: Throwable) =>
+                Connected.LoggedInFailed(ex)
             }
             Behaviors.same
 
@@ -422,12 +430,6 @@ object WSClient
             Behaviors.same
 
           case Connected.LoggedIn(s) =>
-            metrics.decSession(
-              session.providerId,
-              session.providerName,
-              geo.timezone,
-              geo.country,
-            )
             inSession(s, geo, device, ws, connMon, init = true, None)
           case Connected.LoggedInFailed(ex) => ex match {
             case LoginError(cause) =>

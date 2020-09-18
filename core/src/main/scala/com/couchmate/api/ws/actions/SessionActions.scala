@@ -146,7 +146,12 @@ object SessionActions
     ).setAiringsFromGrid(grid)
   }
 
-  def login(session: SessionContext, email: String, password: String)(
+  def login(
+    session: SessionContext,
+    device: DeviceContext,
+    email: String,
+    password: String,
+  )(
     implicit
     ec: ExecutionContext,
     db: Database,
@@ -183,6 +188,24 @@ object SessionActions
       userProvider <- getUserProvider(user.userId.get)
       provider <- getProvider(userProvider.get.providerId)
       grid <- getGrid(userProvider.get.providerId)
+      // Log out the previous (usually anon) session
+      _ <- addUserActivity(UserActivity(
+        userId = session.user.userId.get,
+        action = UserActivityType.Logout,
+        os = device.os,
+        osVersion = device.osVersion,
+        brand = device.brand,
+        model = device.model
+      ))
+      // Log into the new session
+      _ <- addUserActivity(UserActivity(
+        userId = user.userId.get,
+        action = UserActivityType.Login,
+        os = device.os,
+        osVersion = device.osVersion,
+        brand = device.brand,
+        model = device.model
+      ))
     } yield session.copy(
       user,
       userMeta.get,
