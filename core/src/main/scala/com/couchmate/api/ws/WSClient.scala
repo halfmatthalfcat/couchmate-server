@@ -305,23 +305,29 @@ object WSClient
 
           case Incoming(Login(email, password)) =>
             ctx.pipeToSelf(SessionActions.login(session, device, email, password)) {
-              case Success(s) =>
-                metrics.decSession(
-                  session.providerId,
-                  session.providerName,
-                  geo.timezone,
-                  geo.country,
-                )
-                Connected.LoggedIn(s)
+              case Success(session) =>
+                Connected.LoggedIn(session)
               case Failure(ex: Throwable) =>
                 Connected.LoggedInFailed(ex)
             }
             Behaviors.same
 
           case Incoming(Logout) =>
-            ctx.pipeToSelf(SessionActions.createNewSession(geo, device)) {
-              case Success(session) => Connected.LoggedIn(session)
-              case Failure(ex: Throwable) => Connected.LoggedInFailed(ex)
+            ctx.pipeToSelf(for {
+              _ <- UserActions.addUserActivity(UserActivity(
+                userId = session.user.userId.get,
+                action = UserActivityType.Logout,
+                os = device.os,
+                osVersion = device.osVersion,
+                brand = device.brand,
+                model = device.model
+              ))
+              session <- SessionActions.createNewSession(geo, device)
+            } yield session) {
+              case Success(session) =>
+                Connected.LoggedIn(session)
+              case Failure(ex: Throwable) =>
+                Connected.LoggedInFailed(ex)
             }
             Behaviors.same
 
@@ -430,6 +436,12 @@ object WSClient
             Behaviors.same
 
           case Connected.LoggedIn(s) =>
+            metrics.decSession(
+              session.providerId,
+              session.providerName,
+              geo.timezone,
+              geo.country,
+            )
             inSession(s, geo, device, ws, connMon, init = true, None)
           case Connected.LoggedInFailed(ex) => ex match {
             case LoginError(cause) =>
