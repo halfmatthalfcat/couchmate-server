@@ -8,6 +8,7 @@ case class Message(
   message: String,
   author: Option[Participant],
   recipient: Option[Participant],
+  reactions: Seq[Reaction],
   isSelf: Boolean,
 )
 

@@ -42,12 +42,15 @@ object ConnectionMonitor {
               lastPing = Some(LocalDateTime.now(ZoneId.of("UTC"))),
             ))
           }) { _ =>
-            if (state.deathSaves == 6) {
+            ws ! Outgoing(Ping)
+            if (state.deathSaves == 12) {
+              ctx.log.debug(s"Connection monitor sending complete")
               parent ! Commands.Complete
               Behaviors.stopped
-            } else if (state.deathSaves == 3) {
+            } else if (state.deathSaves == 6) {
               run(state.copy(
-                status = ConnectionStatus.Lost
+                status = ConnectionStatus.Lost,
+                deathSaves = state.deathSaves + 1
               ))
             } else {
               run(state.copy(
@@ -68,24 +71,26 @@ object ConnectionMonitor {
               run(state.copy(
                 latencies = latencies,
                 status = ConnectionStatus.Good,
-                lastPing = Option.empty
+                lastPing = Option.empty,
+                deathSaves = 0
               ))
             } else if (averageLatency <= 1000) {
               run(state.copy(
                 latencies = latencies,
                 status = ConnectionStatus.Degraded,
-                lastPing = Option.empty
+                lastPing = Option.empty,
+                deathSaves = 0
               ))
             } else {
               run(state.copy(
                 latencies = latencies,
                 status = ConnectionStatus.Weak,
-                lastPing = Option.empty
+                lastPing = Option.empty,
+                deathSaves = 0
               ))
             }
           }
-        case PoisonPill =>
-          Behaviors.stopped
+        case PoisonPill => Behaviors.stopped
       }
 
       run(State(

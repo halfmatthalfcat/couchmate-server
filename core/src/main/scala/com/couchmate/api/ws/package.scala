@@ -29,6 +29,7 @@ package object ws {
 
     case object Closed                      extends Command
     case object Complete                    extends Command
+    case object SocketComplete              extends Command
     case class  ConnFailure(ex: Throwable)  extends Command
     case class  Failed(ex: Throwable)       extends Command
 
@@ -122,6 +123,9 @@ package object ws {
 
     object Messaging {
       case class OutgoingRoomMessage(
+        message: RoomMessage
+      ) extends Command
+      case class UpdateRoomMessage(
         message: RoomMessage
       ) extends Command
 

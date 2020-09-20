@@ -3,7 +3,7 @@ package com.couchmate.util.akka
 import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.http.scaladsl.model.ws.{Message, TextMessage}
-import akka.stream.OverflowStrategy
+import akka.stream.{AbruptStageTerminationException, OverflowStrategy}
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.typed.scaladsl.{ActorSink, ActorSource}
 import akka.{Done, NotUsed}
@@ -19,6 +19,8 @@ object WSActor extends LazyLogging {
     behavior: Behavior[T],
     connected: ActorRef[T] => T,
     complete: T,
+    socketComplete: T,
+    completeMatcher: PartialFunction[T, Unit],
     failed: Throwable => T,
     incoming: PartialFunction[F, T],
     outgoing: PartialFunction[T, F],
@@ -48,7 +50,7 @@ object WSActor extends LazyLogging {
 
     val outgoingSource: Source[TextMessage.Strict, Unit] = ActorSource
       .actorRef[T](
-        PartialFunction.empty,
+        completeMatcher,
         PartialFunction.empty,
         10,
         OverflowStrategy.dropNew
@@ -59,15 +61,6 @@ object WSActor extends LazyLogging {
       .map(msg => TextMessage(
         Json.toJson(msg).toString
       ))
-      .watchTermination() { (m, f) =>
-        f.onComplete {
-          case Success(Done) =>
-            actorRef ! complete
-          case Failure(exception) =>
-            actorRef ! failed(exception)
-        }
-        m
-      }
 
     Flow.fromSinkAndSource(incomingSink, outgoingSource)
   }

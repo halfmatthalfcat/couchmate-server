@@ -45,6 +45,8 @@ trait Routes
             WSClient(),
             SocketConnected,
             Complete,
+            SocketComplete,
+            { case Complete => },
             ConnFailure,
             { p: Protocol => Incoming(p) },
             { case Outgoing(p) => p }

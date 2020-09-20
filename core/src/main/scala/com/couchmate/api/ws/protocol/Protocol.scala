@@ -197,6 +197,18 @@ case class SendMessage(
 case class AppendMessage(
   message: Message
 ) extends Protocol
+case class UpdateMessage(
+  message: Message
+) extends Protocol
+
+case class AddReaction(
+  messageId: String,
+  shortCode: String
+) extends Protocol
+case class RemoveReaction(
+  messageId: String,
+  shortCode: String
+) extends Protocol
 
 case class MessageReplay(
   messages: List[Message]

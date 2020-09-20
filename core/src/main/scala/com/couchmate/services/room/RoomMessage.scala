@@ -3,7 +3,7 @@ package com.couchmate.services.room
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import com.couchmate.common.models.api.room.{Message, MessageType, Participant}
+import com.couchmate.common.models.api.room.{Message, MessageType, Participant, Reaction}
 
 case class RoomMessage(
   messageId: String,
@@ -11,6 +11,7 @@ case class RoomMessage(
   message: String,
   author: Option[RoomParticipant],
   recipient: Option[RoomParticipant],
+  reactions: List[Reaction],
   isSelf: Boolean,
 )
 
@@ -20,6 +21,7 @@ object RoomMessage {
     message: String,
     author: Option[RoomParticipant] = None,
     recipient: Option[RoomParticipant] = None,
+    reactions: List[Reaction] = List.empty,
   ): RoomMessage = {
     val instant: Instant = Instant.now()
     val seconds: Long = instant.getEpochSecond
@@ -31,6 +33,7 @@ object RoomMessage {
       message,
       author,
       recipient,
+      reactions,
       false
     )
   }
@@ -48,6 +51,7 @@ object RoomMessage {
         r.userId,
         r.username
       )),
+      self.reactions,
       self.isSelf
     )
 

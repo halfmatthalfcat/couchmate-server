@@ -38,10 +38,24 @@ object Chatroom
     roomId: RoomId,
     participant: RoomParticipant
   ) extends Command
+
   final case class SendMessage(
     roomId: RoomId,
     userId: UUID,
     message: String
+  ) extends Command
+
+  final case class AddReaction(
+    roomId: RoomId,
+    userId: UUID,
+    messageId: String,
+    shortCode: String
+  ) extends Command
+  final case class RemoveReaction(
+    roomId: RoomId,
+    userId: UUID,
+    messageId: String,
+    shortCode: String
   ) extends Command
 
   final case class RoomJoined(
@@ -76,6 +90,9 @@ object Chatroom
   final case class OutgoingRoomMessage(
     message: RoomMessage
   ) extends Command
+  final case class UpdateRoomMessage(
+    message: RoomMessage
+  ) extends Command
 
   private final case class GetAiringSuccess(airing: AiringStatus) extends Command
   private final case class GetAiringFailure(err: Throwable) extends Command
@@ -99,6 +116,14 @@ object Chatroom
     status: AiringStatus
   ) extends Event
   private final case class MessageReceived(
+    roomId: RoomId,
+    roomMessage: RoomMessage
+  ) extends Event
+  private final case class AddReactionReceived(
+    roomId: RoomId,
+    roomMessage: RoomMessage
+  ) extends Event
+  private final case class RemoveReactionReceived(
     roomId: RoomId,
     roomMessage: RoomMessage
   ) extends Event
@@ -295,6 +320,29 @@ object Chatroom
           .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, roomMessage))
           .thenRun((_: State) => metrics.incMessages()))
           .getOrElse(Effect.none)
+        case AddReaction(roomId, userId, messageId, shortCode) => (for {
+          hashRoom <- prevState.hashes.get(roomId.name)
+          roomMessage <- hashRoom.addReaction(
+            roomId,
+            messageId,
+            userId,
+            shortCode
+          )
+        } yield Effect.persist(AddReactionReceived(roomId, roomMessage))
+          .thenRun((s: State) => s.hashes(roomId.name).broadcastUpdateMessage(roomId, roomMessage))
+          .thenRun((_: State) => metrics.incReaction()))
+          .getOrElse(Effect.none)
+        case RemoveReaction(roomId, userId, messageId, shortCode) => (for {
+          hashRoom <- prevState.hashes.get(roomId.name)
+          roomMessage <- hashRoom.removeReaction(
+            roomId,
+            messageId,
+            userId,
+            shortCode
+          )
+        } yield Effect.persist(RemoveReactionReceived(roomId, roomMessage))
+          .thenRun((s: State) => s.hashes(roomId.name).broadcastUpdateMessage(roomId, roomMessage)))
+          .getOrElse(Effect.none)
         case _ => Effect.unhandled
       }
     }
@@ -332,6 +380,20 @@ object Chatroom
           hashes = state.hashes.updated(
             roomId.name,
             state.hashes(roomId.name).addMessage(roomId, roomMessage).get
+          )
+        )
+      case AddReactionReceived(roomId, roomMessage) =>
+        state.copy(
+          hashes = state.hashes.updated(
+            roomId.name,
+            state.hashes(roomId.name).updateMessage(roomId, roomMessage).get
+          )
+        )
+      case RemoveReactionReceived(roomId, roomMessage) =>
+        state.copy(
+          hashes = state.hashes.updated(
+            roomId.name,
+            state.hashes(roomId.name).updateMessage(roomId, roomMessage).get
           )
         )
     }

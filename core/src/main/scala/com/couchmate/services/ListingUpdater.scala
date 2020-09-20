@@ -127,11 +127,13 @@ object ListingUpdater
         case ProviderCompleted(providerId) =>
           if (state.jobs.nonEmpty) {
             state.copy(
-              jobs = state.jobs.tail
+              jobs = state.jobs.tail,
+              currentJob = Option.empty,
             )
           } else {
             state.copy(
-              jobs = List.empty
+              jobs = List.empty,
+              currentJob = Option.empty,
             )
           }
         case ProviderStarted(providerId, actorRef) => state.copy(

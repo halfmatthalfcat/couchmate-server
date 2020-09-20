@@ -3,6 +3,7 @@ package com.couchmate.api.ws.util
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import com.couchmate.api.ws.{RoomContext, SessionContext}
+import com.couchmate.common.models.api.room.Reaction
 import com.couchmate.common.models.data.UserRole
 import com.couchmate.services.room.Chatroom
 import com.couchmate.util.akka.extensions.RoomExtension
@@ -14,6 +15,8 @@ object MessageMonitor {
   sealed trait Command
 
   case class ReceiveMessage(message: String) extends Command
+  case class ReceiveAddReaction(messageId: String, shortCode: String) extends Command
+  case class ReceiveRemoveReaction(messageId: String, shortCode: String) extends Command
 
   case class LockSending(duration: Int) extends Command
   case object UnlockSending extends Command
@@ -46,6 +49,22 @@ object MessageMonitor {
         )
         if (shouldThrottle) throttling
         else Behaviors.same
+      case ReceiveAddReaction(messageId, shortCode) => lobby.addReaction(
+        room.airingId,
+        room.roomId,
+        session.user.userId.get,
+        messageId,
+        shortCode
+      )
+        Behaviors.same
+      case ReceiveRemoveReaction(messageId, shortCode) => lobby.removeReaction(
+        room.airingId,
+        room.roomId,
+        session.user.userId.get,
+        messageId,
+        shortCode
+      )
+        Behaviors.same
       case Complete => Behaviors.stopped
     }
 

@@ -20,6 +20,18 @@ trait PrometheusMetrics {
     .labelNames("tz", "country")
     .register(collector)
 
+  private[this] val reacted: Counter = Counter
+    .build("cm_reaction", "Counter of reactions to messages")
+    .register(collector)
+
+  private[this] val userBlocked: Counter = Counter
+    .build("cm_user_blocked", "Counter of users blocked")
+    .register(collector)
+
+  private[this] val userReported: Counter = Counter
+    .build("cm_user_reported", "Counter of users reported")
+    .register(collector)
+
   private[this] val sessions: Gauge = Gauge
     .build("cm_sessions", "Current number of sessions")
     .labelNames("provider_id", "provider", "tz", "country")
@@ -40,6 +52,15 @@ trait PrometheusMetrics {
 
   def incMessages(): Unit =
     messages.inc()
+
+  def incReaction(): Unit =
+    reacted.inc()
+
+  def incBlocked(): Unit =
+    userBlocked.inc()
+
+  def incReported(): Unit =
+    userReported.inc()
 
   def incRegistered(
     tz: String,

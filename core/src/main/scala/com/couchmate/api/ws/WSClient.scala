@@ -15,6 +15,7 @@ import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.{Chatroom, RoomParticipant}
 import com.couchmate.util.akka.AkkaUtils
 import com.couchmate.util.akka.extensions._
+import emoji4j.EmojiUtils
 import io.prometheus.client.Histogram
 
 import scala.concurrent.ExecutionContext
@@ -56,6 +57,7 @@ object WSClient
       case Chatroom.ParticipantJoined(participant) => InRoom.AddParticipant(participant)
       case Chatroom.ParticipantLeft(participant) => InRoom.RemoveParticipant(participant)
       case Chatroom.OutgoingRoomMessage(message) => Messaging.OutgoingRoomMessage(message)
+      case Chatroom.UpdateRoomMessage(message) => Messaging.UpdateRoomMessage(message)
       case Chatroom.MessageReplay(messages) => InRoom.MessageReplay(messages)
     }
 
@@ -67,21 +69,32 @@ object WSClient
           Outgoing(UnlockSending)
       }
 
-    def closing: PartialCommand = {
+    def closed: PartialCommand = {
+      case SocketComplete =>
+        ctx.log.debug("Socket successfully closed")
+        Behaviors.stopped
+    }
+
+    def closing(ws: ActorRef[Command]): PartialCommand = {
       case Complete | Connected.LogoutSuccess =>
         ctx.log.debug("Connection complete")
+        ws ! Complete
         Behaviors.stopped
       case Connected.LogoutFailure(ex) =>
         ctx.log.error(s"Failed to logout", ex)
+        ws ! Complete
         Behaviors.stopped
       case Closed =>
         ctx.log.debug("Connection closed")
+        ws ! Complete
         Behaviors.stopped
       case ConnFailure(ex) =>
         ctx.log.error("Connection failed", ex)
+        ws ! Complete
         Behaviors.stopped
       case Failed(ex) =>
         ctx.log.error("WSActor failed", ex)
+        ws ! Complete
         Behaviors.stopped
     }
 
@@ -107,7 +120,6 @@ object WSClient
             ctx.spawnAnonymous(ConnectionMonitor(ws, ctx.self))
           connected(ws, connectionMonitor)
       },
-      closing
     ))
 
     /**
@@ -172,7 +184,7 @@ object WSClient
           ctx.self ! Complete
           Behaviors.same
       },
-      closing,
+      closing(ws),
       outgoing(ws),
       ping(connMon)
     ))
@@ -530,6 +542,10 @@ object WSClient
               geo.timezone,
               geo.country,
             )
+            singletons.gridCoordinator ! GridCoordinator.RemoveListener(
+              session.providerId,
+              gridAdapter,
+            )
             ctx.pipeToSelf(UserActions.addUserActivity(UserActivity(
               userId = session.user.userId.get,
               action = UserActivityType.Logout,
@@ -541,9 +557,9 @@ object WSClient
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
             }
-            Behaviors.receiveMessage(compose(closing))
+            Behaviors.receiveMessage(compose(closing(ws)))
         },
-        closing,
+        closing(ws),
         outgoing(ws),
         ping(connMon)
       ))
@@ -614,7 +630,16 @@ object WSClient
           case Incoming(SendMessage(message)) =>
             messageMonitor ! MessageMonitor.ReceiveMessage(message)
             Behaviors.same
-
+          case Incoming(AddReaction(messageId, shortCode)) =>
+            if (EmojiUtils.isEmoji(shortCode)) {
+              messageMonitor ! MessageMonitor.ReceiveAddReaction(messageId, shortCode)
+            }
+            Behaviors.same
+          case Incoming(RemoveReaction(messageId, shortCode)) =>
+            if (EmojiUtils.isEmoji(shortCode)) {
+              messageMonitor ! MessageMonitor.ReceiveRemoveReaction(messageId, shortCode)
+            }
+            Behaviors.same
           case Incoming(MuteParticipant(participant)) =>
             ctx.pipeToSelf(UserActions.muteParticipant(session, participant)) {
               case Success(session) => InRoom.ParticipantMuted(session)
@@ -629,6 +654,7 @@ object WSClient
             }
             Behaviors.same
           case InRoom.ParticipantReported =>
+            metrics.incReported()
             ws ! Outgoing(ReportSuccess)
             Behaviors.same
           case InRoom.ParticipantReportFailed(ex) =>
@@ -699,11 +725,21 @@ object WSClient
             Behaviors.same
           case InRoom.ParticipantMuted(session) =>
             // TODO this is inefficient
+            metrics.incBlocked()
             messageMonitor ! MessageMonitor.Complete
             ctx.self ! Outgoing(UpdateMutes(session.mutes))
             inRoom(session, geo, device, ws, connMon, room, timer)
 
           case Messaging.OutgoingRoomMessage(message) =>
+            if (!session.mutes.exists(mute => message.author.exists(_.userId == mute.userId))) {
+              ctx.self ! Outgoing(AppendMessage(
+                message.copy(
+                  isSelf = message.author.exists(_.userId == session.user.userId.get)
+                )
+              ))
+            }
+            Behaviors.same
+          case Messaging.UpdateRoomMessage(message) =>
             if (!session.mutes.exists(mute => message.author.exists(_.userId == mute.userId))) {
               ctx.self ! Outgoing(AppendMessage(
                 message.copy(
@@ -739,9 +775,9 @@ object WSClient
               case Success(_) => Connected.LogoutSuccess
               case Failure(exception) => Connected.LogoutFailure(exception)
             }
-            Behaviors.receiveMessage(compose(closing))
+            Behaviors.receiveMessage(compose(closing(ws)))
         },
-        closing,
+        closing(ws),
         outgoing(ws),
         ping(connMon)
       ))
