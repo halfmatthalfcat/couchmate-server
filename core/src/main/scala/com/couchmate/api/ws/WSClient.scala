@@ -15,7 +15,7 @@ import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.{Chatroom, RoomParticipant}
 import com.couchmate.util.akka.AkkaUtils
 import com.couchmate.util.akka.extensions._
-import emoji4j.EmojiUtils
+import com.couchmate.util.emoji.{Emoji, EmojiUtils}
 import io.prometheus.client.Histogram
 
 import scala.concurrent.ExecutionContext
@@ -631,13 +631,20 @@ object WSClient
             messageMonitor ! MessageMonitor.ReceiveMessage(message)
             Behaviors.same
           case Incoming(AddReaction(messageId, shortCode)) =>
-            if (EmojiUtils.isEmoji(shortCode)) {
-              messageMonitor ! MessageMonitor.ReceiveAddReaction(messageId, shortCode)
+            EmojiUtils.getEmoji(shortCode).fold(()) { emoji =>
+              ctx.log.debug(s"$emoji")
+              messageMonitor ! MessageMonitor.ReceiveAddReaction(
+                messageId,
+                emoji.getUnified
+              )
             }
             Behaviors.same
           case Incoming(RemoveReaction(messageId, shortCode)) =>
-            if (EmojiUtils.isEmoji(shortCode)) {
-              messageMonitor ! MessageMonitor.ReceiveRemoveReaction(messageId, shortCode)
+            EmojiUtils.getEmoji(shortCode).fold(()) { emoji =>
+              messageMonitor ! MessageMonitor.ReceiveRemoveReaction(
+                messageId,
+                emoji.getUnified
+              )
             }
             Behaviors.same
           case Incoming(MuteParticipant(participant)) =>
@@ -741,7 +748,7 @@ object WSClient
             Behaviors.same
           case Messaging.UpdateRoomMessage(message) =>
             if (!session.mutes.exists(mute => message.author.exists(_.userId == mute.userId))) {
-              ctx.self ! Outgoing(AppendMessage(
+              ctx.self ! Outgoing(UpdateMessage(
                 message.copy(
                   isSelf = message.author.exists(_.userId == session.user.userId.get)
                 )

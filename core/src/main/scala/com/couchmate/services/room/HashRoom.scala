@@ -140,7 +140,6 @@ case class HashRoom private (
 
   def updateMessage(roomId: RoomId, message: RoomMessage): Option[HashRoom] = for {
     room <- getRoom(roomId)
-    message <- room.messages.find(_.messageId == message.messageId)
     index = room.messages.indexWhere(_.messageId == message.messageId)
   } yield {
     if (index >= 0) {
