@@ -59,6 +59,8 @@ object WSClient
       case Chatroom.OutgoingRoomMessage(message) => Messaging.OutgoingRoomMessage(message)
       case Chatroom.UpdateRoomMessage(message) => Messaging.UpdateRoomMessage(message)
       case Chatroom.MessageReplay(messages) => InRoom.MessageReplay(messages)
+      case Chatroom.ReactionAdded => Messaging.ReactionAdded
+      case Chatroom.ReactionRemoved => Messaging.ReactionRemoved
     }
 
     val messageMonitorAdapter: ActorRef[MessageMonitor.Command] =
@@ -754,6 +756,13 @@ object WSClient
                 )
               ))
             }
+            Behaviors.same
+
+          case Messaging.ReactionAdded =>
+            ctx.self ! Outgoing(AddReactionSuccess)
+            Behaviors.same
+          case Messaging.ReactionRemoved =>
+            ctx.self ! Outgoing(RemoveReactionSuccess)
             Behaviors.same
 
           case Complete | Closed | ConnFailure(_) | Failed(_) =>

@@ -49,13 +49,15 @@ object Chatroom
     roomId: RoomId,
     userId: UUID,
     messageId: String,
-    shortCode: String
+    shortCode: String,
+    actorRef: ActorRef[Command]
   ) extends Command
   final case class RemoveReaction(
     roomId: RoomId,
     userId: UUID,
     messageId: String,
-    shortCode: String
+    shortCode: String,
+    actorRef: ActorRef[Command]
   ) extends Command
 
   final case class RoomJoined(
@@ -93,6 +95,9 @@ object Chatroom
   final case class UpdateRoomMessage(
     message: RoomMessage
   ) extends Command
+
+  final case object ReactionAdded extends Command
+  final case object ReactionRemoved extends Command
 
   private final case class GetAiringSuccess(airing: AiringStatus) extends Command
   private final case class GetAiringFailure(err: Throwable) extends Command
@@ -320,7 +325,7 @@ object Chatroom
           .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, roomMessage))
           .thenRun((_: State) => metrics.incMessages()))
           .getOrElse(Effect.none)
-        case AddReaction(roomId, userId, messageId, shortCode) => (for {
+        case AddReaction(roomId, userId, messageId, shortCode, actorRef) => (for {
           hashRoom <- prevState.hashes.get(roomId.name)
           roomMessage <- hashRoom.addReaction(
             roomId,
@@ -330,9 +335,10 @@ object Chatroom
           )
         } yield Effect.persist(AddReactionReceived(roomId, roomMessage))
           .thenRun((s: State) => s.hashes(roomId.name).broadcastUpdateMessage(roomId, roomMessage))
+          .thenRun((_: State) => actorRef ! ReactionAdded)
           .thenRun((_: State) => metrics.incReaction()))
           .getOrElse(Effect.none)
-        case RemoveReaction(roomId, userId, messageId, shortCode) => (for {
+        case RemoveReaction(roomId, userId, messageId, shortCode, actorRef) => (for {
           hashRoom <- prevState.hashes.get(roomId.name)
           roomMessage <- hashRoom.removeReaction(
             roomId,
@@ -341,7 +347,8 @@ object Chatroom
             shortCode
           )
         } yield Effect.persist(RemoveReactionReceived(roomId, roomMessage))
-          .thenRun((s: State) => s.hashes(roomId.name).broadcastUpdateMessage(roomId, roomMessage)))
+          .thenRun((s: State) => s.hashes(roomId.name).broadcastUpdateMessage(roomId, roomMessage))
+          .thenRun((_: State) => actorRef ! ReactionRemoved))
           .getOrElse(Effect.none)
         case _ => Effect.unhandled
       }

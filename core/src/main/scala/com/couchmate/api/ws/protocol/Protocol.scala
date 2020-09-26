@@ -210,6 +210,9 @@ case class RemoveReaction(
   shortCode: String
 ) extends Protocol
 
+case object AddReactionSuccess extends Protocol
+case object RemoveReactionSuccess extends Protocol
+
 case class MessageReplay(
   messages: List[Message]
 ) extends Protocol

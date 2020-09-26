@@ -56,7 +56,8 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
     roomId: RoomId,
     userId: UUID,
     messageId: String,
-    shortCode: String
+    shortCode: String,
+    actorRef: ActorRef[Chatroom.Command]
   ): Unit = {
     shardRegion ! ShardingEnvelope(
       airingId.toString,
@@ -64,7 +65,8 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
         roomId,
         userId,
         messageId,
-        shortCode
+        shortCode,
+        actorRef
       )
     )
   }
@@ -74,7 +76,8 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
     roomId: RoomId,
     userId: UUID,
     messageId: String,
-    shortCode: String
+    shortCode: String,
+    actorRef: ActorRef[Chatroom.Command]
   ): Unit = {
     shardRegion ! ShardingEnvelope(
       airingId.toString,
@@ -82,7 +85,8 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
         roomId,
         userId,
         messageId,
-        shortCode
+        shortCode,
+        actorRef
       )
     )
   }

@@ -129,6 +129,9 @@ package object ws {
         message: RoomMessage
       ) extends Command
 
+      case object ReactionAdded extends Command
+      case object ReactionRemoved extends Command
+
       case object MessageQueued       extends Command
       case object MessageThrottled    extends Command
       case object MessageQueueClosed  extends Command

@@ -54,7 +54,8 @@ object MessageMonitor {
         room.roomId,
         session.user.userId.get,
         messageId,
-        shortCode
+        shortCode,
+        chatAdapterRef
       )
         Behaviors.same
       case ReceiveRemoveReaction(messageId, shortCode) => lobby.removeReaction(
@@ -62,7 +63,8 @@ object MessageMonitor {
         room.roomId,
         session.user.userId.get,
         messageId,
-        shortCode
+        shortCode,
+        chatAdapterRef
       )
         Behaviors.same
       case Complete => Behaviors.stopped
