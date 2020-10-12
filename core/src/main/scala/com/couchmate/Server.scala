@@ -9,7 +9,7 @@ import akka.management.scaladsl.AkkaManagement
 import akka.util.Timeout
 import com.couchmate.api.ApiServer
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.util.akka.extensions.{DatabaseExtension, JwtExtension, PromExtension, RoomExtension, SingletonExtension}
+import com.couchmate.util.akka.extensions._
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
@@ -94,6 +94,9 @@ object Server {
 
     implicit val jwt: JwtExtension =
       JwtExtension(ctx.system)
+
+    implicit val user: UserExtension =
+      UserExtension(ctx.system)
 
     implicit val timeout: Timeout = 30 seconds
 

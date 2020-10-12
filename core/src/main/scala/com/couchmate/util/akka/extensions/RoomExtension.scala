@@ -6,7 +6,6 @@ import akka.actor.typed.{ActorRef, ActorSystem, Extension, ExtensionId}
 import akka.cluster.sharding.typed.ShardingEnvelope
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
 import akka.persistence.typed.PersistenceId
-import com.couchmate.common.models.api.room.Reaction
 import com.couchmate.services.room.{Chatroom, RoomId, RoomParticipant}
 import com.couchmate.services.room.Chatroom.{AddReaction, JoinRoom, LeaveRoom, RemoveReaction, SendMessage}
 

@@ -5,7 +5,8 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.stream.Materializer
 import com.couchmate.Server
 import com.couchmate.api.ws.actions.{SessionActions, UserActions}
-import com.couchmate.api.ws.protocol._
+import com.couchmate.api.ws.protocol.External._
+import com.couchmate.api.ws.protocol.{ForgotPasswordError, ForgotPasswordErrorCause, LoginError, LoginErrorCause, PasswordResetError, PasswordResetErrorCause, RegisterAccountError, RegisterAccountErrorCause, UpdateUsernameError, UpdateUsernameErrorCause}
 import com.couchmate.api.ws.util.{ConnectionMonitor, MessageMonitor}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.room.Participant
@@ -15,7 +16,7 @@ import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.{Chatroom, RoomParticipant}
 import com.couchmate.util.akka.AkkaUtils
 import com.couchmate.util.akka.extensions._
-import com.couchmate.util.emoji.{Emoji, EmojiUtils}
+import com.couchmate.util.emoji.EmojiUtils
 import io.prometheus.client.Histogram
 
 import scala.concurrent.ExecutionContext
@@ -120,6 +121,7 @@ object WSClient
         case SocketConnected(ws) =>
           val connectionMonitor: ActorRef[ConnectionMonitor.Command] =
             ctx.spawnAnonymous(ConnectionMonitor(ws, ctx.self))
+          ctx.watchWith(ws, Complete)
           connected(ws, connectionMonitor)
       },
     ))
@@ -260,7 +262,7 @@ object WSClient
               ws ! Outgoing(RoomClosed)
             }
             Behaviors.same
-
+          // Migrated
           case Incoming(ValidateEmail(email)) =>
             val emailRegex = "(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9]))\\.){3}(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9])|[a-z0-9-]*[a-z0-9]:(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21-\\x5a\\x53-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])+)\\])".r
             if (emailRegex.matches(email)) {
@@ -278,7 +280,7 @@ object WSClient
               )
             }
             Behaviors.same
-
+          // Migrated
           case Incoming(ValidateUsername(username)) =>
             val usernameRegex = "^[a-zA-Z0-9]{1,16}$".r
             if (usernameRegex.matches(username)) {

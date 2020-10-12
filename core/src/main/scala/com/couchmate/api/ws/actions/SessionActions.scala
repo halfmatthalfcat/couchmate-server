@@ -4,8 +4,9 @@ import java.time.{Duration, LocalDateTime, ZoneId}
 
 import akka.actor.typed.scaladsl.ActorContext
 import com.couchmate.api.ws.Commands.Command
+import com.couchmate.api.ws.protocol.{LoginError, LoginErrorCause}
 import com.couchmate.api.ws.{DeviceContext, GeoContext, SessionContext}
-import com.couchmate.api.ws.protocol.{LoginError, LoginErrorCause, RestoreSession}
+import com.couchmate.api.ws.protocol.External._
 import com.couchmate.common.dao.{GridDAO, ProviderDAO, UserActivityDAO, UserDAO, UserMetaDAO, UserMuteDAO, UserPrivateDAO, UserProviderDAO, UserWordBlockDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{UserActivity, UserActivityType, UserMeta, UserMute, UserPrivate, UserProvider, UserRole, User => InternalUser}

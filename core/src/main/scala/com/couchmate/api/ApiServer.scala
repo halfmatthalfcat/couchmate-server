@@ -7,7 +7,7 @@ import akka.http.scaladsl.Http
 import akka.stream.Materializer
 import com.couchmate.Server
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.util.akka.extensions.JwtExtension
+import com.couchmate.util.akka.extensions.{JwtExtension, UserExtension}
 import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsSettings
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsRoute._
@@ -26,6 +26,7 @@ class ApiServer(
   val ctx: ActorContext[Server.Command],
   db: Database,
   jwt: JwtExtension,
+  user: UserExtension,
   config: Config
 ) extends Routes {
   private[this] implicit val actorSystem: ClassicActorSystem =
@@ -54,6 +55,7 @@ object ApiServer {
     ctx: ActorContext[Server.Command],
     db: Database,
     jwt: JwtExtension,
+    user: UserExtension,
     config: Config
   ): Future[Http.ServerBinding] = new ApiServer(
     host,

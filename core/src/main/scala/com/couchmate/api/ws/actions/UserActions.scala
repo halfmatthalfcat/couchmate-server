@@ -6,7 +6,8 @@ import java.util.UUID
 import akka.actor.typed.scaladsl.ActorContext
 import com.couchmate.api.ws.Commands.Command
 import com.couchmate.api.ws.protocol.RegisterAccountErrorCause.EmailExists
-import com.couchmate.api.ws.protocol._
+import com.couchmate.api.ws.protocol.External._
+import com.couchmate.api.ws.protocol.{ForgotPasswordError, ForgotPasswordErrorCause, PasswordResetError, PasswordResetErrorCause, RegisterAccountError, RegisterAccountErrorCause, UpdateUsernameError, UpdateUsernameErrorCause}
 import com.couchmate.api.ws.{DeviceContext, SessionContext}
 import com.couchmate.common.dao._
 import com.couchmate.common.db.PgProfile.api._

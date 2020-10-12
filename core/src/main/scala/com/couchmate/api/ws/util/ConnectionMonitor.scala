@@ -7,7 +7,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import com.couchmate.api.ws.Commands
 import com.couchmate.api.ws.Commands.Outgoing
-import com.couchmate.api.ws.protocol.Ping
+import com.couchmate.api.ws.protocol.External._
 
 import scala.concurrent.duration._
 

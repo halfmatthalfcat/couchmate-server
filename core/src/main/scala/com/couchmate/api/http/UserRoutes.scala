@@ -4,6 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.couchmate.api.ws.protocol._
+import com.couchmate.api.ws.protocol.External._
 import com.couchmate.common.dao.{UserActivityDAO, UserDAO, UserMetaDAO, UserPrivateDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data._
