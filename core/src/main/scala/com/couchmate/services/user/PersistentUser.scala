@@ -7,10 +7,11 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
 import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
-import com.couchmate.api.ws.protocol.{External, LoginError, Protocol, RegisterAccountError}
+import com.couchmate.api.ws.protocol.{External, ForgotPasswordError, LoginError, PasswordResetError, Protocol, RegisterAccountError, UpdateUsernameError}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.grid.Grid
-import com.couchmate.common.models.data.UserRole
+import com.couchmate.common.models.api.user.UserMute
+import com.couchmate.common.models.data.{UserMeta, UserReportType, UserRole}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.user.commands.{ConnectedCommands, EmptyCommands, InitialCommands, UserActions}
@@ -61,6 +62,37 @@ object PersistentUser {
   case class LoggedOut(userId: UUID) extends Command
   case class LogoutFailed(ex: Throwable) extends Command
 
+  case object ForgotPasswordSent extends Command
+  case class ForgotPasswordFailed(ex: Throwable) extends Command
+
+  case object ForgotPasswordReset extends Command
+  case class ForgotPasswordResetFailed(ex: Throwable) extends Command
+
+  case object PasswordReset extends Command
+  case class PasswordResetFailed(ex: Throwable) extends Command
+
+  case class UpdateUsername(userMeta: UserMeta) extends Command
+  case class UpdateUsernameFailed(ex: Throwable) extends Command
+
+  case class MuteParticipant(mutes: Seq[UserMute]) extends Command
+  case class MuteParticipantFailed(ex: Throwable) extends Command
+
+  case class UnmuteParticipant(mutes: Seq[UserMute]) extends Command
+  case class UnmuteParticipantFailed(ex: Throwable) extends Command
+
+  case class MuteWord(mutes: Seq[String]) extends Command
+  case class MuteWordFailed(ex: Throwable) extends Command
+
+  case class UnmuteWord(mutes: Seq[String]) extends Command
+  case class UnmuteWordFailed(ex: Throwable) extends Command
+
+  case class ReportParticipant(
+    userId: UUID,
+    reportType: UserReportType,
+    message: Option[String]
+  ) extends Command
+  case class ReportParticipantFailed(ex: Throwable) extends Command
+
   final case class WSMessage(
     message: Protocol
   ) extends Command
@@ -80,6 +112,11 @@ object PersistentUser {
   final case object Disconnected extends Event
 
   final case class GridUpdated(grid: Grid) extends Event
+  final case class UsernameUpdated(userMeta: UserMeta) extends Event
+  final case class ParticipantMuted(mutes: Seq[UserMute]) extends Event
+  final case class ParticipantUnmuted(mutes: Seq[UserMute]) extends Event
+  final case class WordMuted(mutes: Seq[String]) extends Event
+  final case class WordUnmuted(mutes: Seq[String]) extends Event
 
   // -- STATES
 
@@ -190,12 +227,54 @@ object PersistentUser {
           case AccountVerificationFailed(RegisterAccountError(cause)) =>
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(External.VerifyAccountFailed(cause)))
           case LoggedIn(userId) =>
-            ConnectedCommands.loggedIn(userId, geo, ws)
+            ConnectedCommands.loggedIn(userId, ws)
           case LogInFailed(LoginError(cause)) =>
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(External.LoginFailure(cause)))
           case LoggedOut(userId) =>
-            ctx.log.debug(s"Logging out of ${userContext.user.userId.get} to ${userId}")
-            ConnectedCommands.loggedOut(userId, geo, ws)
+            ConnectedCommands.loggedOut(userId, ws)
+          case ForgotPasswordSent =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.ForgotPasswordResponse(true)
+            ))
+          case ForgotPasswordFailed(_) =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.ForgotPasswordResponse(false)
+            ))
+          case ForgotPasswordReset =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.ForgotPasswordResetSuccess
+            ))
+          case ForgotPasswordResetFailed(ForgotPasswordError(cause)) =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.ForgotPasswordResetFailed(cause)
+            ))
+          case PasswordReset =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.ResetPasswordSuccess
+            ))
+          case PasswordResetFailed(PasswordResetError(cause)) =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.ResetPasswordFailed(cause)
+            ))
+          case UpdateUsername(userMeta) =>
+            ConnectedCommands.usernameUpdated(userMeta)
+          case UpdateUsernameFailed(UpdateUsernameError(cause)) =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.UpdateUsernameFailure(cause)
+            ))
+          case MuteParticipant(mutes) =>
+            ConnectedCommands.participantMuted(mutes)
+          case MuteParticipantFailed(_) => Effect.none
+          case UnmuteParticipant(mutes) =>
+            ConnectedCommands.participantUnmuted(mutes)
+          case UnmuteParticipantFailed(_) => Effect.none
+          case MuteWord(mutes) =>
+            ConnectedCommands.wordMuted(mutes)
+          case MuteWordFailed(_) => Effect.none
+          case UnmuteWord(mutes) =>
+            ConnectedCommands.wordUnmuted(mutes)
+          case UnmuteWordFailed(_) => Effect.none
+
           /**
            * WSMessage wraps _inbound_ messages via a Websocket
            * with the intention that a message will be relayed back
@@ -219,6 +298,41 @@ object PersistentUser {
               ConnectedCommands.login(email, password)
             case External.Logout =>
               ConnectedCommands.logout(geo)
+            case External.ForgotPassword(email) =>
+              ConnectedCommands.forgotPassword(email)
+            case External.ForgotPasswordReset(password, token) =>
+              ConnectedCommands.forgotPasswordReset(password, token)
+            case External.ResetPassword(currentPassword, newPassword) =>
+              ConnectedCommands.resetPassword(
+                userContext.user.userId.get,
+                currentPassword,
+                newPassword
+              )
+            case External.UpdateUsername(username) =>
+              ConnectedCommands.updateUsername(
+                userContext,
+                username
+              )
+            case External.MuteParticipant(userId) =>
+              ConnectedCommands.muteParticipant(
+                userContext,
+                userId,
+              )
+            case External.UnmuteParticipant(userId) =>
+              ConnectedCommands.unmuteParticipant(
+                userContext,
+                userId
+              )
+            case External.MuteWord(word) =>
+              ConnectedCommands.muteWord(
+                userContext.user.userId.get,
+                word
+              )
+            case External.UnmuteWord(word) =>
+              ConnectedCommands.unmuteWord(
+                userContext.user.userId.get,
+                word
+              )
             case _ => Effect.unhandled
           }
           case _ => Effect.unhandled
@@ -244,6 +358,31 @@ object PersistentUser {
           case Disconnected => InitialState(userContext)
           case UserContextSet(userContext) => state.copy(
             userContext = userContext
+          )
+          case UsernameUpdated(userMeta) => state.copy(
+            userContext = userContext.copy(
+              userMeta = userMeta
+            )
+          )
+          case ParticipantMuted(mutes) => state.copy(
+            userContext = userContext.copy(
+              mutes = mutes
+            )
+          )
+          case ParticipantUnmuted(mutes) => state.copy(
+            userContext = userContext.copy(
+              mutes = mutes
+            )
+          )
+          case WordMuted(mutes) => state.copy(
+            userContext = userContext.copy(
+              wordMutes = mutes
+            )
+          )
+          case WordUnmuted(mutes) => state.copy(
+            userContext = userContext.copy(
+              wordMutes = mutes
+            )
           )
         }
       }

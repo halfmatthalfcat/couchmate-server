@@ -5,10 +5,11 @@ import java.util.UUID
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.ActorContext
 import akka.persistence.typed.scaladsl.{Effect, EffectBuilder}
-import com.couchmate.api.ws.protocol.{External, LoginError, LoginErrorCause, Protocol, RegisterAccountError, RegisterAccountErrorCause}
+import com.couchmate.api.ws.protocol.{External, ForgotPasswordError, ForgotPasswordErrorCause, LoginError, LoginErrorCause, PasswordResetError, PasswordResetErrorCause, Protocol, RegisterAccountError, RegisterAccountErrorCause, UpdateUsernameError, UpdateUsernameErrorCause}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.grid.Grid
-import com.couchmate.common.models.data.User
+import com.couchmate.common.models.api.user.UserMute
+import com.couchmate.common.models.data.{User, UserMeta}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser._
@@ -188,7 +189,6 @@ object ConnectedCommands {
 
   private[user] def loggedIn(
     userId: UUID,
-    geoContext: GeoContext,
     ws: ActorRef[WSPersistentActor.Command]
   )(
     implicit
@@ -213,7 +213,6 @@ object ConnectedCommands {
 
   private[user] def loggedOut(
     userId: UUID,
-    geoContext: GeoContext,
     ws: ActorRef[WSPersistentActor.Command]
   )(
     implicit
@@ -223,4 +222,177 @@ object ConnectedCommands {
     .none
     .thenRun((_: State) => ws ! WSPersistentActor.SetUser(userId))
     .thenRun((_: State) => ctx.self ! Disconnect)
+
+  private[user] def forgotPassword(email: String)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    mail: MailExtension,
+    jwt: JwtExtension,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun((_: State) => ctx.pipeToSelf(UserActions.sendForgotPassword(email)) {
+      case Success(Right(_)) => ForgotPasswordSent
+      case Success(Left(ex)) => ForgotPasswordFailed(ex)
+      case Failure(_) => ForgotPasswordFailed(ForgotPasswordError(
+        ForgotPasswordErrorCause.Unknown
+      ))
+    })
+
+  private[user] def forgotPasswordReset(password: String, token: String)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    jwt: JwtExtension,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun((_: State) => ctx.pipeToSelf(UserActions.forgotPassword(token, password)) {
+      case Success(Right(_)) => ForgotPasswordReset
+      case Success(Left(ex)) => ForgotPasswordResetFailed(ex)
+      case Failure(_) => ForgotPasswordResetFailed(ForgotPasswordError(
+        ForgotPasswordErrorCause.Unknown
+      ))
+    })
+
+  private[user] def resetPassword(
+    userId: UUID,
+    oldPassword: String,
+    newPassword: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun((_: State) => ctx.pipeToSelf(UserActions.passwordReset(
+      userId,
+      oldPassword,
+      newPassword
+    )) {
+      case Success(Right(_)) => PasswordReset
+      case Success(Left(ex)) => PasswordResetFailed(ex)
+      case Failure(_) => PasswordResetFailed(PasswordResetError(
+        PasswordResetErrorCause.Unknown
+      ))
+    })
+
+  private[user] def updateUsername(
+    userContext: UserContext,
+    username: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun((_: State) => ctx.pipeToSelf(UserActions.updateUsername(
+      userContext, username
+    )) {
+      case Success(Right(userMeta)) => UpdateUsername(userMeta)
+      case Success(Left(ex)) => UpdateUsernameFailed(ex)
+      case Failure(_) => UpdateUsernameFailed(UpdateUsernameError(
+        UpdateUsernameErrorCause.Unknown
+      ))
+    })
+
+  private[user] def usernameUpdated(userMeta: UserMeta): Effect[UsernameUpdated, State] =
+    Effect
+      .persist(UsernameUpdated(userMeta))
+      .thenRun({
+        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+          External.UpdateUsernameSuccess(userContext.getClientUser)
+        )
+      })
+
+  private[user] def muteParticipant(userContext: UserContext, userId: UUID)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.muteParticipant(userContext, userId)) {
+      case Success(Right(mutes)) => MuteParticipant(mutes)
+      case Success(Left(ex)) => MuteParticipantFailed(ex)
+      case Failure(exception) => MuteParticipantFailed(exception)
+    })
+
+  private[user] def participantMuted(mutes: Seq[UserMute]): Effect[ParticipantMuted, State] =
+    Effect
+      .persist(ParticipantMuted(mutes))
+      .thenRun({
+        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+          External.UpdateMutes(mutes)
+        )
+      })
+
+  private[user] def unmuteParticipant(userContext: UserContext, userId: UUID)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.unmuteParticipant(userContext, userId)) {
+      case Success(Right(mutes)) => UnmuteParticipant(mutes)
+      case Success(Left(ex)) => UnmuteParticipantFailed(ex)
+      case Failure(exception) => UnmuteParticipantFailed(exception)
+    })
+
+  private[user] def participantUnmuted(mutes: Seq[UserMute]): Effect[ParticipantUnmuted, State] =
+    Effect
+      .persist(ParticipantUnmuted(mutes))
+      .thenRun({
+        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+          External.UpdateMutes(userContext.mutes)
+        )
+      })
+
+  private[user] def muteWord(userId: UUID, word: String)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.muteWord(userId, word)) {
+      case Success(Right(value)) => MuteWord(value)
+      case Success(Left(ex)) => MuteWordFailed(ex)
+      case Failure(exception) => MuteWordFailed(exception)
+    })
+
+  private[user] def wordMuted(mutes: Seq[String]): Effect[WordMuted, State] =
+    Effect
+      .persist(WordMuted(mutes))
+      .thenRun({
+        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+          External.UpdateWordMutes(userContext.wordMutes)
+        )
+      })
+
+  private[user] def unmuteWord(userId: UUID, word: String)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.unmuteWord(userId, word)) {
+      case Success(Right(value)) => UnmuteWord(value)
+      case Success(Left(ex)) => UnmuteWordFailed(ex)
+      case Failure(exception) => UnmuteWordFailed(exception)
+    })
+
+  private[user] def wordUnmuted(mutes: Seq[String]): Effect[WordUnmuted, State] =
+    Effect
+      .persist(WordUnmuted(mutes))
+      .thenRun({
+        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+          External.UpdateWordMutes(userContext.wordMutes)
+        )
+      })
 }

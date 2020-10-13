@@ -25,7 +25,7 @@ class UserExtension(system: ActorSystem[_]) extends Extension {
           context.entityId
         )
       )
-    ))
+    ).withStopMessage(PersistentUser.Disconnect))
 
   def connect(
     userId: UUID,

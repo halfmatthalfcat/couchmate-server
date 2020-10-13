@@ -9,9 +9,10 @@ import com.couchmate.api.ws.SessionContext
 import com.couchmate.api.ws.protocol.External.ReportParticipant
 import com.couchmate.api.ws.protocol.RegisterAccountErrorCause.EmailExists
 import com.couchmate.api.ws.protocol._
-import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.dao._
-import com.couchmate.common.models.data.{User => InternalUser, _}
+import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.models.data.{UserMute, User => InternalUser, _}
+import com.couchmate.common.models.api.user.{UserMute => ExternalUserMute}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser.{EmailValidated, UsernameValidated}
@@ -274,7 +275,7 @@ object UserActions
     db: Database,
     mail: MailExtension,
     jwt: JwtExtension
-  ): Future[Unit] = for {
+  ): Future[Either[ForgotPasswordError, Unit]] = (for {
     user <- getUserByEmail(email)
     token <- user.fold[Future[String]](
       Future.failed(ForgotPasswordError(ForgotPasswordErrorCause.NoAccountExists))
@@ -284,14 +285,19 @@ object UserActions
       Duration.ofMinutes(20),
     )))
     _ <- mail.forgotPassword(email, token)
-  } yield ()
+  } yield Right()) recoverWith {
+    case error: ForgotPasswordError => Future.successful(Left(error))
+    case _: Throwable => Future.successful(Left(ForgotPasswordError(
+      ForgotPasswordErrorCause.Unknown
+    )))
+  }
 
   private[commands] def forgotPassword(token: String, password: String)(
     implicit
     ec: ExecutionContext,
     db: Database,
     jwt: JwtExtension
-  ): Future[Unit] = {
+  ): Future[Either[ForgotPasswordError, Unit]] = ({
     import com.github.t3hnar.bcrypt._
 
     for {
@@ -311,22 +317,27 @@ object UserActions
         claims.userId,
         hashedPw
       ))
-    } yield ()
+    } yield Right()
+  }) recoverWith {
+    case err: ForgotPasswordError => Future.successful(Left(err))
+    case _: Throwable => Future.successful(Left(ForgotPasswordError(
+      ForgotPasswordErrorCause.Unknown
+    )))
   }
 
   private[commands] def passwordReset(
-    session: SessionContext,
+    userId: UUID,
     oldPassword: String,
     newPassword: String
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Unit] = {
+  ): Future[Either[PasswordResetError, Unit]] = ({
     import com.github.t3hnar.bcrypt._
 
     for {
-      userPrivate <- getUserPrivate(session.user.userId.get)
+      userPrivate <- getUserPrivate(userId)
       valid <- userPrivate.fold[Future[Boolean]](
         Future.failed(PasswordResetError(
           PasswordResetErrorCause.Unknown
@@ -338,80 +349,90 @@ object UserActions
       } else { Future.successful() }
       hashedPw <- Future.fromTry(newPassword.bcryptSafe(10))
       _ <- upsertUserPrivate(UserPrivate(
-        session.user.userId.get,
+        userId,
         hashedPw
       ))
-    } yield ()
+    } yield Right()
+  }) recoverWith {
+    case ex: PasswordResetError => Future.successful(Left(ex))
+    case _: Throwable => Future.successful(Left(PasswordResetError(
+      PasswordResetErrorCause.Unknown
+    )))
   }
 
   private[commands] def updateUsername(
-    session: SessionContext,
+    userContext: UserContext,
     username: String
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[SessionContext] = {
+  ): Future[Either[UpdateUsernameError, UserMeta]] = {
     val usernameRegex = "^[a-zA-Z0-9]{1,16}$".r
-    if (usernameRegex.matches(username)) {
+    if (usernameRegex.matches(username) && userContext.user.verified) {
       usernameExists(username) flatMap {
-        case true => Future.failed(UpdateUsernameError(
+        case true => Future.successful(Left(UpdateUsernameError(
           UpdateUsernameErrorCause.UsernameExists
-        ))
-        case false => upsertUserMeta(session.userMeta.copy(
+        )))
+        case false => upsertUserMeta(userContext.userMeta.copy(
           username = username
-        )) map(uM => session.copy(userMeta = uM))
+        )).map(Right.apply)
       }
-    } else {
-      Future.failed(UpdateUsernameError(
+    } else if (!usernameRegex.matches(username)) {
+      Future.successful(Left(UpdateUsernameError(
         UpdateUsernameErrorCause.InvalidUsername
-      ))
+      )))
+    } else {
+      Future.successful(Left(UpdateUsernameError(
+        UpdateUsernameErrorCause.AccountNotRegistered
+      )))
     }
   }
 
   private[commands] def muteParticipant(
-    session: SessionContext,
+    userContext: UserContext,
     userId: UUID
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[SessionContext] = {
-    if (session.mutes.exists(_.userId == userId)) {
-      Future.successful(session)
+  ): Future[Either[Throwable, Seq[ExternalUserMute]]] = {
+    if (userContext.mutes.exists(_.userId == userId)) {
+      Future.successful(Right(userContext.mutes))
     } else {
-      for {
+      (for {
         _ <- addUserMute(UserMute(
-          session.user.userId.get,
+          userContext.user.userId.get,
           userId
         ))
-        mutes <- getUserMutes(session.user.userId.get)
-      } yield session.copy(
-        mutes = mutes
-      )
+        mutes <- getUserMutes(userContext.user.userId.get)
+      } yield Right(mutes)) recoverWith {
+        case ex: Throwable =>
+          Future.successful(Left(ex))
+      }
     }
   }
 
   private[commands] def unmuteParticipant(
-    session: SessionContext,
+    userContext: UserContext,
     userMuteId: UUID
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[SessionContext] = {
-    if (!session.mutes.exists(_.userId == userMuteId)) {
-      Future.successful(session)
+  ): Future[Either[Throwable, Seq[ExternalUserMute]]] = {
+    if (!userContext.mutes.exists(_.userId == userMuteId)) {
+      Future.successful(Right(userContext.mutes))
     } else {
-      for {
+      (for {
         _ <- removeUserMute(UserMute(
-          session.user.userId.get,
+          userContext.user.userId.get,
           userMuteId
         ))
-        mutes <- getUserMutes(session.user.userId.get)
-      } yield session.copy(
-        mutes = mutes
-      )
+        mutes <- getUserMutes(userContext.user.userId.get)
+      } yield Right(mutes)) recoverWith {
+        case ex: Throwable => Future.successful(Left(ex))
+      }
     }
   }
 
@@ -431,39 +452,39 @@ object UserActions
     message = report.message
   ))
 
-  private[commands] def addWordBlock(
-    session: SessionContext,
+  private[commands] def muteWord(
+    userId: UUID,
     word: String
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[SessionContext] = for {
+  ): Future[Either[Throwable, Seq[String]]] = (for {
     _ <- addUserWordBlock(UserWordBlock(
-      userId = session.user.userId.get,
+      userId = userId,
       word = word
     ))
-    list <- getUserWordBlocks(session.user.userId.get)
-  } yield session.copy(
-    wordMutes = list
-  )
+    list <- getUserWordBlocks(userId)
+  } yield Right(list)) recoverWith {
+    case ex: Throwable => Future.successful(Left(ex))
+  }
 
-  private[commands] def removeWordBlock(
-    session: SessionContext,
+  private[commands] def unmuteWord(
+    userId: UUID,
     word: String
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[SessionContext] = for {
+  ): Future[Either[Throwable, Seq[String]]] = (for {
     _ <- removeUserWordBlock(UserWordBlock(
-      userId = session.user.userId.get,
+      userId = userId,
       word = word
     ))
-    list <- getUserWordBlocks(session.user.userId.get)
-  } yield session.copy(
-    wordMutes = list
-  )
+    list <- getUserWordBlocks(userId)
+  } yield Right(list)) recoverWith {
+    case ex: Throwable => Future.successful(Left(ex))
+  }
 
   private[commands] def validateEmail(email: String)(
     implicit

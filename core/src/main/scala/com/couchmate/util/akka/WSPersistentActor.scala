@@ -28,7 +28,6 @@ object WSPersistentActor extends LazyLogging {
 
   private final case object Terminate extends Command
   private final case class TerminateWithError(ex: Throwable) extends Command
-  private final case object SocketClosed extends Command
 
   /**
    * Switchboard acts as an intermediary between the raw socket actor
