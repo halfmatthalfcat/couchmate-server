@@ -7,8 +7,9 @@ import akka.cluster.sharding.typed.ShardingEnvelope
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
 import akka.persistence.typed.PersistenceId
 import com.couchmate.api.ws.protocol.Protocol
+import com.couchmate.services.room.Chatroom
 import com.couchmate.services.user.PersistentUser
-import com.couchmate.services.user.PersistentUser.{Disconnect, WSMessage}
+import com.couchmate.services.user.PersistentUser.{Disconnect, RoomMessage, WSMessage}
 import com.couchmate.services.user.context.GeoContext
 import com.couchmate.util.akka.WSPersistentActor
 
@@ -52,6 +53,16 @@ class UserExtension(system: ActorSystem[_]) extends Extension {
     shardRegion ! ShardingEnvelope(
       userId.toString,
       WSMessage(message)
+    )
+  }
+
+  def roomMessage(
+    userId: UUID,
+    message: Chatroom.Command
+  ): Unit = {
+    shardRegion ! ShardingEnvelope(
+      userId.toString,
+      RoomMessage(message)
     )
   }
 }

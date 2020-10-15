@@ -6,8 +6,9 @@ import akka.actor.typed.{ActorRef, ActorSystem, Extension, ExtensionId}
 import akka.cluster.sharding.typed.ShardingEnvelope
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
 import akka.persistence.typed.PersistenceId
-import com.couchmate.services.room.{Chatroom, RoomId, RoomParticipant}
+import com.couchmate.services.room.{Chatroom, RoomId}
 import com.couchmate.services.room.Chatroom.{AddReaction, JoinRoom, LeaveRoom, RemoveReaction, SendMessage}
+import com.couchmate.services.user.context.UserContext
 
 class RoomExtension(system: ActorSystem[_]) extends Extension {
   private[this] val sharding: ClusterSharding =
@@ -26,26 +27,25 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
 
   def join(
     airingId: String,
-    userId: UUID,
-    username: String,
-    actorRef: ActorRef[Chatroom.Command]
+    userContext: UserContext,
+    hash: String = "general"
   ): Unit = {
     shardRegion ! ShardingEnvelope(
-      airingId.toString,
-      JoinRoom(userId, username, actorRef)
+      airingId,
+      JoinRoom(userContext, hash)
     )
   }
 
   def leave(
     airingId: String,
     roomId: RoomId,
-    participant: RoomParticipant,
+    userId: UUID
   ): Unit = {
     shardRegion ! ShardingEnvelope(
-      airingId.toString,
+      airingId,
       LeaveRoom(
         roomId,
-        participant
+        userId
       )
     )
   }
@@ -59,7 +59,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
     actorRef: ActorRef[Chatroom.Command]
   ): Unit = {
     shardRegion ! ShardingEnvelope(
-      airingId.toString,
+      airingId,
       AddReaction(
         roomId,
         userId,
@@ -79,7 +79,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
     actorRef: ActorRef[Chatroom.Command]
   ): Unit = {
     shardRegion ! ShardingEnvelope(
-      airingId.toString,
+      airingId,
       RemoveReaction(
         roomId,
         userId,
@@ -97,7 +97,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
     message: String
   ): Unit = {
     shardRegion ! ShardingEnvelope(
-      airingId.toString,
+      airingId,
       SendMessage(
         roomId,
         userId,

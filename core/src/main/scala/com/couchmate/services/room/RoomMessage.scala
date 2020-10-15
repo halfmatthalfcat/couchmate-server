@@ -3,25 +3,27 @@ package com.couchmate.services.room
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import com.couchmate.common.models.api.room.{Message, MessageType, Participant, Reaction}
+import com.couchmate.common.models.api.room.{Message, MessageMedia, MessageType, Participant, Reaction}
 
 case class RoomMessage(
   messageId: String,
   messageType: MessageType,
-  message: String,
-  author: Option[RoomParticipant],
-  recipient: Option[RoomParticipant],
+  message: Option[String],
+  author: Option[Participant],
+  recipient: Option[Participant],
   reactions: List[Reaction],
+  media: Option[MessageMedia],
   isSelf: Boolean,
 )
 
 object RoomMessage {
   def apply(
     messageType: MessageType,
-    message: String,
-    author: Option[RoomParticipant] = None,
-    recipient: Option[RoomParticipant] = None,
+    message: Option[String],
+    author: Option[Participant] = None,
+    recipient: Option[Participant] = None,
     reactions: List[Reaction] = List.empty,
+    media: Option[MessageMedia] = None,
   ): RoomMessage = {
     val instant: Instant = Instant.now()
     val seconds: Long = instant.getEpochSecond
@@ -34,6 +36,7 @@ object RoomMessage {
       author,
       recipient,
       reactions,
+      media,
       false
     )
   }
@@ -43,15 +46,10 @@ object RoomMessage {
       self.messageId,
       self.messageType,
       self.message,
-      self.author.map(a => Participant(
-        a.userId,
-        a.username,
-      )),
-      self.recipient.map(r => Participant(
-        r.userId,
-        r.username
-      )),
+      self.author,
+      self.recipient,
       self.reactions,
+      self.media,
       self.isSelf
     )
 

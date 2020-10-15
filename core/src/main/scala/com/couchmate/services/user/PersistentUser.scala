@@ -10,12 +10,14 @@ import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionC
 import com.couchmate.api.ws.protocol.{External, ForgotPasswordError, LoginError, PasswordResetError, Protocol, RegisterAccountError, UpdateUsernameError}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.grid.Grid
+import com.couchmate.common.models.api.room.Participant
 import com.couchmate.common.models.api.user.UserMute
 import com.couchmate.common.models.data.{UserMeta, UserReportType, UserRole}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
-import com.couchmate.services.user.commands.{ConnectedCommands, EmptyCommands, InitialCommands, UserActions}
-import com.couchmate.services.user.context.{GeoContext, UserContext}
+import com.couchmate.services.room.{Chatroom, RoomId}
+import com.couchmate.services.user.commands.{ConnectedCommands, EmptyCommands, InitialCommands, RoomCommands, UserActions}
+import com.couchmate.services.user.context.{GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{DatabaseExtension, JwtExtension, MailExtension, PromExtension, RoomExtension, SingletonExtension, UserExtension}
 
@@ -96,6 +98,9 @@ object PersistentUser {
   final case class WSMessage(
     message: Protocol
   ) extends Command
+  final case class RoomMessage(
+    message: Chatroom.Command
+  ) extends Command
 
   // -- EVENTS
 
@@ -117,6 +122,7 @@ object PersistentUser {
   final case class ParticipantUnmuted(mutes: Seq[UserMute]) extends Event
   final case class WordMuted(mutes: Seq[String]) extends Event
   final case class WordUnmuted(mutes: Seq[String]) extends Event
+  final case class RoomJoined(airingId: String, roomId: RoomId) extends Event
 
   // -- STATES
 
@@ -125,13 +131,21 @@ object PersistentUser {
   final case object EmptyState extends State
 
   final case class InitialState(
-    userContext: UserContext
+    userContext: UserContext,
+    roomContext: Option[RoomContext]
   ) extends State
 
   final case class ConnectedState(
     userContext: UserContext,
     geo: GeoContext,
     ws: ActorRef[WSPersistentActor.Command]
+  ) extends State
+
+  final case class RoomState(
+    userContext: UserContext,
+    geo: GeoContext,
+    ws: ActorRef[WSPersistentActor.Command],
+    roomContext: RoomContext
   ) extends State
 
   def apply(
@@ -152,8 +166,6 @@ object PersistentUser {
       SingletonExtension(ctx.system)
     implicit val mail: MailExtension =
       MailExtension(ctx.system)
-    implicit val room: RoomExtension =
-      RoomExtension(ctx.system)
     implicit val user: UserExtension =
       UserExtension(ctx.system)
 
@@ -185,13 +197,19 @@ object PersistentUser {
          */
         case InitialState(
           userContext,
+          roomContext,
         ) => command match {
-          case Connect(geo, ws) => InitialCommands.connect(userContext, geo, ws)
+          case Connect(geo, ws) =>
+            InitialCommands.connect(
+              userContext,
+              geo,
+              ws,
+              roomContext
+            )
           case WSMessage(message) => message match {
-            case _ =>
-              ctx.log.debug(s"${userId} initial but stashing ${command}")
-              Effect.stash()
+            case _ => Effect.stash()
           }
+          case _ => Effect.unhandled
         }
         /**
          * ConnectedState: User is logged into the system.
@@ -209,7 +227,7 @@ object PersistentUser {
            * are not persisted to state but only serve as a request/reply.
            */
           case Connect(geo, ws) =>
-            InitialCommands.connect(userContext, geo, ws)
+            InitialCommands.connect(userContext, geo, ws, Option.empty)
           case Disconnect =>
             ConnectedCommands.disconnect(userContext, geo)
           case UpdateGrid(grid) =>
@@ -274,7 +292,6 @@ object PersistentUser {
           case UnmuteWord(mutes) =>
             ConnectedCommands.wordUnmuted(mutes)
           case UnmuteWordFailed(_) => Effect.none
-
           /**
            * WSMessage wraps _inbound_ messages via a Websocket
            * with the intention that a message will be relayed back
@@ -333,6 +350,54 @@ object PersistentUser {
                 userContext.user.userId.get,
                 word
               )
+            case External.JoinRoom(airingId) =>
+              Effect.none.thenRun(_ => lobby.join(
+                airingId,
+                userContext,
+              ))
+            case _ => Effect.unhandled
+          }
+          /**
+           * Any incoming Room Messages
+           */
+          case RoomMessage(message) => message match {
+            case Chatroom.RoomJoined(airingId, roomId) =>
+              RoomCommands.roomJoined(userContext, geo, airingId, roomId, ws)
+            case Chatroom.RoomClosed =>
+              RoomCommands.roomClosed(userContext, ws)
+            case _ => Effect.stash()
+          }
+          case _ => Effect.unhandled
+        }
+        /**
+         * RoomState: The user is connected and currently in a room
+         */
+        case RoomState(userContext, geo, ws, roomContext) => command match {
+          /**
+           * Any incoming Websocket messages while in-room
+           */
+          case Disconnect =>
+            RoomCommands.disconnect(userContext, geo, roomContext)
+          case WSMessage(message) => message match {
+            case _ => Effect.unhandled
+          }
+          case RoomMessage(message) => message match {
+            case Chatroom.RoomParticipants(participants) =>
+              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.SetParticipants(participants.filterNot(userContext.mutes.contains).toSeq)
+              ))
+            case Chatroom.ParticipantJoined(participant) =>
+              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.AddParticipant(participant)
+              ))
+            case Chatroom.ParticipantLeft(participant) =>
+              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.RemoveParticipant(participant)
+              ))
+            case Chatroom.MessageReplay(messages) =>
+              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.MessageReplay(messages)
+              ))
             case _ => Effect.unhandled
           }
           case _ => Effect.unhandled
@@ -344,9 +409,9 @@ object PersistentUser {
       (state, event) => state match {
         case EmptyState => event match {
           case UserContextSet(userContext) =>
-            InitialState(userContext)
+            InitialState(userContext, Option.empty)
         }
-        case state @ InitialState(userContext) => event match {
+        case state @ InitialState(userContext, _) => event match {
           case Connected(geo, ws) => ConnectedState(
             userContext, geo, ws
           )
@@ -355,7 +420,10 @@ object PersistentUser {
           case Connected(geo, ws) => ConnectedState(
             userContext, geo, ws
           )
-          case Disconnected => InitialState(userContext)
+          case Disconnected => InitialState(
+            userContext,
+            Option.empty
+          )
           case UserContextSet(userContext) => state.copy(
             userContext = userContext
           )
@@ -383,6 +451,21 @@ object PersistentUser {
             userContext = userContext.copy(
               wordMutes = mutes
             )
+          )
+          case RoomJoined(airingId, roomId) => RoomState(
+            userContext,
+            geo,
+            ws,
+            RoomContext(
+              airingId,
+              roomId
+            )
+          )
+        }
+        case state @ RoomState(userContext, geo, ws, roomContext) => event match {
+          case Disconnected => InitialState(
+            userContext,
+            Some(roomContext)
           )
         }
       }

@@ -10,10 +10,11 @@ import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import com.couchmate.common.dao.{AiringDAO, RoomActivityDAO}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.api.room.MessageType
-import com.couchmate.common.models.data.{AiringStatus, RoomActivity, RoomActivityType}
+import com.couchmate.common.models.api.room.{MessageType, Participant}
+import com.couchmate.common.models.data.{AiringStatus, RoomActivity, RoomActivityType, RoomStatusType}
 import com.couchmate.common.models.data.RoomStatusType.Closed
-import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension}
+import com.couchmate.services.user.context.UserContext
+import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, UserExtension}
 
 import scala.concurrent.ExecutionContext
 import scala.compat.java8.DurationConverters
@@ -29,14 +30,12 @@ object Chatroom
   sealed trait Command
 
   final case class JoinRoom(
-    userId: UUID,
-    username: String,
-    actorRef: ActorRef[Command],
+    userContext: UserContext,
     hash: String = "general"
   ) extends Command
   final case class LeaveRoom(
     roomId: RoomId,
-    participant: RoomParticipant
+    userId: UUID,
   ) extends Command
 
   final case class SendMessage(
@@ -73,16 +72,16 @@ object Chatroom
     roomId: RoomId
   ) extends Command
   final case class RoomParticipants(
-    participants: Set[RoomParticipant]
+    participants: Set[Participant]
   ) extends Command
   final case class ParticipantJoined(
-    participant: RoomParticipant
+    participant: Participant
   ) extends Command
   final case class ParticipantLeft(
-    participant: RoomParticipant
+    participant: Participant
   ) extends Command
   final case class ParticipantKicked(
-    participant: RoomParticipant
+    userId: UUID
   ) extends Command
 
   final case class MessageReplay(
@@ -105,17 +104,17 @@ object Chatroom
   private final case object ShowEnding extends Command
   private final case object RoomEnding extends Command
 
+  final case object RoomClosed extends Command
+
   private sealed trait Event
 
   private final case class JoinedRoom(
-    userId: UUID,
-    username: String,
-    actorRef: ActorRef[Command],
+    participant: Participant,
     hash: String
   ) extends Event
   private final case class LeftRoom(
     roomId: RoomId,
-    participant: RoomParticipant
+    userId: UUID
   ) extends Event
   private final case class SetAiringStatus(
     status: AiringStatus
@@ -142,16 +141,10 @@ object Chatroom
   def apply(airingId: String, persistenceId: PersistenceId): Behavior[Command] = Behaviors.setup { implicit ctx =>
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val db: Database = DatabaseExtension(ctx.system).db
-    val metrics: PromExtension =
+    implicit val metrics: PromExtension =
       PromExtension(ctx.system)
-
-    metrics.incRoom()
-
-    ctx.pipeToSelf(getAiringStatus(airingId)) {
-      case Success(Some(value)) => GetAiringSuccess(value)
-      case Success(None) => GetAiringFailure(new RuntimeException(s"Unable to get Airing for ${airingId}"))
-      case Failure(ex) => GetAiringFailure(ex)
-    }
+    implicit val user: UserExtension =
+      UserExtension(ctx.system)
 
     Behaviors.withTimers { timers =>
       EventSourcedBehavior(
@@ -171,12 +164,6 @@ object Chatroom
       ).receiveSignal {
         case (State(airingId, Some(status), _), RecoveryCompleted) =>
           ctx.log.info(s"Recovered room $airingId and restarting timers")
-          ctx.log.info(Duration.between(
-            LocalDateTime.now(ZoneId.of("UTC")),
-            status.endTime.minusMinutes(
-              status.duration - Math.round(status.duration * 0.9)
-            ),
-          ).toString)
           // Fire timer at around the 90% show completion mark
           timers.startSingleTimer(
             ShowEnding,
@@ -195,8 +182,12 @@ object Chatroom
               status.endTime.plusMinutes(15),
             )).max(FiniteDuration(0L, SECONDS))
           )
-        case (State(airingId, _, _), RecoveryCompleted) =>
-          ctx.log.info(s"Recovered room $airingId")
+        case (State(airingId, None, _), RecoveryCompleted) =>
+          ctx.pipeToSelf(getAiringStatus(airingId)) {
+            case Success(Some(value)) => GetAiringSuccess(value)
+            case Success(None) => GetAiringFailure(new RuntimeException(s"Unable to get Airing for ${airingId}"))
+            case Failure(ex) => GetAiringFailure(ex)
+          }
       }
     }
   }
@@ -207,11 +198,11 @@ object Chatroom
   )(
     implicit
     ctx: ActorContext[Command],
+    userExtension: UserExtension,
     db: Database
   ): (State, Command) => Effect[Event, State] =
     (prevState, command) => prevState match {
       case State(_, None, _) => command match {
-        case GetAiringSuccess(AiringStatus(_, _, _, _, _, Closed)) => Effect.stop()
         case GetAiringSuccess(status) => Effect
           .persist(SetAiringStatus(status))
           .thenRun((s: State) => {
@@ -241,13 +232,14 @@ object Chatroom
               )).max(FiniteDuration(0L, SECONDS))
             )
           })
+          .thenRun(_ => metrics.incRoom())
           .thenUnstashAll()
         case GetAiringFailure(ex) =>
-          ctx.log.error("Couldnt get airing", ex)
+          ctx.log.error("Couldn't get airing", ex)
           Effect.stop()
         case _ => Effect.stash()
       }
-      case _ => command match {
+      case State(_, Some(status), _) => command match {
         case ShowEnding =>
           Effect.none
           .thenRun((s: State) => {
@@ -256,20 +248,25 @@ object Chatroom
               case (_, namedRoom) =>
                 namedRoom.broadcastAll(RoomMessage(
                   MessageType.System,
-                  "This show is ending soon. You can still continue chatting for 15 minutes after."
+                  Some("This show is ending soon. You can still continue chatting for 15 minutes after.")
                 ))
             }
           })
         case RoomEnding => Effect
-          .stop()
+          .persist(SetAiringStatus(status.copy(
+            status = RoomStatusType.Closed
+          )))
           .thenRun((s: State) => {
             ctx.log.info(s"Room ${s.airingId} is ending, firing")
             s.hashes.foreachEntry {
               case (_, namedRoom) => namedRoom.rooms.foreach { room =>
                 room.participants.foreach { participant =>
-                  participant.actorRef ! RoomEnded(
-                    s.airingId,
-                    room.roomId
+                  userExtension.roomMessage(
+                    participant.userId,
+                    RoomEnded(
+                      s.airingId,
+                      room.roomId
+                    )
                   )
                   addRoomActivity(RoomActivity(
                     s.airingId,
@@ -280,37 +277,77 @@ object Chatroom
               }
             }
           })
-        case JoinRoom(userId, username, actorRef, hash) => Effect.persist(JoinedRoom(
-          userId, username, actorRef, hash
+          .thenStop()
+        case JoinRoom(userContext, hash) if (
+          status.status == RoomStatusType.Open ||
+          status.status == RoomStatusType.PreGame
+        ) => Effect.persist(JoinedRoom(
+          Participant(
+            userContext.user.userId.get,
+            userContext.userMeta.username,
+            List.empty
+          ), hash
         ))
-         .thenRun((s: State) => actorRef ! RoomJoined(s.airingId, s.hashes(hash).getParticipantRoom(userId).get.roomId))
-         .thenRun((s: State) => actorRef ! RoomParticipants(s.hashes(hash).getParticipantRoom(userId).get.participants.toSet))
-         .thenRun((s: State) => actorRef ! MessageReplay(s.hashes(hash).getParticipantRoom(userId).get.messages))
-         .thenRun((s: State) => s.hashes(hash).getParticipantRoom(userId).get.participants.tail.foreach(_.actorRef ! ParticipantJoined(
-           s.hashes(hash).rooms.head.participants.head
-         )))
-         .thenRun((s: State) => ctx.watchWith(
-           s.hashes(hash).rooms.head.participants.head.actorRef,
-           LeaveRoom(
-             s.hashes(hash).rooms.head.roomId,
-             s.hashes(hash).rooms.head.participants.head,
+         .thenRun((s: State) => userExtension.roomMessage(
+           userContext.user.userId.get,
+           RoomJoined(
+             s.airingId,
+             s.hashes(hash).getParticipantRoom(
+               userContext.user.userId.get
+             ).get.roomId
+           )))
+         .thenRun((s: State) => userExtension.roomMessage(
+           userContext.user.userId.get,
+           RoomParticipants(
+             s.hashes(hash).getParticipantRoom(
+               userContext.user.userId.get
+             ).get.participants.toSet
            )
          ))
+         .thenRun((s: State) => userExtension.roomMessage(
+           userContext.user.userId.get,
+           MessageReplay(s.hashes(hash).getParticipantRoom(
+             userContext.user.userId.get
+           ).get.messages)
+         ))
+         .thenRun((s: State) => s.hashes(hash).getParticipantRoom(
+           userContext.user.userId.get
+         ).get.participants.tail.foreach(p => userExtension.roomMessage(
+           p.userId,
+           ParticipantJoined(
+             s.hashes(hash).rooms.head.participants.head
+           )
+         )))
          .thenRun((s: State) => addRoomActivity(RoomActivity(
            s.airingId,
-           userId,
+           userContext.user.userId.get,
            RoomActivityType.Joined
         )))
-        case LeaveRoom(roomId, participant) => Effect.persist(LeftRoom(
+        case JoinRoom(userContext, _) if (
+          status.status == RoomStatusType.PostGame ||
+          status.status == RoomStatusType.Closed
+        ) => Effect
+          .none
+          .thenRun((_: State) => userExtension.roomMessage(
+            userContext.user.userId.get,
+            RoomClosed
+          ))
+          .thenStop()
+        case LeaveRoom(roomId, userId) => Effect.persist(LeftRoom(
           roomId,
-          participant
-        )).thenRun((s: State) => s
-          .hashes(roomId.name)
-          .getRoom(roomId)
-          .fold(())(_.participants.foreach(_.actorRef ! ParticipantLeft(participant)))
-        ).thenRun((s: State) => addRoomActivity(RoomActivity(
+          userId
+        )).thenRun((s: State) => for {
+          room <- prevState.hashes(roomId.name).getRoom(roomId)
+          participant <- room.getParticipant(userId)
+          currentRoom <- s.hashes(roomId.name).getRoom(roomId)
+        } yield {
+          currentRoom.participants.foreach(p => userExtension.roomMessage(
+            p.userId,
+            ParticipantLeft(participant)
+          ))
+        }).thenRun((s: State) => addRoomActivity(RoomActivity(
           s.airingId,
-          participant.userId,
+          userId,
           RoomActivityType.Left
         )))
         case SendMessage(roomId, userId, message) => (for {
@@ -359,25 +396,23 @@ object Chatroom
     ctx: ActorContext[Command]
   ): (State, Event) => State =
     (state, event) => event match {
-      case JoinedRoom(userId, username, actorRef, hash) =>
+      case JoinedRoom(participant, hash) =>
         state.hashes.get(hash).fold(
           state.copy(
             hashes = state.hashes + (
-              hash -> HashRoom(hash).addParticipant(
-                userId, username, actorRef
-              )
+              hash -> HashRoom(hash).addParticipant(participant)
             )
           )
         )(hashRoom => state.copy(
           hashes = state.hashes.updated(hashRoom.name, hashRoom.addParticipant(
-            userId, username, actorRef
+            participant
           ))
         ))
 
-      case LeftRoom(roomId, participant) =>
+      case LeftRoom(roomId, userId) =>
         state.copy(
           hashes = state.hashes.updated(roomId.name, state.hashes(roomId.name).removeParticipant(
-            roomId, participant
+            roomId, userId
           ))
         )
       case SetAiringStatus(status) =>

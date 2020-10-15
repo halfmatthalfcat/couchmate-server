@@ -14,4 +14,5 @@ object MessageType
   case object System  extends MessageType
   case object Admin   extends MessageType
   case object Mod     extends MessageType
+  case object Media   extends MessageType
 }

@@ -9,12 +9,13 @@ package com.couchmate.services.room
 import java.util.UUID
 
 import akka.actor.typed.ActorRef
+import com.couchmate.common.models.api.room.Participant
 import com.couchmate.services.room.Chatroom.Command
 import com.typesafe.config.ConfigFactory
 
 final case class Room(
   roomId: RoomId,
-  participants: List[RoomParticipant] = List.empty,
+  participants: List[Participant] = List.empty,
   messages: List[RoomMessage] = List.empty
 ) {
   private[this] val config = ConfigFactory.load()
@@ -23,26 +24,19 @@ final case class Room(
   private[this] val cacheSize: Int =
     config.getInt("features.room.message-cache-size")
 
-  def addParticipant(participant: RoomParticipant): Room = this.copy(
+  def addParticipant(participant: Participant): Room = this.copy(
     participants = participant :: participants
   )
 
   def removeParticipant(userId: UUID): Room = this.copy(
     participants = participants.filterNot(_.userId == userId)
   )
-  def removeParticipant(actorRef: ActorRef[Command]): Room = this.copy(
-    participants = participants.filterNot(_.actorRef == actorRef)
-  )
 
   def hasParticipant(userId: UUID): Boolean =
     participants.exists(_.userId == userId)
-  def hasParticipant(actorRef: ActorRef[Command]): Boolean =
-    participants.exists(_.actorRef == actorRef)
 
-  def getParticipant(userId: UUID): Option[RoomParticipant] =
+  def getParticipant(userId: UUID): Option[Participant] =
     participants.find(_.userId == userId)
-  def getParticipant(actorRef: ActorRef[Command]): Option[RoomParticipant] =
-    participants.find(_.actorRef == actorRef)
 
   def size: Int = participants.size
 

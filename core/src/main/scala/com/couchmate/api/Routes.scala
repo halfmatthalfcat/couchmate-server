@@ -7,20 +7,17 @@ import akka.http.scaladsl.server.Route
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.couchmate.Server
 import com.couchmate.api.http.{ListingRoutes, UserRoutes}
-import com.couchmate.api.ws.Commands._
-import com.couchmate.api.ws.WSClient
-import com.couchmate.api.ws.protocol.Protocol
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.services.user.commands.UserActions
 import com.couchmate.services.user.context.GeoContext
-import com.couchmate.util.akka.{WSActor, WSPersistentActor}
-import com.couchmate.util.akka.extensions.{CMJwtClaims, JwtExtension, UserExtension}
+import com.couchmate.util.akka.WSPersistentActor
+import com.couchmate.util.akka.extensions.{JwtExtension, UserExtension}
 import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
 import fr.davit.akka.http.metrics.prometheus.marshalling.PrometheusMarshallers._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 trait Routes
@@ -46,18 +43,7 @@ trait Routes
         }
       },
       path("ws") {
-        handleWebSocketMessages(
-          WSActor[Command, Protocol](
-            WSClient(),
-            SocketConnected,
-            Complete,
-            SocketComplete,
-            { case Complete => },
-            ConnFailure,
-            { p: Protocol => Incoming(p) },
-            { case Outgoing(p) => p }
-          )
-        )
+        complete(StatusCodes.Gone -> "v1 WS endpoint deprecated, use /v2/ws")
       },
       pathPrefix("v2") {
         path("ws") {

@@ -2,10 +2,10 @@ package com.couchmate.services.room
 
 import java.util.UUID
 
-import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.ActorContext
-import com.couchmate.common.models.api.room.{MessageType, Reaction}
+import com.couchmate.common.models.api.room.{MessageType, Participant, Reaction}
 import com.couchmate.services.room.Chatroom.{Command, OutgoingRoomMessage, UpdateRoomMessage}
+import com.couchmate.util.akka.extensions.UserExtension
 
 import scala.collection.immutable.SortedSet
 
@@ -23,35 +23,27 @@ case class HashRoom private (
   def getAllButRoom(roomId: RoomId): SortedSet[Room] =
     rooms.filter(_.roomId != roomId)
 
-  def addParticipant(
-    userId: UUID,
-    username: String,
-    actorRef: ActorRef[Command]
-  ): HashRoom = {
+  def addParticipant(participant: Participant): HashRoom = {
     if (rooms.head.isFull) {
       this.copy(rooms = rooms + Room(
         RoomId(name, rooms.size + 1),
-        List(RoomParticipant(
-          userId, username, actorRef
-        ))
+        List(participant)
       ))
     } else {
-      this.copy(rooms = rooms.tail + rooms.head.addParticipant(RoomParticipant(
-        userId, username, actorRef
-      )))
+      this.copy(rooms = rooms.tail + rooms.head.addParticipant(participant))
     }
   }
 
   def removeParticipant(
     roomId: RoomId,
-    participant: RoomParticipant
+    userId: UUID
   ): HashRoom = this.copy(
     rooms =
       rooms
       .filterNot(_.roomId == roomId) + rooms
         .find(_.roomId == roomId)
         .get
-        .removeParticipant(participant.actorRef)
+        .removeParticipant(userId)
   )
 
   def getParticipantRoom(userId: UUID): Option[Room] =
@@ -67,7 +59,7 @@ case class HashRoom private (
     participant <- room.getParticipant(userId)
   } yield RoomMessage(
     messageType,
-    message,
+    Some(message),
     Some(participant)
   )
 
@@ -151,20 +143,38 @@ case class HashRoom private (
     } else { this }
   }
 
-  def broadcastMessage(roomId: RoomId, message: RoomMessage): Unit = {
+  def broadcastMessage(roomId: RoomId, message: RoomMessage)(
+    implicit
+    userExtension: UserExtension
+  ): Unit = {
     getRoom(roomId).fold(()) { room =>
-      room.participants.map(_.actorRef).foreach(_ ! OutgoingRoomMessage(message))
+      room.participants.foreach(p => userExtension.roomMessage(
+        p.userId,
+        OutgoingRoomMessage(message)
+      ))
     }
   }
 
-  def broadcastUpdateMessage(roomId: RoomId, message: RoomMessage): Unit = {
+  def broadcastUpdateMessage(roomId: RoomId, message: RoomMessage)(
+    implicit
+    userExtension: UserExtension
+  ): Unit = {
     getRoom(roomId).fold(()) { room =>
-      room.participants.map(_.actorRef).foreach(_ ! UpdateRoomMessage(message))
+      room.participants.foreach(p => userExtension.roomMessage(
+        p.userId,
+        UpdateRoomMessage(message)
+      ))
     }
   }
 
-  def broadcastAll(message: RoomMessage): Unit =
-    rooms.foreach(_.participants.map(_.actorRef).foreach(_ ! OutgoingRoomMessage(message)))
+  def broadcastAll(message: RoomMessage)(
+    implicit
+    userExtension: UserExtension
+  ): Unit =
+    rooms.foreach(_.participants.foreach(p => userExtension.roomMessage(
+      p.userId,
+      OutgoingRoomMessage(message)
+    )))
 
   def getLastMessage(roomId: RoomId): Option[RoomMessage] =
     getRoom(roomId).flatMap(_.messages.headOption)

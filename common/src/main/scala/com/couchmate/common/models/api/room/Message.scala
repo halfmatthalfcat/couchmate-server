@@ -5,10 +5,11 @@ import play.api.libs.json.{Format, Json}
 case class Message(
   messageId: String,
   messageType: MessageType,
-  message: String,
+  message: Option[String],
   author: Option[Participant],
   recipient: Option[Participant],
   reactions: Seq[Reaction],
+  media: Option[MessageMedia],
   isSelf: Boolean,
 )
 
