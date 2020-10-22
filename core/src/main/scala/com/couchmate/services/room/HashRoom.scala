@@ -3,7 +3,8 @@ package com.couchmate.services.room
 import java.util.UUID
 
 import akka.actor.typed.scaladsl.ActorContext
-import com.couchmate.common.models.api.room.{MessageType, Participant, Reaction}
+import com.couchmate.common.models.api.room.message.{Message, Reactable, TextMessage}
+import com.couchmate.common.models.api.room.{Participant, Reaction}
 import com.couchmate.services.room.Chatroom.{Command, OutgoingRoomMessage, UpdateRoomMessage}
 import com.couchmate.util.akka.extensions.UserExtension
 
@@ -49,18 +50,18 @@ case class HashRoom private (
   def getParticipantRoom(userId: UUID): Option[Room] =
     rooms.find(_.getParticipant(userId).nonEmpty)
 
-  def createRoomMessage(
+  def createTextMessage(
     roomId: RoomId,
-    messageType: MessageType,
     userId: UUID,
     message: String
-  ): Option[RoomMessage] = for {
+  ): Option[Message] = for {
     room <- getRoom(roomId)
     participant <- room.getParticipant(userId)
-  } yield RoomMessage(
-    messageType,
-    Some(message),
-    Some(participant)
+  } yield TextMessage(
+    message,
+    participant,
+    List.empty,
+    isSelf = true
   )
 
   def addReaction(
@@ -68,69 +69,31 @@ case class HashRoom private (
     messageId: String,
     userId: UUID,
     shortCode: String
-  ): Option[RoomMessage] = for {
+  ): Option[Message with Reactable] = for {
     room <- getRoom(roomId)
-    message <- room.messages.find(_.messageId == messageId)
-    index = room.messages.indexWhere(_.messageId == messageId)
-    reactionIdx = message.reactions.indexWhere(_.shortCode == shortCode)
-    reaction = message.reactions.find(_.shortCode == shortCode).getOrElse(Reaction(
-      shortCode = shortCode,
-      reactors = Seq.empty
-    ))
-  } yield {
-    // If the message and reaction exists _and_ the user hasn't already added
-    if (
-      index >= 0 &&
-      reactionIdx >= 0 &&
-      !reaction.reactors.contains(userId)
-    ) {
-      message.copy(reactions = message.reactions.updated(reactionIdx, reaction.copy(
-        reactors = reaction.reactors :+ userId
-      )))
-    // If this is a new reaction _and_ the user hasn't already added
-    } else if (
-      index >= 0 &&
-      !reaction.reactors.contains(userId)
-    ) {
-      message.copy(reactions = message.reactions :+ reaction.copy(
-        reactors = reaction.reactors :+ userId
-      ))
-    } else { message }
-  }
+    message <- room.messages.collectFirst {
+      case m: Message with Reactable if m.messageId == messageId => m
+    }
+  } yield message.addReaction(userId, shortCode)
 
   def removeReaction(
     roomId: RoomId,
     messageId: String,
     userId: UUID,
     shortCode: String
-  ): Option[RoomMessage] = for {
+  ): Option[Message with Reactable] = for {
     room <- getRoom(roomId)
-    message <- room.messages.find(_.messageId == messageId)
-    index = room.messages.indexWhere(_.messageId == messageId)
-    reactionIdx = message.reactions.indexWhere(_.shortCode == shortCode)
-    reaction = message.reactions.find(_.shortCode == shortCode).getOrElse(Reaction(
-      shortCode = shortCode,
-      reactors = Seq.empty
-    ))
-  } yield {
-    // If the message and reaction exists _and_ the user hasn't already added
-    if (
-      index >= 0 &&
-      reactionIdx >= 0 &&
-      reaction.reactors.contains(userId)
-    ) {
-      message.copy(reactions = message.reactions.updated(reactionIdx, reaction.copy(
-        reactors = reaction.reactors.filter(_ != userId)
-      )))
-    } else { message }
-  }
+    message <- room.messages.collectFirst {
+      case m: Message with Reactable if m.messageId == messageId => m
+    }
+  } yield message.removeReaction(userId, shortCode)
 
-  def addMessage(roomId: RoomId, message: RoomMessage): Option[HashRoom] =
+  def addMessage(roomId: RoomId, message: Message): Option[HashRoom] =
     getRoom(roomId).map(room => this.copy(
       rooms = getAllButRoom(roomId) + room.addMessage(message)
     ))
 
-  def updateMessage(roomId: RoomId, message: RoomMessage): Option[HashRoom] = for {
+  def updateMessage(roomId: RoomId, message: Message): Option[HashRoom] = for {
     room <- getRoom(roomId)
     index = room.messages.indexWhere(_.messageId == message.messageId)
   } yield {
@@ -143,7 +106,7 @@ case class HashRoom private (
     } else { this }
   }
 
-  def broadcastMessage(roomId: RoomId, message: RoomMessage)(
+  def broadcastMessage(roomId: RoomId, message: Message)(
     implicit
     userExtension: UserExtension
   ): Unit = {
@@ -155,7 +118,7 @@ case class HashRoom private (
     }
   }
 
-  def broadcastUpdateMessage(roomId: RoomId, message: RoomMessage)(
+  def broadcastUpdateMessage(roomId: RoomId, message: Message)(
     implicit
     userExtension: UserExtension
   ): Unit = {
@@ -167,7 +130,7 @@ case class HashRoom private (
     }
   }
 
-  def broadcastAll(message: RoomMessage)(
+  def broadcastAll(message: Message)(
     implicit
     userExtension: UserExtension
   ): Unit =
@@ -176,7 +139,7 @@ case class HashRoom private (
       OutgoingRoomMessage(message)
     )))
 
-  def getLastMessage(roomId: RoomId): Option[RoomMessage] =
+  def getLastMessage(roomId: RoomId): Option[Message] =
     getRoom(roomId).flatMap(_.messages.headOption)
 }
 

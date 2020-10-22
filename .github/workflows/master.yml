@@ -122,22 +122,17 @@ jobs:
           --state-values-set doToken=${{ secrets.DO_TOKEN }} \
           --state-values-set registryToken=${{ secrets.GITHUB_TOKEN }} \
           --state-values-set imageTag=${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }} \
-          --state-values-set dbHost=cm-dev-do-user-7059730-0.a.db.ondigitalocean.com \
+          --state-values-set dbHost=cm-dev3-do-user-7059730-0.a.db.ondigitalocean.com \
           --state-values-set dbPort=25060 \
           --state-values-set dbUsername=doadmin \
           --state-values-set dbName=defaultdb \
-          --state-values-set dbPassword=${{ secrets.DO_PG_DEV_PW }} \
+          --state-values-set dbPassword=${{ secrets.DO_PG_DEV2_PW }} \
           --state-values-set mailgunApiKey=${{ secrets.MAILGUN_API_KEY }} \
           --state-values-set mailgunValidationKey=${{ secrets.MAILGUN_VALIDATION_KEY }} \
           --state-values-set spacesKey=${{ secrets.DO_SPACE_KEY }} \
           --state-values-set spacesSecret=${{ secrets.DO_SPACE_SECRET }} \
           --state-values-set oauthClientId=${{ secrets.OAUTH_CLIENT_ID }} \
           --state-values-set oauthClientSecret=${{ secrets.OAUTH_CLIENT_SECRET }} \
-          --state-values-set tsdbHost=timescale-dev-do-user-7059730-0.a.db.ondigitalocean.com \
-          --state-values-set tsdbPort=25060 \
-          --state-values-set tsdbPassword=${{ secrets.TSDB_DEV_PASSWORD }} \
-          --state-values-set tsdbName=defaultdb \
-          --state-values-set tsdbUsername=doadmin \
           --quiet \
           -l name=couchmate \
           sync

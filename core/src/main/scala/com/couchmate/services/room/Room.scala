@@ -8,15 +8,14 @@ package com.couchmate.services.room
 
 import java.util.UUID
 
-import akka.actor.typed.ActorRef
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.services.room.Chatroom.Command
+import com.couchmate.common.models.api.room.message.Message
 import com.typesafe.config.ConfigFactory
 
 final case class Room(
   roomId: RoomId,
   participants: List[Participant] = List.empty,
-  messages: List[RoomMessage] = List.empty
+  messages: List[Message] = List.empty
 ) {
   private[this] val config = ConfigFactory.load()
   private[this] val maxSize: Int =
@@ -42,7 +41,7 @@ final case class Room(
 
   def isFull: Boolean = participants.size >= maxSize
 
-  def addMessage(message: RoomMessage): Room = {
+  def addMessage(message: Message): Room = {
     if (messages.length == cacheSize) {
       this.copy(
         messages = message :: messages.dropRight(1)

@@ -10,7 +10,8 @@ import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import com.couchmate.common.dao.{AiringDAO, RoomActivityDAO}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.api.room.{MessageType, Participant}
+import com.couchmate.common.models.api.room.Participant
+import com.couchmate.common.models.api.room.message.{Message, SystemMessage}
 import com.couchmate.common.models.data.{AiringStatus, RoomActivity, RoomActivityType, RoomStatusType}
 import com.couchmate.common.models.data.RoomStatusType.Closed
 import com.couchmate.services.user.context.UserContext
@@ -48,15 +49,13 @@ object Chatroom
     roomId: RoomId,
     userId: UUID,
     messageId: String,
-    shortCode: String,
-    actorRef: ActorRef[Command]
+    shortCode: String
   ) extends Command
   final case class RemoveReaction(
     roomId: RoomId,
     userId: UUID,
     messageId: String,
-    shortCode: String,
-    actorRef: ActorRef[Command]
+    shortCode: String
   ) extends Command
 
   final case class RoomJoined(
@@ -85,14 +84,14 @@ object Chatroom
   ) extends Command
 
   final case class MessageReplay(
-    messages: List[RoomMessage]
+    messages: List[Message]
   ) extends Command
 
   final case class OutgoingRoomMessage(
-    message: RoomMessage
+    message: Message
   ) extends Command
   final case class UpdateRoomMessage(
-    message: RoomMessage
+    message: Message
   ) extends Command
 
   final case object ReactionAdded extends Command
@@ -105,6 +104,7 @@ object Chatroom
   private final case object RoomEnding extends Command
 
   final case object RoomClosed extends Command
+  final case object CloseRoom extends Command
 
   private sealed trait Event
 
@@ -121,16 +121,17 @@ object Chatroom
   ) extends Event
   private final case class MessageReceived(
     roomId: RoomId,
-    roomMessage: RoomMessage
+    roomMessage: Message
   ) extends Event
   private final case class AddReactionReceived(
     roomId: RoomId,
-    roomMessage: RoomMessage
+    roomMessage: Message
   ) extends Event
   private final case class RemoveReactionReceived(
     roomId: RoomId,
-    roomMessage: RoomMessage
+    roomMessage: Message
   ) extends Event
+  private final case object ClearAiring extends Event
 
   final case class State(
     airingId: String,
@@ -162,26 +163,6 @@ object Chatroom
         ),
         eventHandler
       ).receiveSignal {
-        case (State(airingId, Some(status), _), RecoveryCompleted) =>
-          ctx.log.info(s"Recovered room $airingId and restarting timers")
-          // Fire timer at around the 90% show completion mark
-          timers.startSingleTimer(
-            ShowEnding,
-            DurationConverters.toScala(Duration.between(
-              LocalDateTime.now(ZoneId.of("UTC")),
-              status.endTime.minusMinutes(
-                status.duration - Math.round(status.duration * 0.9)
-              ),
-            )).max(FiniteDuration(0L, SECONDS))
-          )
-          // Fire timer at show end + 15 minutes to close the room
-          timers.startSingleTimer(
-            RoomEnding,
-            DurationConverters.toScala(Duration.between(
-              LocalDateTime.now(ZoneId.of("UTC")),
-              status.endTime.plusMinutes(15),
-            )).max(FiniteDuration(0L, SECONDS))
-          )
         case (State(airingId, None, _), RecoveryCompleted) =>
           ctx.pipeToSelf(getAiringStatus(airingId)) {
             case Success(Some(value)) => GetAiringSuccess(value)
@@ -240,15 +221,16 @@ object Chatroom
         case _ => Effect.stash()
       }
       case State(_, Some(status), _) => command match {
+        case CloseRoom =>
+          Effect.persist(ClearAiring).thenStop()
         case ShowEnding =>
           Effect.none
           .thenRun((s: State) => {
             ctx.log.info(s"Show ${s.airingId} is ending, firing")
             s.hashes.foreachEntry {
               case (_, namedRoom) =>
-                namedRoom.broadcastAll(RoomMessage(
-                  MessageType.System,
-                  Some("This show is ending soon. You can still continue chatting for 15 minutes after.")
+                namedRoom.broadcastAll(SystemMessage(
+                  "This show is ending soon. You can still continue chatting for 15 minutes after."
                 ))
             }
           })
@@ -352,9 +334,8 @@ object Chatroom
         )))
         case SendMessage(roomId, userId, message) => (for {
           hashRoom <- prevState.hashes.get(roomId.name)
-          roomMessage <- hashRoom.createRoomMessage(
+          roomMessage <- hashRoom.createTextMessage(
             roomId,
-            MessageType.Room,
             userId,
             message,
           )
@@ -362,7 +343,7 @@ object Chatroom
           .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, roomMessage))
           .thenRun((_: State) => metrics.incMessages()))
           .getOrElse(Effect.none)
-        case AddReaction(roomId, userId, messageId, shortCode, actorRef) => (for {
+        case AddReaction(roomId, userId, messageId, shortCode) => (for {
           hashRoom <- prevState.hashes.get(roomId.name)
           roomMessage <- hashRoom.addReaction(
             roomId,
@@ -372,10 +353,13 @@ object Chatroom
           )
         } yield Effect.persist(AddReactionReceived(roomId, roomMessage))
           .thenRun((s: State) => s.hashes(roomId.name).broadcastUpdateMessage(roomId, roomMessage))
-          .thenRun((_: State) => actorRef ! ReactionAdded)
+          .thenRun((_: State) => userExtension.roomMessage(
+            userId,
+            ReactionAdded
+          ))
           .thenRun((_: State) => metrics.incReaction()))
           .getOrElse(Effect.none)
-        case RemoveReaction(roomId, userId, messageId, shortCode, actorRef) => (for {
+        case RemoveReaction(roomId, userId, messageId, shortCode) => (for {
           hashRoom <- prevState.hashes.get(roomId.name)
           roomMessage <- hashRoom.removeReaction(
             roomId,
@@ -385,7 +369,10 @@ object Chatroom
           )
         } yield Effect.persist(RemoveReactionReceived(roomId, roomMessage))
           .thenRun((s: State) => s.hashes(roomId.name).broadcastUpdateMessage(roomId, roomMessage))
-          .thenRun((_: State) => actorRef ! ReactionRemoved))
+          .thenRun((_: State) => userExtension.roomMessage(
+            userId,
+            ReactionRemoved
+          )))
           .getOrElse(Effect.none)
         case _ => Effect.unhandled
       }
@@ -417,6 +404,8 @@ object Chatroom
         )
       case SetAiringStatus(status) =>
         state.copy(status = Some(status))
+      case ClearAiring =>
+        state.copy(status = Option.empty)
       case MessageReceived(roomId, roomMessage) =>
         state.copy(
           hashes = state.hashes.updated(

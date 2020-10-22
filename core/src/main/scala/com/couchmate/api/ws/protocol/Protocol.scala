@@ -3,8 +3,9 @@ package com.couchmate.api.ws.protocol
 import java.util.UUID
 
 import com.couchmate.common.models.api.grid.Grid
-import com.couchmate.common.models.api.room.{Message, Participant}
+import com.couchmate.common.models.api.room.Participant
 import com.couchmate.common.models.api.Provider
+import com.couchmate.common.models.api.room.message.Message
 import com.couchmate.common.models.api.user.{User, UserMute}
 import com.couchmate.common.models.data.UserReportType
 import com.couchmate.common.util.json.CountryCodePlayJson
@@ -196,6 +197,13 @@ object External {
   case class SendMessage(
     message: String
   ) extends Protocol
+  case class SendGif(
+    url: String
+  ) extends Protocol
+  case class SendLink(
+    url: String
+  ) extends Protocol
+
   case class AppendMessage(
     message: Message
   ) extends Protocol

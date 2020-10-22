@@ -37,17 +37,17 @@ lazy val common = (project in file("common"))
       slick("slick-hikaricp"),
       slickPg(),
       slickPg("play-json"),
-      "io.underscore"               %%  "slickless"             % "0.3.6",
-      "com.typesafe.play"           %%  "play-json"             % "2.8.1",
-      "com.beachape"                %%  "enumeratum"            % "1.5.15",
-      "com.beachape"                %%  "enumeratum-play-json"  % "1.5.17",
-      "com.beachape"                %%  "enumeratum-slick"      % "1.5.16",
-      "com.chuusai"                 %%  "shapeless"             % "2.3.3",
-      "org.postgresql"              %   "postgresql"            % "42.2.9",
-      "com.neovisionaries"          %   "nv-i18n"               % "1.27",
-      "com.github.t3hnar"           %%  "scala-bcrypt"          % "4.1",
-      "com.typesafe.scala-logging"  %%  "scala-logging"         % "3.9.2",
-
+      "org.julienrf"                %%  "play-json-derived-codecs"  % "7.0.0",
+      "io.underscore"               %%  "slickless"                 % "0.3.6",
+      "com.typesafe.play"           %%  "play-json"                 % "2.8.1",
+      "com.beachape"                %%  "enumeratum"                % "1.5.15",
+      "com.beachape"                %%  "enumeratum-play-json"      % "1.5.17",
+      "com.beachape"                %%  "enumeratum-slick"          % "1.5.16",
+      "com.chuusai"                 %%  "shapeless"                 % "2.3.3",
+      "org.postgresql"              %   "postgresql"                % "42.2.9",
+      "com.neovisionaries"          %   "nv-i18n"                   % "1.27",
+      "com.github.t3hnar"           %%  "scala-bcrypt"              % "4.1",
+      "com.typesafe.scala-logging"  %%  "scala-logging"             % "3.9.2"
     )
   )
 
@@ -98,7 +98,6 @@ lazy val core = (project in file("core"))
       "de.heikoseeberger"             %%  "akka-http-play-json"           % "1.30.0",
       "fr.davit"                      %%  "akka-http-metrics-prometheus"  % "0.6.0",
       // Misc
-      "org.julienrf"                %%  "play-json-derived-codecs"      % "7.0.0",
       "com.typesafe"                %   "config"                        % "1.4.0",
       "com.nimbusds"                %   "nimbus-jose-jwt"               % "8.3",
       "ch.qos.logback"              %   "logback-classic"               % "1.2.3",

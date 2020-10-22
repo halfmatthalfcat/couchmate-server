@@ -86,7 +86,12 @@ object UserActions
     ).toOption
   } yield claims.userId) match {
     case None => createUser(geo).map(_.userId.get)
-    case Some(userId) => Future.successful(userId)
+    case Some(userId) => for {
+      exists <- getUser(userId)
+      userId <- exists.fold(
+        createUser(geo).map(_.userId.get)
+      )(user => Future.successful(user.userId.get))
+    } yield userId
   }
 
   private[user] def createUserContext(userId: UUID)(

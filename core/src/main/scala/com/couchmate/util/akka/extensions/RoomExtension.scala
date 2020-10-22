@@ -23,7 +23,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
           context.entityId
         )
       ),
-    ))
+    ).withStopMessage(Chatroom.CloseRoom))
 
   def join(
     airingId: String,
@@ -55,8 +55,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
     roomId: RoomId,
     userId: UUID,
     messageId: String,
-    shortCode: String,
-    actorRef: ActorRef[Chatroom.Command]
+    shortCode: String
   ): Unit = {
     shardRegion ! ShardingEnvelope(
       airingId,
@@ -64,8 +63,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
         roomId,
         userId,
         messageId,
-        shortCode,
-        actorRef
+        shortCode
       )
     )
   }
@@ -75,8 +73,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
     roomId: RoomId,
     userId: UUID,
     messageId: String,
-    shortCode: String,
-    actorRef: ActorRef[Chatroom.Command]
+    shortCode: String
   ): Unit = {
     shardRegion ! ShardingEnvelope(
       airingId,
@@ -84,8 +81,7 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
         roomId,
         userId,
         messageId,
-        shortCode,
-        actorRef
+        shortCode
       )
     )
   }

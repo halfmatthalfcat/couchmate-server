@@ -5,10 +5,11 @@ import akka.actor.typed.scaladsl.ActorContext
 import akka.persistence.typed.scaladsl.{Effect, EffectBuilder}
 import com.couchmate.api.ws.protocol.External
 import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.models.api.room.message.{Authorable, Message}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.room.RoomId
 import com.couchmate.services.user.PersistentUser
-import com.couchmate.services.user.PersistentUser.{Disconnected, RoomJoined, State, UpdateGrid}
+import com.couchmate.services.user.PersistentUser.{Disconnected, RoomJoined, RoomLeft, State, UpdateGrid}
 import com.couchmate.services.user.commands.InitialCommands.getGrid
 import com.couchmate.services.user.context.{GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
@@ -74,6 +75,35 @@ object RoomCommands {
       ))
       .thenUnstashAll()
 
+  private[user] def roomLeft(
+    userContext: UserContext,
+    geoContext: GeoContext,
+    airingId: String,
+    roomId: RoomId
+  )(
+    implicit
+    singletons: SingletonExtension,
+    gridAdapter: ActorRef[GridCoordinator.Command],
+    metrics: PromExtension,
+    room: RoomExtension
+  ): Effect[RoomLeft.type, State] =
+    Effect
+      .persist(RoomLeft)
+      .thenRun((_: State) => room.leave(
+        airingId,
+        roomId,
+        userContext.user.userId.get
+      ))
+      .thenRun((_: State) => singletons.gridCoordinator ! GridCoordinator.AddListener(
+        userContext.providerId, gridAdapter
+      ))
+      .thenRun((_: State) =>  metrics.decAttendance(
+        userContext.providerId,
+        userContext.providerName,
+        geoContext.timezone,
+        geoContext.country
+      ))
+
   private[user] def roomClosed(
     userContext: UserContext,
     ws: ActorRef[WSPersistentActor.Command]
@@ -97,4 +127,50 @@ object RoomCommands {
     .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(
       External.RoomClosed
     ))
+
+  private[user] def sendMessage(
+    userContext: UserContext,
+    message: Message,
+    ws: ActorRef[WSPersistentActor.Command]
+  )(
+    implicit
+    ctx: ActorContext[PersistentUser.Command],
+    db: Database,
+    singletons: SingletonExtension,
+    ec: ExecutionContext,
+  ): Effect[Nothing, State] =
+    Effect.none.thenRun((_: State) => message match {
+      case m: Message with Authorable =>
+        if (!userContext.mutes.map(_.userId).contains(m.author.userId)) {
+          ws ! WSPersistentActor.OutgoingMessage(
+            External.AppendMessage(m)
+          )
+        }
+      case m: Message => ws ! WSPersistentActor.OutgoingMessage(
+        External.AppendMessage(m)
+      )
+    })
+
+  private[user] def updateMessage(
+    userContext: UserContext,
+    message: Message,
+    ws: ActorRef[WSPersistentActor.Command]
+  )(
+    implicit
+    ctx: ActorContext[PersistentUser.Command],
+    db: Database,
+    singletons: SingletonExtension,
+    ec: ExecutionContext,
+  ): Effect[Nothing, State] =
+    Effect.none.thenRun((_: State) => message match {
+      case m: Message with Authorable =>
+        if (!userContext.mutes.map(_.userId).contains(m.author.userId)) {
+          ws ! WSPersistentActor.OutgoingMessage(
+            External.UpdateMessage(m)
+          )
+        }
+      case m: Message => ws ! WSPersistentActor.OutgoingMessage(
+        External.UpdateMessage(m)
+      )
+    })
 }

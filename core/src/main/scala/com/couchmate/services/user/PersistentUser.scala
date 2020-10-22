@@ -123,6 +123,7 @@ object PersistentUser {
   final case class WordMuted(mutes: Seq[String]) extends Event
   final case class WordUnmuted(mutes: Seq[String]) extends Event
   final case class RoomJoined(airingId: String, roomId: RoomId) extends Event
+  final case object RoomLeft extends Event
 
   // -- STATES
 
@@ -302,6 +303,10 @@ object PersistentUser {
            * while their completed counterparts above follow nounVerb
            */
           case WSMessage(message) => message match {
+            case External.Ping =>
+              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.Pong
+              ))
             case External.ValidateEmail(email) =>
               ConnectedCommands.validateEmail(email)
             case External.ValidateUsername(username) =>
@@ -379,6 +384,40 @@ object PersistentUser {
           case Disconnect =>
             RoomCommands.disconnect(userContext, geo, roomContext)
           case WSMessage(message) => message match {
+            case External.Ping =>
+              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.Pong
+              ))
+            case External.SendMessage(message) =>
+              Effect.none.thenRun(_ => lobby.message(
+                roomContext.airingId,
+                roomContext.roomId,
+                userContext.user.userId.get,
+                message
+              ))
+            case External.AddReaction(messageId, shortCode) =>
+              Effect.none.thenRun(_ => lobby.addReaction(
+                roomContext.airingId,
+                roomContext.roomId,
+                userContext.user.userId.get,
+                messageId,
+                shortCode
+              ))
+            case External.RemoveReaction(messageId, shortCode) =>
+              Effect.none.thenRun(_ => lobby.removeReaction(
+                roomContext.airingId,
+                roomContext.roomId,
+                userContext.user.userId.get,
+                messageId,
+                shortCode
+              ))
+            case External.LeaveRoom =>
+              RoomCommands.roomLeft(
+                userContext,
+                geo,
+                roomContext.airingId,
+                roomContext.roomId
+              )
             case _ => Effect.unhandled
           }
           case RoomMessage(message) => message match {
@@ -398,6 +437,26 @@ object PersistentUser {
               Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
                 External.MessageReplay(messages)
               ))
+            case Chatroom.OutgoingRoomMessage(message) =>
+              RoomCommands.sendMessage(
+                userContext,
+                message,
+                ws
+              )
+            case Chatroom.UpdateRoomMessage(message) =>
+              RoomCommands.updateMessage(
+                userContext,
+                message,
+                ws
+              )
+            case Chatroom.ReactionAdded =>
+              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.AddReactionSuccess
+              ))
+            case Chatroom.ReactionRemoved =>
+              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.RemoveReactionSuccess
+              ))
             case _ => Effect.unhandled
           }
           case _ => Effect.unhandled
@@ -411,7 +470,7 @@ object PersistentUser {
           case UserContextSet(userContext) =>
             InitialState(userContext, Option.empty)
         }
-        case state @ InitialState(userContext, _) => event match {
+        case InitialState(userContext, _) => event match {
           case Connected(geo, ws) => ConnectedState(
             userContext, geo, ws
           )
@@ -461,8 +520,13 @@ object PersistentUser {
               roomId
             )
           )
+          case RoomLeft => ConnectedState(
+            userContext,
+            geo,
+            ws
+          )
         }
-        case state @ RoomState(userContext, geo, ws, roomContext) => event match {
+        case RoomState(userContext, geo, ws, roomContext) => event match {
           case Disconnected => InitialState(
             userContext,
             Some(roomContext)
