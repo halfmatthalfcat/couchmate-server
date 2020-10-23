@@ -134,5 +134,4 @@ jobs:
           --state-values-set oauthClientId=${{ secrets.OAUTH_CLIENT_ID }} \
           --state-values-set oauthClientSecret=${{ secrets.OAUTH_CLIENT_SECRET }} \
           --quiet \
-          -l name=couchmate \
           sync
