@@ -1,12 +1,12 @@
 dependencies:
-- name: prometheus-operator
+- name: kube-prometheus
   repository: https://charts.bitnami.com/bitnami
-  version: 0.29.3
+  version: 2.2.2
 - name: thanos
   repository: https://charts.bitnami.com/bitnami
-  version: 2.3.1
+  version: 2.4.6
 - name: grafana
   repository: https://charts.bitnami.com/bitnami
-  version: 3.3.3
-digest: sha256:552d0d7265d41f30ecb61f8c991f1020e4d394e6c6deee4e53ef1c0d41615e1d
-generated: "2020-08-16T20:16:02.084276-04:00"
+  version: 3.4.5
+digest: sha256:31a591452993134999f05c951ed5918eab38c37cd77cdf66141763775a59b29a
+generated: "2020-10-23T09:21:43.238358-04:00"

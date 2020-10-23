@@ -41,34 +41,6 @@ prometheus-operator:
         - hosts:
             - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
           secretName: {{.Values.env}}-prometheus-tls
-    containers:
-      - name: thanos-sidecar-2
-        image: thanosio/thanos:v0.14.0
-        args:
-          - sidecar
-          - --tsdb.path
-          - /prometheus/prometheus-db
-          - --prometheus.url
-          - "http://localhost:9090"
-          - --objstore.config-file
-          - /tmp/objstore/thanos.yaml
-          - --grpc-address
-          - 0.0.0.0:10901
-          - --http-address
-          - 0.0.0.0:10902
-        ports:
-          - name: grpc
-            containerPort: 10901
-            protocol: TCP
-          - name: http
-            containerPort: 10902
-            protocol: TCP
-        volumeMounts:
-          - name: thanos-objstore-config
-            mountPath: /tmp/objstore
-            readOnly: true
-          - name: prometheus-metrics-prometheus-operato-prometheus-db
-            mountPath: /prometheus
     volumes:
       - name: thanos-objstore-config
         secret:
