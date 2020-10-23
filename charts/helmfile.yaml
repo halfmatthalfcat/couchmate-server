@@ -36,6 +36,11 @@ releases:
     namespace: cert-manager
     values:
       - ./cert-manager/values.yaml.gotmpl
+  - name: metrics
+    chart: ./metrics
+    namespace: metrics
+    values:
+      - ./metrics/values.yaml.gotmpl
   - name: couchmate
     namespace: couchmate
     chart: ./couchmate
@@ -52,8 +57,3 @@ releases:
       - couchmate/couchmate
     values:
       - ./external-dns/values.yaml.gotmpl
-  - name: metrics
-    chart: ./metrics
-    namespace: metrics
-    values:
-      - ./metrics/values.yaml.gotmpl
