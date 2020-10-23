@@ -104,11 +104,11 @@ spec:
     - host: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
       http:
         paths:
-          - path: \/(v\d\/)?(ws|register|reset)
+          - path: /(v\d\/)?(ws|register|reset)
             backend:
               serviceName: server
               servicePort: 80
-          - path: \/api\/(v\d\/)?.+
+          - path: /api\/(v\d\/)?.+
             backend:
               serviceName: server
               servicePort: 80
