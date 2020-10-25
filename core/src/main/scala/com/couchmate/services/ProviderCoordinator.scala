@@ -1,5 +1,7 @@
 package com.couchmate.services
 
+import java.util.UUID
+
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import com.couchmate.common.dao.ZipProviderDAO
@@ -17,11 +19,13 @@ object ProviderCoordinator
   sealed trait Command
 
   final case class RequestProviders(
+    jobId: UUID,
     zipCode: String,
     country: CountryCode,
     senderRef: ActorRef[ProviderJob.Command]
   ) extends Command
   final case class RemoveProvider(
+    jobId: UUID,
     zipCode: String,
     country: CountryCode,
     providers: Seq[Provider]
@@ -40,8 +44,8 @@ object ProviderCoordinator
     implicit val db: Database = DatabaseExtension(ctx.system).db
 
     val jobMapper: ActorRef[ProviderJob.Command] = ctx.messageAdapter[ProviderJob.Command] {
-      case ProviderJob.JobEnded(zipCode, country, providers) => RemoveProvider(zipCode, country, providers)
-      case ProviderJob.JobFailure(zipCode, country, _) => RemoveProvider(zipCode, country, Seq())
+      case ProviderJob.JobEnded(jobId, zipCode, country, providers) => RemoveProvider(jobId, zipCode, country, providers)
+      case ProviderJob.JobFailure(jobId, zipCode, country, _) => RemoveProvider(jobId, zipCode, country, Seq())
     }
 
     ctx.pipeToSelf(getZipMap) {
@@ -67,11 +71,12 @@ object ProviderCoordinator
         ))
       case ZipProvidersFailure(_) =>
         Behaviors.same
-      case RequestProviders(zipCode, country, actorRef) =>
+      case RequestProviders(jobId, zipCode, country, actorRef) =>
         val cached: Boolean =
           state.zipProviders.contains((zipCode, country))
         if (cached) {
           actorRef ! ProviderJob.JobEnded(
+            jobId,
             zipCode,
             country,
             state.zipProviders((zipCode, country))
@@ -81,7 +86,7 @@ object ProviderCoordinator
           state.jobs.get((zipCode, country)).fold {
             val job: ActorRef[ProviderJob.Command] =
               ctx.spawn(
-                ProviderJob(zipCode, country, actorRef, jobMapper),
+                ProviderJob(jobId, zipCode, country, actorRef, jobMapper),
                 s"$zipCode-${country.getAlpha3}"
               )
 
@@ -93,7 +98,7 @@ object ProviderCoordinator
             Behaviors.same
           }
         }
-      case RemoveProvider(zipCode, country, providers) =>
+      case RemoveProvider(_, zipCode, country, providers) =>
         run(state.copy(
           zipProviders = state.zipProviders + ((zipCode, country) -> providers),
           jobs = state.jobs.removed((zipCode, country))

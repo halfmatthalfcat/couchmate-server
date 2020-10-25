@@ -1,5 +1,7 @@
 package com.couchmate.services
 
+import java.util.UUID
+
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import com.couchmate.services.gracenote.listing.{ListingJob, ListingPullType}
@@ -16,7 +18,7 @@ object ListingCoordinator extends LazyLogging {
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     val jobMapper: ActorRef[ListingJob.Command] = ctx.messageAdapter[ListingJob.Command] {
-      case ListingJob.JobEnded(providerId, _) => RemoveListing(providerId)
+      case ListingJob.JobEnded(_, providerId, _) => RemoveListing(providerId)
     }
 
     def run(jobs: Map[Long, ActorRef[ListingJob.Command]]): Behavior[Command] = Behaviors.receiveMessage {
@@ -24,6 +26,7 @@ object ListingCoordinator extends LazyLogging {
         jobs.get(providerId).fold {
           val job: ActorRef[ListingJob.Command] =
             ctx.spawn(ListingJob(
+              UUID.randomUUID(),
               providerId,
               pullType,
               actorRef,

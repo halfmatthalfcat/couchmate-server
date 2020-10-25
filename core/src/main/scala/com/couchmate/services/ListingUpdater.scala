@@ -1,5 +1,7 @@
 package com.couchmate.services
 
+import java.util.UUID
+
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.adapter._
@@ -9,7 +11,7 @@ import akka.util.Timeout
 import com.couchmate.common.dao.{ProviderDAO, UserProviderDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.services.gracenote.listing.{ListingJob, ListingPullType}
-import com.couchmate.util.akka.extensions.{DatabaseExtension}
+import com.couchmate.util.akka.extensions.DatabaseExtension
 import com.typesafe.akka.extension.quartz.QuartzSchedulerExtension
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -21,29 +23,38 @@ object ListingUpdater
   with UserProviderDAO {
   sealed trait Command
 
-  private final case class AddProviders(providers: Seq[Long]) extends Command
+  private final case class AddJobs(providers: Seq[Job]) extends Command
   private final case class FailedProviders(err: Throwable) extends Command
   private final case object StartUpdate extends Command
+  private final case object StartRefresh extends Command
   private final case object ColdStart extends Command
-  private final case class StartJob(providerId: Long) extends Command
-  private final case class JobAlive(providerId: Long) extends Command
-  private final case class JobDead(providerId: Long) extends Command
-  private final case class JobFinished(providerId: Long) extends Command
+  private final case class StartJob(job: Job) extends Command
+  private final case class JobAlive(jobId: UUID) extends Command
+  private final case class JobDead(jobId: UUID) extends Command
+  private final case class JobFinished(jobId: UUID) extends Command
 
   private sealed trait Event
 
-  private final case class ProvidersAdded(providers: Seq[Long]) extends Event
-  private final case class ProviderCompleted(providerId: Long) extends Event
-  private final case class ProviderStarted(providerId: Long, actorRef: ActorRef[ListingJob.Command]) extends Event
+  private final case class JobsAdded(jobs: Seq[Job]) extends Event
+  private final case class JobCompleted(jobId: UUID) extends Event
+  private final case class JobStarted(job: CurrentJob) extends Event
   private final case class ProviderFailed(err: Throwable) extends Event
 
-  private final case class CurrentJob(
+  private final case class Job(
+    jobId: UUID,
     providerId: Long,
+    jobType: ListingPullType,
+  )
+
+  private final case class CurrentJob(
+    jobId: UUID,
+    providerId: Long,
+    jobType: ListingPullType,
     actorRef: ActorRef[ListingJob.Command]
   )
 
   private final case class State(
-    jobs: List[Long],
+    jobs: List[Job],
     currentJob: Option[CurrentJob]
   )
 
@@ -55,14 +66,21 @@ object ListingUpdater
     val scheduler: QuartzSchedulerExtension = QuartzSchedulerExtension(ctx.system.toClassic)
 
     val jobMapper: ActorRef[ListingJob.Command] = ctx.messageAdapter[ListingJob.Command] {
-      case ListingJob.JobEnded(providerId, _) => JobFinished(providerId)
-      case ListingJob.JobFailed(providerId, _) => JobDead(providerId)
+      case ListingJob.JobEnded(jobId, _, _) => JobFinished(jobId)
+      case ListingJob.JobFailed(jobId, _, _) => JobDead(jobId)
     }
 
     scheduler.schedule(
-      "EveryOtherDay",
+      "EverySunday",
       ctx.self.toClassic,
       StartUpdate,
+      None
+    )
+
+    scheduler.schedule(
+      "EveryDayExceptSunday",
+      ctx.self.toClassic,
+      StartRefresh,
       None
     )
 
@@ -71,47 +89,77 @@ object ListingUpdater
     def commandHandler: (State, Command) => Effect[Event, State] = {
       (_, command) => command match {
         case ColdStart => Effect.none
-            .thenRun((s: State) => s.jobs.headOption.fold(()) { providerId =>
-              ctx.self ! StartJob(providerId)
+            .thenRun((s: State) => s.jobs.headOption.fold(()) { job =>
+              ctx.self ! StartJob(job)
             })
-        case StartUpdate => Effect.none
-          .thenRun((_: State) => ctx.pipeToSelf(getProviders) {
-            case Success(value) => AddProviders(value)
-            case Failure(exception) => FailedProviders(exception)
-          })
-        case AddProviders(providers) =>
-          ctx.log.info(s"Pulled jobs ${providers.mkString(", ")}")
+        case StartUpdate =>
+          ctx.log.info(s"Starting update job (pulling for week)")
+          Effect.none
+            .thenRun((_: State) => ctx.pipeToSelf(getProviders) {
+              case Success(value) => AddJobs(value.map(providerId => Job(
+                UUID.randomUUID(),
+                providerId,
+                ListingPullType.Week
+              )))
+              case Failure(exception) => FailedProviders(exception)
+            })
+        case StartRefresh =>
+          ctx.log.info(s"Starting refresh job (pulling for day)")
+          Effect.none
+            .thenRun((_: State) => ctx.pipeToSelf(getProviders) {
+              case Success(value) => AddJobs(value.map(providerId => Job(
+                UUID.randomUUID(),
+                providerId,
+                ListingPullType.Day
+              )))
+              case Failure(exception) => FailedProviders(exception)
+            })
+        case AddJobs(jobs) =>
+          ctx.log.info(s"Pulled jobs ${jobs.map(job => s"${job.providerId} (${job.jobType})").mkString(", ")}")
           Effect
-            .persist(ProvidersAdded(providers))
+            .persist(JobsAdded(jobs))
             .thenRun((s: State) => s.currentJob.fold({
               ctx.log.info(s"Starting ${s.jobs.head}, remaining: ${s.jobs.tail.mkString(", ")}")
               ctx.self ! StartJob(s.jobs.head)
             })(job => {
               ctx.log.info(s"Found job ${job.providerId}, making sure its still running")
               ctx.ask(job.actorRef, ListingJob.Ping){
-                case Success(ListingJob.Pong(providerId)) => JobAlive(providerId)
-                case Failure(_) => JobDead(job.providerId)
+                case Success(ListingJob.Pong(providerId)) => JobAlive(job.jobId)
+                case Failure(_) => JobDead(job.jobId)
               }
             }))
         case JobAlive(_) => Effect.none
-        case JobDead(providerId) =>
-          ctx.log.info(s"Job $providerId was dead, restarting.")
-          ctx.self ! StartJob(providerId)
-          Effect.none
-        case JobFinished(providerId) =>
-          Effect.persist(ProviderCompleted(providerId))
-            .thenRun((s: State) => s.jobs.headOption.fold(()){ nextProvider =>
-              ctx.log.info(s"Starting $nextProvider, remaining: ${s.jobs.tail.mkString(", ")}")
-              ctx.self ! StartJob(nextProvider)
+        case JobDead(jobId) =>
+          Effect.none.thenRun((s: State) => {
+            ctx.log.info(s"Job $jobId was dead, restarting.")
+            s.currentJob.fold(()) { currentJob =>
+              ctx.self ! StartJob(Job(
+                currentJob.jobId,
+                currentJob.providerId,
+                currentJob.jobType
+              ))
+            }
+          })
+        case JobFinished(jobId) =>
+          Effect.persist(JobCompleted(jobId))
+            .thenRun((s: State) => s.jobs.headOption.fold(()){ nextJob =>
+              ctx.log.info(s"Starting ${nextJob.providerId} (${nextJob.jobType}), remaining jobs: ${s.jobs.tail.size}")
+              ctx.self ! StartJob(nextJob)
             })
-        case StartJob(providerId) =>
+        case StartJob(nextJob) =>
           val job = ctx.spawnAnonymous(ListingJob(
-            providerId,
-            ListingPullType.Full,
+            nextJob.jobId,
+            nextJob.providerId,
+            nextJob.jobType,
             ctx.system.ignoreRef,
             jobMapper
           ))
-          Effect.persist(ProviderStarted(providerId, job))
+          Effect.persist(JobStarted(CurrentJob(
+            nextJob.jobId,
+            nextJob.providerId,
+            nextJob.jobType,
+            job
+          )))
         case FailedProviders(ex) =>
           ctx.log.error(s"Failed to get providers", ex)
           Effect.unhandled
@@ -120,26 +168,17 @@ object ListingUpdater
 
     def eventHandler: (State, Event) => State =
       (state, event) => event match {
-        case ProvidersAdded(providers) =>
+        case JobsAdded(jobs) =>
           state.copy(
-            jobs = state.jobs ++ providers
+            jobs = state.jobs ++ jobs
           )
-        case ProviderCompleted(providerId) =>
-          if (state.jobs.nonEmpty) {
-            state.copy(
-              jobs = state.jobs.tail,
-              currentJob = Option.empty,
-            )
-          } else {
-            state.copy(
-              jobs = List.empty,
-              currentJob = Option.empty,
-            )
-          }
-        case ProviderStarted(providerId, actorRef) => state.copy(
-          currentJob = Some(CurrentJob(
-            providerId, actorRef
-          ))
+        case JobCompleted(jobId) =>
+          state.copy(
+            jobs = state.jobs.filterNot(_.jobId == jobId),
+            currentJob = Option.empty,
+          )
+        case JobStarted(job) => state.copy(
+          currentJob = Some(job)
         )
       }
 

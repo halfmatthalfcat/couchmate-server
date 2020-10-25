@@ -1,6 +1,7 @@
 package com.couchmate.services.gracenote.listing
 
 import java.time.{LocalDateTime, ZoneId}
+import java.util.UUID
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
@@ -32,8 +33,16 @@ object ListingJob
   sealed trait Command
 
   final case class AddListener(actorRef: ActorRef[Command]) extends Command
-  final case class JobEnded(providerId: Long, grid: Grid) extends Command
-  final case class JobFailed(providerId: Long, err: Throwable) extends Command
+  final case class JobEnded(
+    jobId: UUID,
+    providerId: Long,
+    grid: Grid
+  ) extends Command
+  final case class JobFailed(
+    jobId: UUID,
+    providerId: Long,
+    err: Throwable
+  ) extends Command
 
   final case class Ping(actorRef: ActorRef[Command]) extends Command
   final case class Pong(providerId: Long) extends Command
@@ -71,6 +80,7 @@ object ListingJob
   )
 
   def apply(
+    jobId: UUID,
     providerId: Long,
     pullType: ListingPullType,
     initiate: ActorRef[Command],
@@ -153,15 +163,15 @@ object ListingJob
 
       case ProviderFailure(err) =>
         ctx.log.error(s"Unable to get provider", err)
-        parent ! JobFailed(providerId, err)
+        parent ! JobFailed(jobId, providerId, err)
         Behaviors.stopped
       case SportsFailure(err) =>
         ctx.log.error(s"Unable to get sports", err)
-        parent ! JobFailed(providerId, err)
+        parent ! JobFailed(jobId, providerId, err)
         Behaviors.stopped
       case JobFailure(err) =>
         ctx.log.error(s"Unable to make job", err)
-        parent ! JobFailed(providerId, err)
+        parent ! JobFailed(jobId, providerId, err)
         Behaviors.stopped
     }
 
@@ -244,7 +254,7 @@ object ListingJob
               )
             ) onComplete {
               case Success(_) =>
-                ctx.self ! JobEnded(providerId, value)
+                ctx.self ! JobEnded(jobId, providerId, value)
               case Failure(exception) =>
                 ctx.self ! JobFailure(exception)
             }
@@ -270,7 +280,7 @@ object ListingJob
           parent ! ended
           Behaviors.stopped
         case JobFailure(err) =>
-          parent ! JobFailed(providerId, err)
+          parent ! JobFailed(jobId, providerId, err)
           Behaviors.stopped
       }
 

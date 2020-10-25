@@ -6,9 +6,10 @@ sealed abstract class ListingPullType(val value: Int) extends IntEnumEntry
 
 object ListingPullType
   extends IntEnum[ListingPullType] {
-
-  case object Initial extends ListingPullType(12)
-  case object Full    extends ListingPullType(168)
-
   val values = findValues
+
+  case object HalfDay   extends ListingPullType(12)
+  case object Day       extends ListingPullType(24)
+  case object Week      extends ListingPullType(168)
+  case object TwoWeeks  extends ListingPullType(336)
 }

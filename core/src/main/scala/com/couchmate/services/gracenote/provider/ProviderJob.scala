@@ -1,5 +1,7 @@
 package com.couchmate.services.gracenote.provider
 
+import java.util.UUID
+
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.http.scaladsl.coding.Gzip
@@ -30,11 +32,13 @@ object ProviderJob
 
   sealed trait Command
   case class JobEnded(
+    jobId: UUID,
     zipCode: String,
     country: CountryCode,
     providers: Seq[Provider]
   ) extends Command
   case class JobFailure(
+    jobId: UUID,
     zipCode: String,
     country: CountryCode,
     err: Throwable
@@ -45,6 +49,7 @@ object ProviderJob
   private final case class ProvidersFailure(err: Throwable) extends Command
 
   def apply(
+    jobId: UUID,
     zipCode: String,
     countryCode: CountryCode,
     initiate: ActorRef[Command],
@@ -72,6 +77,7 @@ object ProviderJob
           providers.map(ingestProvider)
         )) {
           case Success(providers) => JobEnded(
+            jobId,
             zipCode,
             countryCode,
             providers.map(p => Provider(
@@ -81,7 +87,7 @@ object ProviderJob
               location = p.location
             ))
           )
-          case Failure(exception) => JobFailure(zipCode, countryCode, exception)
+          case Failure(exception) => JobFailure(jobId, zipCode, countryCode, exception)
         }
         Behaviors.same
 
