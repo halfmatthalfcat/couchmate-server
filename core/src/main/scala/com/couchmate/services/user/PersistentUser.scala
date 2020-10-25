@@ -531,6 +531,11 @@ object PersistentUser {
             userContext,
             Some(roomContext)
           )
+          case RoomLeft => ConnectedState(
+            userContext,
+            geo,
+            ws
+          )
         }
       }
 

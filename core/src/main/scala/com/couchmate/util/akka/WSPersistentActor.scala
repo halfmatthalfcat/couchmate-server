@@ -74,7 +74,7 @@ object WSPersistentActor extends LazyLogging {
     val sb: ActorRef[Command] =
       ctx.spawn(
         switchboard(userId, geo, userExtension, Option.empty),
-        s"$userId-sb"
+        s"$userId-switchboard"
       )
     val incomingSink: Sink[Message, NotUsed] = Flow[Message]
       .filter(_.isText)
