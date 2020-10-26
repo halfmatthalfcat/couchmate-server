@@ -3,9 +3,8 @@ package com.couchmate.services.user.commands
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.ActorContext
 import akka.persistence.typed.scaladsl.Effect
-import com.couchmate.api.ws.actions.SessionActions.addUserActivity
 import com.couchmate.api.ws.protocol.External
-import com.couchmate.common.dao.GridDAO
+import com.couchmate.common.dao.{GridDAO, UserActivityDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{UserActivity, UserActivityType}
 import com.couchmate.services.GridCoordinator
@@ -18,7 +17,9 @@ import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, Singlet
 import scala.concurrent.ExecutionContext
 import scala.util.Success
 
-object InitialCommands extends GridDAO {
+object InitialCommands
+  extends GridDAO
+  with UserActivityDAO {
   private[user] def connect(
     userContext: UserContext,
     geo: GeoContext,

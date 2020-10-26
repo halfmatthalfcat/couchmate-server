@@ -4,12 +4,15 @@ import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.ActorContext
 import akka.persistence.typed.scaladsl.{Effect, EffectBuilder}
 import com.couchmate.api.ws.protocol.External
+import com.couchmate.common.dao.UserActivityDAO
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.room.message.{Authorable, Message}
+import com.couchmate.common.models.data.{UserActivity, UserActivityType}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.room.RoomId
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser.{Disconnected, RoomJoined, RoomLeft, State, UpdateGrid}
+import com.couchmate.services.user.commands.ConnectedCommands.addUserActivity
 import com.couchmate.services.user.commands.InitialCommands.getGrid
 import com.couchmate.services.user.context.{GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
@@ -18,7 +21,8 @@ import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, Singlet
 import scala.concurrent.ExecutionContext
 import scala.util.Success
 
-object RoomCommands {
+object RoomCommands
+  extends UserActivityDAO {
   private[user] def disconnect(
     userContext: UserContext,
     geoContext: GeoContext,
@@ -26,7 +30,8 @@ object RoomCommands {
   )(
     implicit
     metrics: PromExtension,
-    room: RoomExtension
+    room: RoomExtension,
+    db: Database
   ): EffectBuilder[PersistentUser.Disconnected.type, State] = Effect
     .persist(Disconnected)
     .thenRun((_: State) => room.leave(
@@ -46,6 +51,14 @@ object RoomCommands {
       geoContext.timezone,
       geoContext.country
     ))
+    .thenRun((_: State) => addUserActivity(UserActivity(
+      userContext.user.userId.get,
+      UserActivityType.Logout,
+      os = Option.empty,
+      osVersion = Option.empty,
+      brand = Option.empty,
+      model = Option.empty,
+    )))
 
   private[user] def roomJoined(
     userContext: UserContext,
