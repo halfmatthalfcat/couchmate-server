@@ -6,10 +6,11 @@ import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.ActorContext
 import akka.persistence.typed.scaladsl.{Effect, EffectBuilder}
 import com.couchmate.api.ws.protocol.{External, ForgotPasswordError, ForgotPasswordErrorCause, LoginError, LoginErrorCause, PasswordResetError, PasswordResetErrorCause, Protocol, RegisterAccountError, RegisterAccountErrorCause, UpdateUsernameError, UpdateUsernameErrorCause}
+import com.couchmate.common.dao.UserActivityDAO
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.user.UserMute
-import com.couchmate.common.models.data.{User, UserMeta}
+import com.couchmate.common.models.data.{User, UserActivity, UserActivityType, UserMeta}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser._
@@ -20,7 +21,9 @@ import com.couchmate.util.akka.extensions.{JwtExtension, MailExtension, PromExte
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
-object ConnectedCommands {
+object ConnectedCommands
+  extends UserActivityDAO {
+
   private[user] def disconnect(
     userContext: UserContext,
     geo: GeoContext
@@ -29,7 +32,8 @@ object ConnectedCommands {
     ctx: ActorContext[PersistentUser.Command],
     metrics: PromExtension,
     singletons: SingletonExtension,
-    gridAdapter: ActorRef[GridCoordinator.Command]
+    gridAdapter: ActorRef[GridCoordinator.Command],
+    db: Database
   ): EffectBuilder[PersistentUser.Disconnected.type, State] = Effect
     .persist(Disconnected)
     .thenRun((_: State) => metrics.decSession(
@@ -43,6 +47,14 @@ object ConnectedCommands {
         userContext.providerId, gridAdapter
       )
     )
+    .thenRun((_: State) => addUserActivity(UserActivity(
+      userContext.user.userId.get,
+      UserActivityType.Logout,
+      os = Option.empty,
+      osVersion = Option.empty,
+      brand = Option.empty,
+      model = Option.empty,
+    )))
     .thenRun((_: State) => ctx.log.debug(s"User ${userContext.user.userId.get} disconnected"))
     .thenStop
 
