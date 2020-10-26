@@ -3,9 +3,11 @@ package com.couchmate.services.user.commands
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.ActorContext
 import akka.persistence.typed.scaladsl.Effect
+import com.couchmate.api.ws.actions.SessionActions.addUserActivity
 import com.couchmate.api.ws.protocol.External
 import com.couchmate.common.dao.GridDAO
 import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.models.data.{UserActivity, UserActivityType}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser._
@@ -40,6 +42,14 @@ object InitialCommands extends GridDAO {
         geo.timezone,
         geo.country,
       ))
+      .thenRun((_: State) => addUserActivity(UserActivity(
+        userId = userContext.user.userId.get,
+        action = UserActivityType.Login,
+        os = Option.empty,
+        osVersion = Option.empty,
+        brand = Option.empty,
+        model = Option.empty
+      )))
       .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(External.SetSession(
         userContext.getClientUser,
         userContext.providerName,
@@ -70,6 +80,14 @@ object InitialCommands extends GridDAO {
         geo.timezone,
         geo.country,
       ))
+      .thenRun((_: State) => addUserActivity(UserActivity(
+        userId = userContext.user.userId.get,
+        action = UserActivityType.Login,
+        os = Option.empty,
+        osVersion = Option.empty,
+        brand = Option.empty,
+        model = Option.empty
+      )))
       .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(External.SetSession(
         userContext.getClientUser,
         userContext.providerName,

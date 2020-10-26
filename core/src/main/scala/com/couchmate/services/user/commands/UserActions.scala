@@ -116,15 +116,6 @@ object UserActions
       provider <- getProvider(userProvider.providerId).map(_.getOrElse(
         throw new RuntimeException(s"Could not find provider for $userId (${userProvider.providerId})")
       ))
-      grid <- getGrid(userProvider.providerId)
-      _ <- addUserActivity(UserActivity(
-        userId = user.userId.get,
-        action = UserActivityType.Login,
-        os = Option.empty,
-        osVersion = Option.empty,
-        brand = Option.empty,
-        model = Option.empty,
-      ))
       token <- Future.fromTry(jwt.createToken(
         subject = user.userId.get.toString,
         claims = Map(
