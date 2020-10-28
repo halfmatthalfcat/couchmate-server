@@ -27,6 +27,7 @@ object ListingUpdater
   private final case class FailedProviders(err: Throwable) extends Command
   private final case object StartUpdate extends Command
   private final case object StartRefresh extends Command
+  private final case object StartShortRefresh extends Command
   private final case object ColdStart extends Command
   private final case class StartJob(job: Job) extends Command
   private final case class JobAlive(jobId: UUID) extends Command
@@ -111,6 +112,17 @@ object ListingUpdater
                 UUID.randomUUID(),
                 providerId,
                 ListingPullType.Day
+              )))
+              case Failure(exception) => FailedProviders(exception)
+            })
+        case StartShortRefresh =>
+          ctx.log.info(s"Starting refresh job (pulling for 6 hours)")
+          Effect.none
+            .thenRun((_: State) => ctx.pipeToSelf(getProviders) {
+              case Success(value) => AddJobs(value.map(providerId => Job(
+                UUID.randomUUID(),
+                providerId,
+                ListingPullType.SixHours
               )))
               case Failure(exception) => FailedProviders(exception)
             })

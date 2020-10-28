@@ -31,6 +31,8 @@ object Message {
 trait Authorable {
   val author: Participant
   val isSelf: Boolean
+
+  def setSelf(isSelf: Boolean): Message with Authorable
 }
 
 trait Reactable {
@@ -62,6 +64,12 @@ case class TextMessage(
 ) extends Message
   with Authorable
   with Reactable {
+
+  override def setSelf(
+    isSelf: Boolean,
+  ): Message with Authorable = this.copy(
+    isSelf = isSelf
+  )
 
   override def addReaction(
     userId: UUID, shortCode: String,
@@ -117,6 +125,12 @@ case class TextMessageWithLinks(
 ) extends Message
   with Authorable
   with Reactable {
+
+  override def setSelf(
+    isSelf: Boolean,
+  ): Message with Authorable = this.copy(
+    isSelf = isSelf
+  )
 
   override def addReaction(
     userId: UUID, shortCode: String,
@@ -175,6 +189,12 @@ case class TenorMessage(
 ) extends Message
   with Authorable
   with Reactable {
+
+  override def setSelf(
+    isSelf: Boolean,
+  ): Message with Authorable = this.copy(
+    isSelf = isSelf
+  )
 
   override def addReaction(
     userId: UUID, shortCode: String,

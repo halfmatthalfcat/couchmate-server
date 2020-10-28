@@ -156,7 +156,9 @@ object RoomCommands
       case m: Message with Authorable =>
         if (!userContext.mutes.map(_.userId).contains(m.author.userId)) {
           ws ! WSPersistentActor.OutgoingMessage(
-            External.AppendMessage(m)
+            External.AppendMessage(m.setSelf(
+              userContext.user.userId.contains(m.author.userId)
+            ))
           )
         }
       case m: Message => ws ! WSPersistentActor.OutgoingMessage(
@@ -179,7 +181,9 @@ object RoomCommands
       case m: Message with Authorable =>
         if (!userContext.mutes.map(_.userId).contains(m.author.userId)) {
           ws ! WSPersistentActor.OutgoingMessage(
-            External.UpdateMessage(m)
+            External.UpdateMessage(m.setSelf(
+              userContext.user.userId.contains(m.author.userId)
+            ))
           )
         }
       case m: Message => ws ! WSPersistentActor.OutgoingMessage(

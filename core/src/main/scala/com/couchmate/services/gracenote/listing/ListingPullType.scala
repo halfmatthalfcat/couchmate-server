@@ -8,6 +8,7 @@ object ListingPullType
   extends IntEnum[ListingPullType] {
   val values = findValues
 
+  case object SixHours  extends ListingPullType(6)
   case object HalfDay   extends ListingPullType(12)
   case object Day       extends ListingPullType(24)
   case object Week      extends ListingPullType(168)
