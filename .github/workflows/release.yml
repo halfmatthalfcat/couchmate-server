@@ -117,6 +117,7 @@ jobs:
       - name: Release chart
         run: |
           cd charts && helmfile \
+          -e production \
           --state-values-set doToken=${{ secrets.DO_TOKEN }} \
           --state-values-set registryToken=${{ secrets.GITHUB_TOKEN }} \
           --state-values-set imageTag=${{ github.event.release.tag_name }} \
@@ -132,5 +133,4 @@ jobs:
           --state-values-set oauthClientId=${{ secrets.OAUTH_CLIENT_ID }} \
           --state-values-set oauthClientSecret=${{ secrets.OAUTH_CLIENT_SECRET }} \
           --quiet \
-          sync \
-          --enviornment production
+          sync
