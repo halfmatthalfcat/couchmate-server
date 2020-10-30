@@ -60,11 +60,13 @@ object ListingUpdater
   )
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
+    ctx.log.info(s"ListingUpdater started")
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val db: Database = DatabaseExtension(ctx.system).db
     implicit val timeout: Timeout = 5 seconds
 
-    val scheduler: QuartzSchedulerExtension = QuartzSchedulerExtension(ctx.system.toClassic)
+    val scheduler: QuartzSchedulerExtension =
+      QuartzSchedulerExtension(ctx.system.toClassic)
 
     val jobMapper: ActorRef[ListingJob.Command] = ctx.messageAdapter[ListingJob.Command] {
       case ListingJob.JobEnded(jobId, _, _) => JobFinished(jobId)
