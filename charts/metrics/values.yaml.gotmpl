@@ -14,13 +14,6 @@ kube-prometheus:
     disableCompaction: true
     scrapeInterval: 10s
     evaluationInterval: 30s
-    persistence:
-      enabled: true
-    thanos:
-      create: true
-      objectStorageConfig:
-        secretName: thanos-objstore-config
-        secretKey: thanos.yaml
     ruleNamespaceSelector: {}
     serviceMonitorSelector: {}
     podMonitorSelector: {}
@@ -108,21 +101,21 @@ kube-prometheus:
           action: drop
   kubeProxy:
     enabled: false
-thanos:
-  existingObjstoreSecret: thanos-objstore-config
-  existingObjstoreSecretItems:
-    - key: thanos.yaml
-      path: objstore.yml
-  querier:
-    dnsDiscovery:
-      sidecarsService: metrics-prometheus-thanos
-      sidecarsNamespace: metrics
-  bucketweb:
-    enabled: true
-  compactor:
-    enabled: true
-  storegateway:
-    enabled: true
+#thanos:
+#  existingObjstoreSecret: thanos-objstore-config
+#  existingObjstoreSecretItems:
+#    - key: thanos.yaml
+#      path: objstore.yml
+#  querier:
+#    dnsDiscovery:
+#      sidecarsService: metrics-prometheus-thanos
+#      sidecarsNamespace: metrics
+#  bucketweb:
+#    enabled: true
+#  compactor:
+#    enabled: true
+#  storegateway:
+#    enabled: true
 grafana:
   admin:
     password: abcabc
