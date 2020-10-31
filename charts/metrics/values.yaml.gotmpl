@@ -16,6 +16,11 @@ kube-prometheus:
     evaluationInterval: 30s
     persistence:
       enabled: true
+    thanos:
+      create: true
+      objectStorageConfig:
+        secretName: thanos-objstore-config
+        secretKey: thanos.yaml
     ruleNamespaceSelector: {}
     serviceMonitorSelector: {}
     podMonitorSelector: {}
@@ -41,13 +46,6 @@ kube-prometheus:
         - hosts:
             - prometheus{{if ne .Values.env "prod"}}.{{.Values.env}}{{end}}.couchmate.com
           secretName: {{.Values.env}}-prometheus-tls
-    volumes:
-      - name: thanos-objstore-config
-        secret:
-          secretName: thanos-objstore-config
-          items:
-            - key: thanos.yaml
-              path: thanos.yaml
   alertmanager:
     enabled: true
     persistence:
