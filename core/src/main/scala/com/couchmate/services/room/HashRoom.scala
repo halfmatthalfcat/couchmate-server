@@ -54,7 +54,7 @@ case class HashRoom private (
     roomId: RoomId,
     userId: UUID,
     message: String
-  ): Option[Message] = for {
+  ): Option[TextMessage] = for {
     room <- getRoom(roomId)
     participant <- room.getParticipant(userId)
   } yield TextMessage(

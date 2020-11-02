@@ -200,9 +200,6 @@ object External {
   case class SendGif(
     url: String
   ) extends Protocol
-  case class SendLink(
-    url: String
-  ) extends Protocol
 
   case class AppendMessage(
     message: Message

@@ -11,11 +11,12 @@ import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import com.couchmate.common.dao.{AiringDAO, RoomActivityDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.common.models.api.room.message.{Message, SystemMessage}
+import com.couchmate.common.models.api.room.message.{Message, SystemMessage, TextMessage, TextMessageWithLinks}
 import com.couchmate.common.models.data.{AiringStatus, RoomActivity, RoomActivityType, RoomStatusType}
 import com.couchmate.common.models.data.RoomStatusType.Closed
+import com.couchmate.services.room.LinkScanner.ScanMessage
 import com.couchmate.services.user.context.UserContext
-import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, UserExtension}
+import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, SingletonExtension, UserExtension}
 
 import scala.concurrent.ExecutionContext
 import scala.compat.java8.DurationConverters
@@ -43,6 +44,10 @@ object Chatroom
     roomId: RoomId,
     userId: UUID,
     message: String
+  ) extends Command
+  final case class SendTextMessageWithLinks(
+    roomId: RoomId,
+    message: TextMessageWithLinks
   ) extends Command
 
   final case class AddReaction(
@@ -141,11 +146,14 @@ object Chatroom
 
   def apply(airingId: String, persistenceId: PersistenceId): Behavior[Command] = Behaviors.setup { implicit ctx =>
     implicit val ec: ExecutionContext = ctx.executionContext
-    implicit val db: Database = DatabaseExtension(ctx.system).db
+    implicit val db: Database =
+      DatabaseExtension(ctx.system).db
     implicit val metrics: PromExtension =
       PromExtension(ctx.system)
     implicit val user: UserExtension =
       UserExtension(ctx.system)
+    implicit val singleton: SingletonExtension =
+      SingletonExtension(ctx.system)
 
     Behaviors.withTimers { timers =>
       EventSourcedBehavior(
@@ -180,6 +188,7 @@ object Chatroom
     implicit
     ctx: ActorContext[Command],
     userExtension: UserExtension,
+    singletonExtension: SingletonExtension,
     db: Database
   ): (State, Command) => Effect[Event, State] =
     (prevState, command) => prevState match {
@@ -332,7 +341,9 @@ object Chatroom
           userId,
           RoomActivityType.Left
         )))
-        case SendMessage(roomId, userId, message) => (for {
+        case SendMessage(roomId, userId, message) if !LinkScanner.hasLinks(message) =>
+          ctx.log.debug(s"Got message with no links: ${LinkScanner.getLinks(message)}")
+          (for {
           hashRoom <- prevState.hashes.get(roomId.name)
           roomMessage <- hashRoom.createTextMessage(
             roomId,
@@ -343,6 +354,26 @@ object Chatroom
           .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, roomMessage))
           .thenRun((_: State) => metrics.incMessages()))
           .getOrElse(Effect.none)
+        case SendMessage(roomId, userId, message) if LinkScanner.hasLinks(message) =>
+          ctx.log.debug(s"Got message with links")
+          (for {
+          hashRoom <- prevState.hashes.get(roomId.name)
+          roomMessage <- hashRoom.createTextMessage(
+            roomId,
+            userId,
+            message,
+          )
+        } yield Effect.none
+          .thenRun((s: State) => singletonExtension.linkScanner ! ScanMessage(
+            s.airingId,
+            roomId,
+            roomMessage
+          ))).getOrElse(Effect.none)
+        case SendTextMessageWithLinks(roomId, message) =>
+          Effect
+            .persist(MessageReceived(roomId, message))
+            .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, message))
+            .thenRun((_: State) => metrics.incMessages())
         case AddReaction(roomId, userId, messageId, shortCode) => (for {
           hashRoom <- prevState.hashes.get(roomId.name)
           roomMessage <- hashRoom.addReaction(

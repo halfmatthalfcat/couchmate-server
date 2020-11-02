@@ -121,6 +121,7 @@ case class TextMessageWithLinks(
   author: Participant,
   reactions: List[Reaction],
   isSelf: Boolean,
+  isOnlyLink: Boolean,
   links: List[MessageLink]
 ) extends Message
   with Authorable
@@ -167,6 +168,7 @@ object TextMessageWithLinks {
     author: Participant,
     reactions: List[Reaction],
     isSelf: Boolean,
+    isOnlyLink: Boolean,
     links: List[MessageLink]
   ): TextMessageWithLinks = new TextMessageWithLinks(
     Message.generateId,
@@ -174,6 +176,7 @@ object TextMessageWithLinks {
     author,
     reactions,
     isSelf,
+    isOnlyLink,
     links
   )
 }
