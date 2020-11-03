@@ -342,32 +342,30 @@ object Chatroom
           RoomActivityType.Left
         )))
         case SendMessage(roomId, userId, message) if !LinkScanner.hasLinks(message) =>
-          ctx.log.debug(s"Got message with no links: ${LinkScanner.getLinks(message)}")
           (for {
-          hashRoom <- prevState.hashes.get(roomId.name)
-          roomMessage <- hashRoom.createTextMessage(
-            roomId,
-            userId,
-            message,
-          )
-        } yield Effect.persist(MessageReceived(roomId, roomMessage))
-          .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, roomMessage))
-          .thenRun((_: State) => metrics.incMessages()))
-          .getOrElse(Effect.none)
+            hashRoom <- prevState.hashes.get(roomId.name)
+            roomMessage <- hashRoom.createTextMessage(
+              roomId,
+              userId,
+              message,
+            )
+          } yield Effect.persist(MessageReceived(roomId, roomMessage))
+            .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, roomMessage))
+            .thenRun((_: State) => metrics.incMessages()))
+            .getOrElse(Effect.none)
         case SendMessage(roomId, userId, message) if LinkScanner.hasLinks(message) =>
-          ctx.log.debug(s"Got message with links")
           (for {
-          hashRoom <- prevState.hashes.get(roomId.name)
-          roomMessage <- hashRoom.createTextMessage(
-            roomId,
-            userId,
-            message,
-          )
-        } yield Effect.none
-          .thenRun((s: State) => singletonExtension.linkScanner ! ScanMessage(
-            s.airingId,
-            roomId,
-            roomMessage
+            hashRoom <- prevState.hashes.get(roomId.name)
+            roomMessage <- hashRoom.createTextMessage(
+              roomId,
+              userId,
+              message,
+            )
+          } yield Effect.none
+            .thenRun((s: State) => singletonExtension.linkScanner ! ScanMessage(
+              s.airingId,
+              roomId,
+              roomMessage
           ))).getOrElse(Effect.none)
         case SendTextMessageWithLinks(roomId, message) =>
           Effect

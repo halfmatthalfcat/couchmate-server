@@ -11,10 +11,12 @@ import com.couchmate.api.ws.protocol.{External, ForgotPasswordError, LoginError,
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.room.Participant
+import com.couchmate.common.models.api.room.tenor.TenorGif
 import com.couchmate.common.models.api.user.UserMute
 import com.couchmate.common.models.data.{UserMeta, UserReportType, UserRole}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
+import com.couchmate.services.room.TenorService.{GetTenorTrending, SearchTenor}
 import com.couchmate.services.room.{Chatroom, RoomId}
 import com.couchmate.services.user.commands.{ConnectedCommands, EmptyCommands, InitialCommands, RoomCommands, UserActions}
 import com.couchmate.services.user.context.{GeoContext, RoomContext, UserContext}
@@ -101,6 +103,9 @@ object PersistentUser {
   final case class RoomMessage(
     message: Chatroom.Command
   ) extends Command
+
+  final case class TenorTrending(keywords: Seq[String]) extends Command
+  final case class TenorSearched(gifs: Seq[TenorGif]) extends Command
 
   // -- EVENTS
 
@@ -383,6 +388,14 @@ object PersistentUser {
            */
           case Disconnect =>
             RoomCommands.disconnect(userContext, geo, roomContext)
+          case TenorTrending(keywords) =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.TenorTrendingResults(keywords)
+            ))
+          case TenorSearched(gifs) =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.TenorSearchResults(gifs)
+            ))
           case WSMessage(message) => message match {
             case External.Ping =>
               Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
@@ -418,6 +431,15 @@ object PersistentUser {
                 roomContext.airingId,
                 roomContext.roomId
               )
+            case External.GetTenorTrending =>
+              Effect.none.thenRun(_ => singletons.tenorService ! GetTenorTrending(
+                userContext.user.userId.get
+              ))
+            case External.TenorSearch(search) =>
+              Effect.none.thenRun(_ => singletons.tenorService ! SearchTenor(
+                userContext.user.userId.get,
+                search
+              ))
             case _ => Effect.unhandled
           }
           case RoomMessage(message) => message match {

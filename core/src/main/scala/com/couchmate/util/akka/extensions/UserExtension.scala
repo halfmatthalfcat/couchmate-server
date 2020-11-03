@@ -65,6 +65,16 @@ class UserExtension(system: ActorSystem[_]) extends Extension {
       RoomMessage(message)
     )
   }
+
+  def inClusterMessage(
+    userId: UUID,
+    message: PersistentUser.Command
+  ): Unit = {
+    shardRegion ! ShardingEnvelope(
+      userId.toString,
+      message
+    )
+  }
 }
 
 object UserExtension extends ExtensionId[UserExtension] {

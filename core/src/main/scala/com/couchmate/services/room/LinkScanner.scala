@@ -2,9 +2,7 @@ package com.couchmate.services.room
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes, Uri}
-import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.Materializer
 import akka.util.ByteString
@@ -13,8 +11,8 @@ import com.couchmate.util.akka.extensions.RoomExtension
 import io.lemonlabs.uri.{AbsoluteUrl, Url}
 import net.ruippeixotog.scalascraper.browser.{Browser, JsoupBrowser}
 
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 object LinkScanner {

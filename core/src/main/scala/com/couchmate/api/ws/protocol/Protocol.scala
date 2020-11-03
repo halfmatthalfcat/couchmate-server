@@ -6,6 +6,7 @@ import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.room.Participant
 import com.couchmate.common.models.api.Provider
 import com.couchmate.common.models.api.room.message.Message
+import com.couchmate.common.models.api.room.tenor.{TenorGif, TenorSearchResult}
 import com.couchmate.common.models.api.user.{User, UserMute}
 import com.couchmate.common.models.data.UserReportType
 import com.couchmate.common.util.json.CountryCodePlayJson
@@ -219,6 +220,12 @@ object External {
 
   case object AddReactionSuccess extends Protocol
   case object RemoveReactionSuccess extends Protocol
+
+  case object GetTenorTrending extends Protocol
+  case class TenorTrendingResults(keywords: Seq[String]) extends Protocol
+
+  case class TenorSearch(search: String) extends Protocol
+  case class TenorSearchResults(gifs: Seq[TenorGif]) extends Protocol
 
   case class MessageReplay(
     messages: List[Message]

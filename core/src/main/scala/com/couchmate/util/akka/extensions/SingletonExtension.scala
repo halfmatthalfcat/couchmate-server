@@ -3,7 +3,7 @@ package com.couchmate.util.akka.extensions
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Extension, ExtensionId, SupervisorStrategy}
 import akka.cluster.typed.{ClusterSingleton, SingletonActor}
-import com.couchmate.services.room.LinkScanner
+import com.couchmate.services.room.{LinkScanner, TenorService}
 import com.couchmate.services.{GracenoteCoordinator, GridCoordinator, ListingCoordinator, ListingUpdater, ProviderCoordinator}
 
 class SingletonExtension(system: ActorSystem[_]) extends Extension {
@@ -66,6 +66,16 @@ class SingletonExtension(system: ActorSystem[_]) extends Extension {
           LinkScanner()
         ).onFailure[Exception](SupervisorStrategy.restart),
         "LinkScanner"
+      )
+    )
+
+  val tenorService: ActorRef[TenorService.Command] =
+    singletonManager.init(
+      SingletonActor(
+        Behaviors.supervise(
+          TenorService()
+        ).onFailure[Exception](SupervisorStrategy.restart),
+        "TenorService"
       )
     )
 }
