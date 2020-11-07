@@ -155,7 +155,7 @@ lazy val tsSettings = Seq(
   tsIncludeTypes := Seq(
     "com\\.couchmate\\.api\\.ws\\.protocol".r
   ),
-  tsSealedTypesMapping := SealedTypesMapping.AsUnionString,
+  tsSealedTypesMapping := SealedTypesMapping.AsEnum,
   tsOutDir := s"${(target in Compile).value}/typescript",
   tsPackageJsonName := "@couchmate/server",
   tsPackageJsonVersion := version.value,

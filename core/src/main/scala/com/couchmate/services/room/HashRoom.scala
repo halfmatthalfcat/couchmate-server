@@ -3,7 +3,7 @@ package com.couchmate.services.room
 import java.util.UUID
 
 import akka.actor.typed.scaladsl.ActorContext
-import com.couchmate.common.models.api.room.message.{Message, Reactable, TextMessage}
+import com.couchmate.common.models.api.room.message.{Message, Reactable, TenorMessage, TextMessage}
 import com.couchmate.common.models.api.room.{Participant, Reaction}
 import com.couchmate.services.room.Chatroom.{Command, OutgoingRoomMessage, UpdateRoomMessage}
 import com.couchmate.util.akka.extensions.UserExtension
@@ -62,6 +62,20 @@ case class HashRoom private (
     participant,
     List.empty,
     isSelf = true
+  )
+
+  def createTenorMessage(
+    roomId: RoomId,
+    userId: UUID,
+    url: String
+  ): Option[TenorMessage] = for {
+    room <- getRoom(roomId)
+    participant <- room.getParticipant(userId)
+  } yield TenorMessage(
+    participant,
+    List.empty,
+    isSelf = true,
+    url
   )
 
   def addReaction(

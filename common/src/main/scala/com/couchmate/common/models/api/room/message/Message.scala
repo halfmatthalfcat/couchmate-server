@@ -187,8 +187,6 @@ case class TenorMessage(
   reactions: List[Reaction],
   isSelf: Boolean,
   url: String,
-  height: Int,
-  width: Int
 ) extends Message
   with Authorable
   with Reactable {
@@ -234,15 +232,11 @@ object TenorMessage {
     reactions: List[Reaction],
     isSelf: Boolean,
     url: String,
-    height: Int,
-    width: Int
   ): TenorMessage = new TenorMessage(
     Message.generateId,
     author,
     reactions,
     isSelf,
     url,
-    height,
-    width
   )
 }

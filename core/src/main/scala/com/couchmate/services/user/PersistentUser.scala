@@ -408,6 +408,13 @@ object PersistentUser {
                 userContext.user.userId.get,
                 message
               ))
+            case External.SendGif(url) =>
+              Effect.none.thenRun(_ => lobby.gif(
+                roomContext.airingId,
+                roomContext.roomId,
+                userContext.user.userId.get,
+                url
+              ))
             case External.AddReaction(messageId, shortCode) =>
               Effect.none.thenRun(_ => lobby.addReaction(
                 roomContext.airingId,

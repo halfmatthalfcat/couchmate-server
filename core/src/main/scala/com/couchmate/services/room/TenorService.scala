@@ -108,7 +108,9 @@ object TenorService extends PlayJsonSupport {
         path = "/v1/search"
       ).withQuery(Query(
         "key" -> apiKey,
-        "q" -> searchText
+        "q" -> searchText,
+        "media_filter" -> "minimal",
+        "limit" -> "50",
       ))
     ))
     decoded = {

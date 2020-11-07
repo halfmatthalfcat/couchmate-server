@@ -45,6 +45,11 @@ object Chatroom
     userId: UUID,
     message: String
   ) extends Command
+  final case class SendGif(
+    roomId: RoomId,
+    userId: UUID,
+    url: String
+  ) extends Command
   final case class SendTextMessageWithLinks(
     roomId: RoomId,
     message: TextMessageWithLinks
@@ -367,6 +372,18 @@ object Chatroom
               roomId,
               roomMessage
           ))).getOrElse(Effect.none)
+        case SendGif(roomId, userId, url) if LinkScanner.hasLinks(url) =>
+          (for {
+            hashRoom <- prevState.hashes.get(roomId.name)
+            gifMessage <- hashRoom.createTenorMessage(
+              roomId,
+              userId,
+              url
+            )
+          } yield Effect.none
+            .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, gifMessage))
+            .thenRun((_: State) => metrics.incMessages()))
+            .getOrElse(Effect.none)
         case SendTextMessageWithLinks(roomId, message) =>
           Effect
             .persist(MessageReceived(roomId, message))
