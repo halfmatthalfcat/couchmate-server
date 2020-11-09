@@ -3,14 +3,13 @@ package com.couchmate.services
 import java.time.LocalDateTime
 
 import gracenote._
-
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.{Materializer, OverflowStrategy, QueueOfferResult}
-import akka.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
+import akka.stream.scaladsl.{Keep, Sink, Source, SourceQueueWithComplete}
 import com.couchmate.common.models.thirdparty.gracenote.{GracenoteChannelAiring, GracenoteProvider, GracenoteSport}
 import com.neovisionaries.i18n.CountryCode
 import com.typesafe.config.{Config, ConfigFactory}
@@ -110,7 +109,11 @@ object GracenoteCoordinator extends PlayJsonSupport {
           "country" -> Some(countryCode.getAlpha3),
         )
       )).map(Gzip.decodeMessage(_))
-        .flatMap(Unmarshal(_).to[Seq[GracenoteProvider]])
+        .flatMap(Unmarshal(_).to[Seq[GracenoteProvider]].recover {
+          case ex: Throwable =>
+            ctx.log.error(s"Unable to deserialize GN provider", ex)
+            Seq.empty
+        })
         .map(GetProvidersResponse(_, senderRef))
       case GetSports(senderRef) => http.singleRequest(makeGracenoteRequest(
         config.getString("gracenote.host"),
@@ -121,7 +124,11 @@ object GracenoteCoordinator extends PlayJsonSupport {
           "officialOrg" -> Some("true")
         )
       )).map(Gzip.decodeMessage(_))
-       .flatMap(Unmarshal(_).to[Seq[GracenoteSport]])
+       .flatMap(Unmarshal(_).to[Seq[GracenoteSport]].recover {
+         case ex: Throwable =>
+           ctx.log.error(s"Unable to deserialize GN sports", ex)
+           Seq.empty
+       })
        .map(GetSportsResponse(_, senderRef))
       case GetListings(extId, slot, senderRef) => http.singleRequest(makeGracenoteRequest(
         config.getString("gracenote.host"),
@@ -134,18 +141,22 @@ object GracenoteCoordinator extends PlayJsonSupport {
           )
         )
       )).map(Gzip.decodeMessage(_))
-        .flatMap(Unmarshal(_).to[Seq[GracenoteChannelAiring]])
+        .flatMap(Unmarshal(_).to[Seq[GracenoteChannelAiring]].recover {
+          case ex: Throwable =>
+            ctx.log.error(s"Unable to deserialize GN channel airing", ex)
+            Seq.empty
+        })
         .map(GetListingsResponse(slot, _, senderRef))
     }
     .mapAsync(1)(identity)
-    .to(Sink.foreach {
+    .toMat(Sink.foreach {
       case GetProvidersResponse(providers, senderRef) =>
         senderRef ! GetProvidersSuccess(providers)
       case GetListingsResponse(slot, listings, senderRef) =>
         senderRef ! GetListingsSuccess(slot, listings)
       case GetSportsResponse(sports, senderRef) =>
         senderRef ! GetSportsSuccess(sports)
-    })
+    })(Keep.left)
     .run()
 
     Behaviors.receiveMessage {

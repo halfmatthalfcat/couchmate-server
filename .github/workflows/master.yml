@@ -122,7 +122,7 @@ jobs:
           --state-values-set doToken=${{ secrets.DO_TOKEN }} \
           --state-values-set registryToken=${{ secrets.GITHUB_TOKEN }} \
           --state-values-set imageTag=${{ steps.currentVersion.outputs.tag }}-${{ steps.shortSha.outputs.sha }} \
-          --state-values-set dbHost=cm-dev3-do-user-7059730-0.a.db.ondigitalocean.com \
+          --state-values-set dbHost=cm-dev-do-user-7059730-0.b.db.ondigitalocean.com \
           --state-values-set dbPort=25060 \
           --state-values-set dbUsername=doadmin \
           --state-values-set dbName=defaultdb \

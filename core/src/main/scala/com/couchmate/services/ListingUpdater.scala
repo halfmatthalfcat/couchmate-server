@@ -5,7 +5,7 @@ import java.util.UUID
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.adapter._
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import akka.persistence.typed.PersistenceId
 import akka.util.Timeout
 import com.couchmate.common.dao.{ProviderDAO, UserProviderDAO}
@@ -201,6 +201,10 @@ object ListingUpdater
       State(List.empty, Option.empty),
       commandHandler,
       eventHandler
+    ).withRetention(
+      RetentionCriteria.snapshotEvery(
+        numberOfEvents = 50, keepNSnapshots = 2
+      ).withDeleteEventsOnSnapshot
     )
   }
 
