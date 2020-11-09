@@ -15,6 +15,7 @@ object GracenoteProgramSubtype
   case object Series          extends GracenoteProgramSubtype("Series")
   case object Special         extends GracenoteProgramSubtype("Special")
   case object SportsEvent     extends GracenoteProgramSubtype("Sports event")
+  case object MusicVideo      extends GracenoteProgramSubtype("Music Video")
   case object SportsNonEvent  extends GracenoteProgramSubtype("Sports non-event")
   case object PaidProgramming extends GracenoteProgramSubtype("Paid Programming")
   case object TheatreEvent    extends GracenoteProgramSubtype("Theatre Event")
