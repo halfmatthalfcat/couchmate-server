@@ -190,4 +190,29 @@ object RoomCommands
         External.UpdateMessage(m)
       )
     })
+
+  private[user] def messageReply(
+    userContext: UserContext,
+    messages: List[Message],
+    ws: ActorRef[WSPersistentActor.Command]
+  )(
+    implicit
+    ctx: ActorContext[PersistentUser.Command],
+    db: Database,
+    singletons: SingletonExtension,
+    ec: ExecutionContext,
+  ): Effect[Nothing, State] = {
+    val updatedMessages: List[Message] = messages.collect {
+      case m: Message with Authorable if (
+        !userContext.mutes.map(_.userId).contains(m.author.userId)
+      ) => m.setSelf(
+        userContext.user.userId.contains(m.author.userId)
+      )
+      case m: Message => m
+    }
+
+    Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+      External.MessageReplay(updatedMessages)
+    ))
+  }
 }

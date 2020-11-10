@@ -463,9 +463,11 @@ object PersistentUser {
                 External.RemoveParticipant(participant)
               ))
             case Chatroom.MessageReplay(messages) =>
-              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
-                External.MessageReplay(messages)
-              ))
+              RoomCommands.messageReply(
+                userContext,
+                messages,
+                ws
+              )
             case Chatroom.OutgoingRoomMessage(message) =>
               RoomCommands.sendMessage(
                 userContext,
