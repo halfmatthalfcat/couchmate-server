@@ -128,6 +128,7 @@ jobs:
           --state-values-set dbPassword=${{ secrets.DO_PG_PROD_PW }} \
           --state-values-set mailgunApiKey=${{ secrets.MAILGUN_API_KEY }} \
           --state-values-set mailgunValidationKey=${{ secrets.MAILGUN_VALIDATION_KEY }} \
+          --state-values-set tenorApiKey=${{ secrets.TENOR_API_KEY }} \
           --state-values-set spacesKey=${{ secrets.DO_SPACE_KEY }} \
           --state-values-set spacesSecret=${{ secrets.DO_SPACE_SECRET }} \
           --state-values-set oauthClientId=${{ secrets.OAUTH_CLIENT_ID }} \

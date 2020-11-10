@@ -45,6 +45,8 @@ spec:
               value: {{.Values.app.mailgun.apiKey}}
             - name: MAILGUN_VALIDATION_KEY
               value: {{.Values.app.mailgun.validationKey}}
+            - name: TENOR_API_KEY
+              value: {{.Values.app.tenor.apiKey}}
             - name: HOSTNAME
               value: {{if ne .Values.env "prod"}}{{.Values.env}}.{{end}}couchmate.com
           readinessProbe:
