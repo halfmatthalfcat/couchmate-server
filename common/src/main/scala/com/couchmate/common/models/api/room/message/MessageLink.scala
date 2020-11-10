@@ -15,6 +15,7 @@ object MessageLink {
 case class SiteLink(
   url: String,
   title: String,
+  host: String,
   siteName: Option[String],
   description: Option[String],
   imageUrl: Option[String],

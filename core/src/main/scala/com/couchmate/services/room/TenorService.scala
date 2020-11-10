@@ -109,7 +109,6 @@ object TenorService extends PlayJsonSupport {
       ).withQuery(Query(
         "key" -> apiKey,
         "q" -> searchText,
-        "media_filter" -> "minimal",
         "limit" -> "50",
       ))
     ))

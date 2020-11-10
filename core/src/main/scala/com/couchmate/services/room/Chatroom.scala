@@ -380,7 +380,7 @@ object Chatroom
               userId,
               url
             )
-          } yield Effect.none
+          } yield Effect.persist(MessageReceived(roomId, gifMessage))
             .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, gifMessage))
             .thenRun((_: State) => metrics.incMessages()))
             .getOrElse(Effect.none)

@@ -8,7 +8,7 @@ import akka.stream.Materializer
 import akka.util.ByteString
 import com.couchmate.common.models.api.room.message._
 import com.couchmate.util.akka.extensions.RoomExtension
-import io.lemonlabs.uri.{AbsoluteUrl, Url}
+import io.lemonlabs.uri.{AbsoluteUrl, RelativeUrl, Url}
 import net.ruippeixotog.scalascraper.browser.{Browser, JsoupBrowser}
 
 import scala.concurrent.duration._
@@ -41,9 +41,16 @@ object LinkScanner {
       author = message.author,
       reactions = message.reactions,
       isSelf = message.isSelf,
-      isOnlyLink = message.message.isEmpty,
+      isOnlyLink = this.isOnlyLink(message.message),
       links = messageLinks
     )
+
+    private def isOnlyLink(message: String): Boolean =
+      message
+        .split(" ")
+        .map(Url.parseTry)
+        .collect { case Failure(exception) => exception }
+        .isEmpty
   }
 
   private final case class ResponseWithLink(
@@ -131,6 +138,7 @@ object LinkScanner {
     val doc = browser.parseString(html)
     SiteLink(
       url = link.toString,
+      host = link.host.value,
       title = (doc.head >> elements("meta")).find(_.attrs.exists {
         case ("name" | "property", "og:title") => true
         case _ => false
@@ -154,7 +162,11 @@ object LinkScanner {
         case ("rel", "shortcut icon") => true
         case ("rel", "apple-touch-icon") => true
         case _ => false
-      }).map(_.attr("href"))
+      }).flatMap(el => Url.parseTry(el.attr("href")) match {
+        case Success(url: AbsoluteUrl) => Some(url.toString)
+        case Success(url: RelativeUrl) => Some(s"${link.scheme}://${link.host.value}${url.path}")
+        case _ => Option.empty
+      })
     )
   }
 }
