@@ -2,6 +2,7 @@ package com.couchmate.services.room
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes, Uri}
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.Materializer
@@ -108,23 +109,26 @@ object LinkScanner {
         host = link.host.value,
         path = link.path.toString,
         queryString = if (link.query.nonEmpty) Some(link.query.toString) else Option.empty
+      ),
+      headers = Seq(
+        RawHeader("User-Agent", "akka-http/10.0.0")
       )
     )).map(ResponseWithLink(link, _)))).flatMap(results => Future.sequence(results.collect {
-      case ResponseWithLink(link, HttpResponse(StatusCodes.OK, headers, entity, _)) if (
+      case ResponseWithLink(link, HttpResponse(StatusCodes.OK, _, entity, _)) if (
           entity.contentType.mediaType.toString.equals("image/png") ||
           entity.contentType.mediaType.toString.equals("image/jpeg") ||
           entity.contentType.mediaType.toString.equals("image/bmp") ||
           entity.contentType.mediaType.toString.equals("image/gif") ||
           entity.contentType.mediaType.toString.equals("image/webp")
         ) => entity.discardBytes().future().flatMap(_ => Future.successful(List(ImageLink(link.toString))))
-      case ResponseWithLink(link, HttpResponse(StatusCodes.OK, headers, entity, _)) if (
+      case ResponseWithLink(link, HttpResponse(StatusCodes.OK, _, entity, _)) if (
           entity.contentType.mediaType.toString.equals("text/html")
         ) => entity.toStrict(5 seconds)
                    .flatMap(_.dataBytes.runFold(ByteString.empty)(_ ++ _))
                    .map(byteString => List(getSiteLink(link, byteString.utf8String)))
-      case ResponseWithLink(link, response) =>
-        ctx.log.debug(s"Got response for ${link.toString}\n${response.headers.map(h => s"${h.name}:${h.value}").mkString("\n")}\nResponse Type: ${response.entity.contentType.mediaType.toString}")
-        response.entity.discardBytes().future().map(_ => List.empty[MessageLink])
+      case ResponseWithLink(link, HttpResponse(status, headers, entity, _)) =>
+        ctx.log.debug(s"Got response (${status}) for ${link.toString}\n${headers.map(h => s"${h.name}:${h.value}").mkString("\n")}\nResponse Type: ${entity.contentType.mediaType.toString}")
+        entity.discardBytes().future().map(_ => List.empty[MessageLink])
     }).map(_.foldLeft(List.empty[MessageLink])(_ ++ _)).map(links => message.toTextMessageWithLinks(links)))
 
   private[this] def getSiteLink(
