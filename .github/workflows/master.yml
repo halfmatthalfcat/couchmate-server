@@ -68,7 +68,7 @@ jobs:
         uses: "WyriHaximus/github-action-get-previous-tag@master"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: benjlevesque/short-sha@v1.1
+      - uses: benjlevesque/short-sha@v1.2
         id: shortSha
       - name: Docker Login
         run: docker login https://docker.pkg.github.com -u halfmatthalfcat -p ${{ secrets.GITHUB_TOKEN }}
@@ -108,7 +108,7 @@ jobs:
         uses: "WyriHaximus/github-action-get-previous-tag@master"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: benjlevesque/short-sha@v1.1
+      - uses: benjlevesque/short-sha@v1.2
         id: shortSha
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
