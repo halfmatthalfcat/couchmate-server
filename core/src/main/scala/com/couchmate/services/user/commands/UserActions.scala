@@ -59,7 +59,7 @@ object UserActions
           .getRandom()
           .split(" ")
           .map(_.capitalize)
-          .mkString(" "),
+          .mkString(""),
         email = None
       ))
       _ <- addUserProvider(UserProvider(

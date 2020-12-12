@@ -8,7 +8,7 @@ import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
 import akka.persistence.typed.PersistenceId
 import com.couchmate.common.models.api.room.message.TextMessageWithLinks
 import com.couchmate.services.room.{Chatroom, RoomId}
-import com.couchmate.services.room.Chatroom.{AddReaction, JoinRoom, LeaveRoom, RemoveReaction, SendGif, SendMessage, SendTextMessageWithLinks}
+import com.couchmate.services.room.Chatroom.{AddReaction, ChangeHashRoom, JoinRoom, LeaveRoom, RemoveReaction, SendGif, SendMessage, SendTextMessageWithLinks}
 import com.couchmate.services.user.context.UserContext
 
 class RoomExtension(system: ActorSystem[_]) extends Extension {
@@ -29,11 +29,22 @@ class RoomExtension(system: ActorSystem[_]) extends Extension {
   def join(
     airingId: String,
     userContext: UserContext,
-    hash: String = "general"
+    hash: Option[String]
   ): Unit = {
     shardRegion ! ShardingEnvelope(
       airingId,
       JoinRoom(userContext, hash)
+    )
+  }
+
+  def changeHash(
+    airingId: String,
+    userId: UUID,
+    hash: String
+  ): Unit = {
+    shardRegion ! ShardingEnvelope(
+      airingId,
+      ChangeHashRoom(userId, hash)
     )
   }
 

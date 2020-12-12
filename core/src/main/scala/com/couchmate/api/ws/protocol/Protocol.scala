@@ -2,11 +2,11 @@ package com.couchmate.api.ws.protocol
 
 import java.util.UUID
 
+import com.couchmate.common.models.api.Provider
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.common.models.api.Provider
 import com.couchmate.common.models.api.room.message.Message
-import com.couchmate.common.models.api.room.tenor.{TenorGif, TenorSearchResult}
+import com.couchmate.common.models.api.room.tenor.TenorGif
 import com.couchmate.common.models.api.user.{User, UserMute}
 import com.couchmate.common.models.data.UserReportType
 import com.couchmate.common.util.json.CountryCodePlayJson
@@ -155,13 +155,15 @@ object External {
   ) extends Protocol
 
   case class JoinRoom(
-    airingId: String
+    airingId: String,
+    hash: Option[String]
   ) extends Protocol
   case object RoomClosed extends Protocol
   case object LeaveRoom extends Protocol
   case object RoomEnded extends Protocol
   case class RoomJoined(
-    airingId: String
+    airingId: String,
+    hash: String
   ) extends Protocol
   case class SetParticipants(
     participants: Seq[Participant]
@@ -171,6 +173,16 @@ object External {
   ) extends Protocol
   case class RemoveParticipant(
     participant: Participant
+  ) extends Protocol
+
+  case class UpdateHashRooms(
+    rooms: Map[String, Int]
+  ) extends Protocol
+  case class ChangeHashRoom(
+    name: String
+  ) extends Protocol
+  case class HashRoomJoined(
+    name: String
   ) extends Protocol
 
   case class MuteParticipant(

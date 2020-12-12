@@ -2,7 +2,7 @@ logLevel := Level.Debug
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.7.2")
 
-addSbtPlugin("com.github.scala2ts" % "scala2ts-sbt" % "1.1.3")
+addSbtPlugin("com.github.scala2ts" % "scala2ts-sbt" % "1.1.4")
 
 addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.13")
 

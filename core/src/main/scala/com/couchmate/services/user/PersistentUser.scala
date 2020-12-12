@@ -128,6 +128,7 @@ object PersistentUser {
   final case class WordMuted(mutes: Seq[String]) extends Event
   final case class WordUnmuted(mutes: Seq[String]) extends Event
   final case class RoomJoined(airingId: String, roomId: RoomId) extends Event
+  final case class HashRoomChanged(roomId: RoomId) extends Event
   final case object RoomLeft extends Event
 
   // -- STATES
@@ -360,10 +361,11 @@ object PersistentUser {
                 userContext.user.userId.get,
                 word
               )
-            case External.JoinRoom(airingId) =>
+            case External.JoinRoom(airingId, hash) if RoomCommands.hashValid(hash) =>
               Effect.none.thenRun(_ => lobby.join(
                 airingId,
                 userContext,
+                hash
               ))
             case _ => Effect.unhandled
           }
@@ -447,6 +449,12 @@ object PersistentUser {
                 userContext.user.userId.get,
                 search
               ))
+            case External.ChangeHashRoom(name) if RoomCommands.hashValid(name) =>
+              Effect.none.thenRun(_ => lobby.changeHash(
+                roomContext.airingId,
+                userContext.user.userId.get,
+                name
+              ))
             case _ => Effect.unhandled
           }
           case RoomMessage(message) => message match {
@@ -462,8 +470,14 @@ object PersistentUser {
               Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
                 External.RemoveParticipant(participant)
               ))
+            case Chatroom.HashRoomChanged(roomId) =>
+              RoomCommands.hashRoomChanged(roomId, ws)
+            case Chatroom.UpdateHashRooms(rooms) =>
+              Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.UpdateHashRooms(rooms)
+              ))
             case Chatroom.MessageReplay(messages) =>
-              RoomCommands.messageReply(
+              RoomCommands.messageReplay(
                 userContext,
                 messages,
                 ws
@@ -557,7 +571,7 @@ object PersistentUser {
             ws
           )
         }
-        case RoomState(userContext, geo, ws, roomContext) => event match {
+        case state @ RoomState(userContext, geo, ws, roomContext) => event match {
           case Disconnected => InitialState(
             userContext,
             Some(roomContext)
@@ -566,6 +580,11 @@ object PersistentUser {
             userContext,
             geo,
             ws
+          )
+          case HashRoomChanged(roomId) => state.copy(
+            roomContext = roomContext.copy(
+              roomId = roomId
+            )
           )
         }
       }

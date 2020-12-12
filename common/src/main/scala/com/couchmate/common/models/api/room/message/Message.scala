@@ -42,6 +42,13 @@ trait Reactable {
   def removeReaction(userId: UUID, shortCode: String): Message with Reactable
 }
 
+trait Editable {
+  val message: String
+  val references: List[MessageReference]
+
+  def setReferences(references: List[MessageReference]): Message with Editable
+}
+
 case class SystemMessage(
   messageId: String,
   message: String
@@ -60,8 +67,10 @@ case class TextMessage(
   message: String,
   author: Participant,
   reactions: List[Reaction],
+  references: List[MessageReference],
   isSelf: Boolean
 ) extends Message
+  with Editable
   with Authorable
   with Reactable {
 
@@ -69,6 +78,12 @@ case class TextMessage(
     isSelf: Boolean,
   ): Message with Authorable = this.copy(
     isSelf = isSelf
+  )
+
+  override def setReferences(
+    references: List[MessageReference],
+  ): Message with Editable = this.copy(
+    references = references
   )
 
   override def addReaction(
@@ -105,12 +120,14 @@ object TextMessage {
     message: String,
     author: Participant,
     reactions: List[Reaction],
+    references: List[MessageReference],
     isSelf: Boolean
   ): TextMessage = new TextMessage(
     Message.generateId,
     message,
     author,
     reactions,
+    references,
     isSelf
   )
 }
@@ -120,10 +137,12 @@ case class TextMessageWithLinks(
   message: String,
   author: Participant,
   reactions: List[Reaction],
+  references: List[MessageReference],
   isSelf: Boolean,
   isOnlyLink: Boolean,
   links: List[MessageLink]
 ) extends Message
+  with Editable
   with Authorable
   with Reactable {
 
@@ -131,6 +150,12 @@ case class TextMessageWithLinks(
     isSelf: Boolean,
   ): Message with Authorable = this.copy(
     isSelf = isSelf
+  )
+
+  override def setReferences(
+    references: List[MessageReference],
+  ): Message with Editable = this.copy(
+    references = references
   )
 
   override def addReaction(
@@ -167,6 +192,7 @@ object TextMessageWithLinks {
     message: String,
     author: Participant,
     reactions: List[Reaction],
+    references: List[MessageReference],
     isSelf: Boolean,
     isOnlyLink: Boolean,
     links: List[MessageLink]
@@ -175,6 +201,7 @@ object TextMessageWithLinks {
     message,
     author,
     reactions,
+    references,
     isSelf,
     isOnlyLink,
     links

@@ -11,7 +11,7 @@ import com.couchmate.common.models.data.{UserActivity, UserActivityType}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.room.RoomId
 import com.couchmate.services.user.PersistentUser
-import com.couchmate.services.user.PersistentUser.{Disconnected, RoomJoined, RoomLeft, State, UpdateGrid}
+import com.couchmate.services.user.PersistentUser.{Disconnected, HashRoomChanged, RoomJoined, RoomLeft, State, UpdateGrid}
 import com.couchmate.services.user.commands.ConnectedCommands.addUserActivity
 import com.couchmate.services.user.commands.InitialCommands.getGrid
 import com.couchmate.services.user.context.{GeoContext, RoomContext, UserContext}
@@ -84,7 +84,7 @@ object RoomCommands
         geoContext.country
       ))
       .thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
-        External.RoomJoined(airingId)
+        External.RoomJoined(airingId, roomId.name)
       ))
       .thenUnstashAll()
 
@@ -191,7 +191,7 @@ object RoomCommands
       )
     })
 
-  private[user] def messageReply(
+  private[user] def messageReplay(
     userContext: UserContext,
     messages: List[Message],
     ws: ActorRef[WSPersistentActor.Command]
@@ -214,5 +214,19 @@ object RoomCommands
     Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
       External.MessageReplay(updatedMessages)
     ))
+  }
+
+  private[user] def hashRoomChanged(
+    roomId: RoomId,
+    ws: ActorRef[WSPersistentActor.Command]
+  ): Effect[HashRoomChanged, State] = Effect
+    .persist(HashRoomChanged(roomId))
+    .thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+      External.HashRoomJoined(roomId.name)
+    ))
+
+  private[user] def hashValid(hash: String): Boolean = {
+    hash.length <= 16 &&
+    hash.forall(_.isLetter)
   }
 }

@@ -97,7 +97,7 @@ object InitialCommands
       .thenRun((_: State) => room.join(
         roomContext.airingId,
         userContext,
-        roomContext.roomId.name
+        Some(roomContext.roomId.name)
       ))
       .thenRun({
         case ConnectedState(_, _, ws) => ctx.watchWith(

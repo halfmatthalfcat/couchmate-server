@@ -41,6 +41,7 @@ object LinkScanner {
       message = message.message,
       author = message.author,
       reactions = message.reactions,
+      references = message.references,
       isSelf = message.isSelf,
       isOnlyLink = this.isOnlyLink(message.message),
       links = messageLinks

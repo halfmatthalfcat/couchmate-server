@@ -3,23 +3,22 @@ package com.couchmate.services.room
 import java.time.{Duration, LocalDateTime, ZoneId}
 import java.util.UUID
 
+import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
-import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
-import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import com.couchmate.common.dao.{AiringDAO, RoomActivityDAO}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.api.room.Participant
-import com.couchmate.common.models.api.room.message.{Message, SystemMessage, TextMessage, TextMessageWithLinks}
+import com.couchmate.common.models.api.room.{Participant, HashRoom => CommonHashRoom}
+import com.couchmate.common.models.api.room.message.{Message, SystemMessage, TextMessageWithLinks}
 import com.couchmate.common.models.data.{AiringStatus, RoomActivity, RoomActivityType, RoomStatusType}
-import com.couchmate.common.models.data.RoomStatusType.Closed
-import com.couchmate.services.room.LinkScanner.ScanMessage
+import com.couchmate.services.room.LinkScanner.{ScanMessage, getLinks}
 import com.couchmate.services.user.context.UserContext
 import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, SingletonExtension, UserExtension}
 
-import scala.concurrent.ExecutionContext
 import scala.compat.java8.DurationConverters
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
@@ -33,7 +32,11 @@ object Chatroom
 
   final case class JoinRoom(
     userContext: UserContext,
-    hash: String = "general"
+    hash: Option[String]
+  ) extends Command
+  final case class ChangeHashRoom(
+    userId: UUID,
+    hash: String
   ) extends Command
   final case class LeaveRoom(
     roomId: RoomId,
@@ -76,9 +79,11 @@ object Chatroom
     airingId: String,
     roomId: RoomId
   ) extends Command
-  final case class RoomEnded(
-    airingId: String,
+  final case class HashRoomChanged(
     roomId: RoomId
+  ) extends Command
+  final case class RoomEnded(
+    airingId: String
   ) extends Command
   final case class RoomParticipants(
     participants: Set[Participant]
@@ -102,6 +107,10 @@ object Chatroom
   ) extends Command
   final case class UpdateRoomMessage(
     message: Message
+  ) extends Command
+
+  final case class UpdateHashRooms(
+    rooms: Map[String, Int]
   ) extends Command
 
   final case object ReactionAdded extends Command
@@ -129,24 +138,15 @@ object Chatroom
   private final case class SetAiringStatus(
     status: AiringStatus
   ) extends Event
-  private final case class MessageReceived(
-    roomId: RoomId,
-    roomMessage: Message
-  ) extends Event
-  private final case class AddReactionReceived(
-    roomId: RoomId,
-    roomMessage: Message
-  ) extends Event
-  private final case class RemoveReactionReceived(
-    roomId: RoomId,
-    roomMessage: Message
+  private final case class SaveRoomManager(
+    roomManager: RoomManager
   ) extends Event
   private final case object ClearAiring extends Event
 
   final case class State(
     airingId: String,
     status: Option[AiringStatus],
-    hashes: Map[String, HashRoom]
+    roomMgr: RoomManager
   )
 
   def apply(airingId: String, persistenceId: PersistenceId): Behavior[Command] = Behaviors.setup { implicit ctx =>
@@ -166,8 +166,9 @@ object Chatroom
         State(
           airingId,
           None,
-          Map(
-            "general" -> HashRoom("general")
+          RoomManager(
+            airingId,
+            "general"
           )
         ),
         commandHandler(
@@ -241,12 +242,9 @@ object Chatroom
           Effect.none
           .thenRun((s: State) => {
             ctx.log.info(s"Show ${s.airingId} is ending, firing")
-            s.hashes.foreachEntry {
-              case (_, namedRoom) =>
-                namedRoom.broadcastAll(SystemMessage(
-                  "This show is ending soon. You can still continue chatting for 15 minutes after."
-                ))
-            }
+            s.roomMgr.messageAll(SystemMessage(
+              "This show is ending soon. You can still continue chatting for 15 minutes after."
+            ))
           })
         case RoomEnding => Effect
           .persist(SetAiringStatus(status.copy(
@@ -254,71 +252,58 @@ object Chatroom
           )))
           .thenRun((s: State) => {
             ctx.log.info(s"Room ${s.airingId} is ending, firing")
-            s.hashes.foreachEntry {
-              case (_, namedRoom) => namedRoom.rooms.foreach { room =>
-                room.participants.foreach { participant =>
-                  userExtension.roomMessage(
-                    participant.userId,
-                    RoomEnded(
-                      s.airingId,
-                      room.roomId
-                    )
-                  )
-                  addRoomActivity(RoomActivity(
-                    s.airingId,
-                    participant.userId,
-                    RoomActivityType.Kicked.Expired
-                  ))
-                }
-              }
-            }
+            s.roomMgr.kickAll()
           })
           .thenStop()
         case JoinRoom(userContext, hash) if (
           status.status == RoomStatusType.Open ||
           status.status == RoomStatusType.PreGame
-        ) => Effect.persist(JoinedRoom(
-          Participant(
-            userContext.user.userId.get,
-            userContext.userMeta.username,
-            List.empty
-          ), hash
-        ))
-         .thenRun((s: State) => userExtension.roomMessage(
-           userContext.user.userId.get,
-           RoomJoined(
-             s.airingId,
-             s.hashes(hash).getParticipantRoom(
-               userContext.user.userId.get
-             ).get.roomId
-           )))
-         .thenRun((s: State) => userExtension.roomMessage(
-           userContext.user.userId.get,
-           RoomParticipants(
-             s.hashes(hash).getParticipantRoom(
-               userContext.user.userId.get
-             ).get.participants.toSet
-           )
-         ))
-         .thenRun((s: State) => userExtension.roomMessage(
-           userContext.user.userId.get,
-           MessageReplay(s.hashes(hash).getParticipantRoom(
-             userContext.user.userId.get
-           ).get.messages)
-         ))
-         .thenRun((s: State) => s.hashes(hash).getParticipantRoom(
-           userContext.user.userId.get
-         ).get.participants.tail.foreach(p => userExtension.roomMessage(
-           p.userId,
-           ParticipantJoined(
-             s.hashes(hash).rooms.head.participants.head
-           )
-         )))
-         .thenRun((s: State) => addRoomActivity(RoomActivity(
-           s.airingId,
-           userContext.user.userId.get,
-           RoomActivityType.Joined
-        )))
+        ) => {
+          val roomMgr = prevState.roomMgr.join(
+            hash,
+            userContext
+          )
+          (for {
+            room <- roomMgr.userInRoom(userContext)
+            pRoom <- room.getParticipantRoom(
+              userContext.user.userId.get
+            )
+            participant <- pRoom.getParticipant(
+              userContext.user.userId.get
+            )
+          } yield Effect
+            .persist(SaveRoomManager(roomMgr))
+            .thenRun((s: State) => userExtension.roomMessage(
+              userContext.user.userId.get,
+              RoomJoined(
+                s.airingId,
+                pRoom.roomId
+              )
+            ))
+            .thenRun((_: State) => userExtension.roomMessage(
+              userContext.user.userId.get,
+              RoomParticipants(pRoom.participants.toSet)
+            ))
+            .thenRun((_: State) => userExtension.roomMessage(
+              userContext.user.userId.get,
+              MessageReplay(pRoom.messages)
+            ))
+            .thenRun((_: State) => pRoom.participants.tail.foreach(
+              p => userExtension.roomMessage(
+                p.userId,
+                ParticipantJoined(participant)
+              )
+            ))
+            .thenRun((_: State) => room.broadcastInCluster(
+              UpdateHashRooms(roomMgr.getHashRoomCounts)
+            ))
+            .thenRun((s: State) => addRoomActivity(RoomActivity(
+               s.airingId,
+               userContext.user.userId.get,
+               RoomActivityType.Joined
+            )))
+          ).getOrElse(Effect.none)
+        }
         case JoinRoom(userContext, _) if (
           status.status == RoomStatusType.PostGame ||
           status.status == RoomStatusType.Closed
@@ -329,42 +314,99 @@ object Chatroom
             RoomClosed
           ))
           .thenStop()
-        case LeaveRoom(roomId, userId) => Effect.persist(LeftRoom(
-          roomId,
-          userId
-        )).thenRun((s: State) => for {
-          room <- prevState.hashes(roomId.name).getRoom(roomId)
-          participant <- room.getParticipant(userId)
-          currentRoom <- s.hashes(roomId.name).getRoom(roomId)
-        } yield {
-          currentRoom.participants.foreach(p => userExtension.roomMessage(
-            p.userId,
-            ParticipantLeft(participant)
+        case ChangeHashRoom(userId, hash) => (for {
+          room <- prevState
+            .roomMgr
+            .userInRoom(userId)
+          pRoom <- room.getParticipantRoom(userId)
+          participant <- pRoom.getParticipant(userId)
+          roomMgr = prevState.roomMgr.join(
+            Some(hash),
+            participant
+          )
+          oldPRoom <- roomMgr.getRoom(pRoom.roomId)
+          newPRoom <- roomMgr.userInRoom(userId)
+          newRoom <- newPRoom.getParticipantRoom(userId)
+        } yield Effect
+          .persist(SaveRoomManager(roomMgr))
+          .thenRun((_: State) => oldPRoom.participants.foreach {
+            p => userExtension.roomMessage(
+              p.userId,
+              ParticipantLeft(participant)
+            )
+          })
+          .thenRun((_: State) => userExtension.roomMessage(
+            userId,
+            HashRoomChanged(newRoom.roomId)
           ))
-        }).thenRun((s: State) => addRoomActivity(RoomActivity(
-          s.airingId,
-          userId,
-          RoomActivityType.Left
-        )))
+          .thenRun((_: State) => userExtension.roomMessage(
+            userId,
+            RoomParticipants(newRoom.participants.toSet)
+          ))
+          .thenRun((_: State) => userExtension.roomMessage(
+            userId,
+            MessageReplay(newRoom.messages)
+          ))
+          .thenRun((_: State) => newRoom.participants.tail.foreach {
+            p => userExtension.roomMessage(
+              p.userId,
+              ParticipantJoined(participant)
+            )
+          })
+          .thenRun((_: State) => newPRoom.broadcastInCluster(
+            UpdateHashRooms(roomMgr.getHashRoomCounts)
+          ))
+        ).getOrElse(Effect.none)
+        case LeaveRoom(roomId, userId) => (for {
+          room <- prevState
+            .roomMgr
+            .userInRoom(userId)
+          pRoom <- room.getParticipantRoom(userId)
+          participant <- pRoom.getParticipant(userId)
+          roomMgr = prevState
+            .roomMgr
+            .removeParticipant(userId)
+          newPRoom <- roomMgr.getRoom(roomId)
+        } yield Effect
+          .persist(SaveRoomManager(roomMgr))
+          .thenRun((_: State) => newPRoom.participants.foreach(
+            p => userExtension.roomMessage(
+              p.userId,
+              ParticipantLeft(participant)
+            )
+          ))
+          .thenRun((s: State) => addRoomActivity(RoomActivity(
+            s.airingId,
+            userId,
+            RoomActivityType.Left
+          )))
+          .thenRun((_: State) => room.broadcastInCluster(
+            UpdateHashRooms(roomMgr.getHashRoomCounts)
+        ))).getOrElse(Effect.none)
         case SendMessage(roomId, userId, message) if !LinkScanner.hasLinks(message) =>
           (for {
-            hashRoom <- prevState.hashes.get(roomId.name)
+            hashRoom <- prevState.roomMgr.userInRoom(userId)
             roomMessage <- hashRoom.createTextMessage(
               roomId,
               userId,
               message,
+              prevState.roomMgr.getHashRoomCounts
             )
-          } yield Effect.persist(MessageReceived(roomId, roomMessage))
-            .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, roomMessage))
+            roomMgr = prevState.roomMgr.addMessage(
+              roomId, roomMessage
+            )
+          } yield Effect.persist(SaveRoomManager(roomMgr))
+            .thenRun((_: State) => hashRoom.broadcastMessage(roomId, roomMessage))
             .thenRun((_: State) => metrics.incMessages()))
             .getOrElse(Effect.none)
         case SendMessage(roomId, userId, message) if LinkScanner.hasLinks(message) =>
           (for {
-            hashRoom <- prevState.hashes.get(roomId.name)
+            hashRoom <- prevState.roomMgr.userInRoom(userId)
             roomMessage <- hashRoom.createTextMessage(
               roomId,
               userId,
               message,
+              prevState.roomMgr.getHashRoomCounts
             )
           } yield Effect.none
             .thenRun((s: State) => singletonExtension.linkScanner ! ScanMessage(
@@ -374,31 +416,42 @@ object Chatroom
           ))).getOrElse(Effect.none)
         case SendGif(roomId, userId, url) if LinkScanner.hasLinks(url) =>
           (for {
-            hashRoom <- prevState.hashes.get(roomId.name)
+            hashRoom <- prevState.roomMgr.userInRoom(userId)
             gifMessage <- hashRoom.createTenorMessage(
               roomId,
               userId,
               url
             )
-          } yield Effect.persist(MessageReceived(roomId, gifMessage))
-            .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, gifMessage))
+            roomMgr = prevState.roomMgr.addMessage(
+              roomId, gifMessage
+            )
+          } yield Effect.persist(SaveRoomManager(roomMgr))
+            .thenRun((_: State) => hashRoom.broadcastMessage(roomId, gifMessage))
             .thenRun((_: State) => metrics.incMessages()))
             .getOrElse(Effect.none)
-        case SendTextMessageWithLinks(roomId, message) =>
-          Effect
-            .persist(MessageReceived(roomId, message))
-            .thenRun((s: State) => s.hashes(roomId.name).broadcastMessage(roomId, message))
-            .thenRun((_: State) => metrics.incMessages())
+        case SendTextMessageWithLinks(roomId, message) => (for {
+          room <- prevState.roomMgr.getHashRoom(roomId.name)
+          roomMgr = prevState.roomMgr.addMessage(
+            roomId, message
+          )
+        } yield Effect
+          .persist(SaveRoomManager(roomMgr))
+          .thenRun((_: State) => room.broadcastMessage(roomId, message))
+          .thenRun((_: State) => metrics.incMessages())
+        ).getOrElse(Effect.none)
         case AddReaction(roomId, userId, messageId, shortCode) => (for {
-          hashRoom <- prevState.hashes.get(roomId.name)
+          hashRoom <- prevState.roomMgr.getHashRoom(roomId.name)
           roomMessage <- hashRoom.addReaction(
             roomId,
             messageId,
             userId,
             shortCode
           )
-        } yield Effect.persist(AddReactionReceived(roomId, roomMessage))
-          .thenRun((s: State) => s.hashes(roomId.name).broadcastUpdateMessage(roomId, roomMessage))
+          roomMgr = prevState.roomMgr.addMessage(
+            roomId, roomMessage
+          )
+        } yield Effect.persist(SaveRoomManager(roomMgr))
+          .thenRun((_: State) => hashRoom.broadcastUpdateMessage(roomId, roomMessage))
           .thenRun((_: State) => userExtension.roomMessage(
             userId,
             ReactionAdded
@@ -406,15 +459,18 @@ object Chatroom
           .thenRun((_: State) => metrics.incReaction()))
           .getOrElse(Effect.none)
         case RemoveReaction(roomId, userId, messageId, shortCode) => (for {
-          hashRoom <- prevState.hashes.get(roomId.name)
+          hashRoom <- prevState.roomMgr.getHashRoom(roomId.name)
           roomMessage <- hashRoom.removeReaction(
             roomId,
             messageId,
             userId,
             shortCode
           )
-        } yield Effect.persist(RemoveReactionReceived(roomId, roomMessage))
-          .thenRun((s: State) => s.hashes(roomId.name).broadcastUpdateMessage(roomId, roomMessage))
+          roomMgr = prevState.roomMgr.addMessage(
+            roomId, roomMessage
+          )
+        } yield Effect.persist(SaveRoomManager(roomMgr))
+          .thenRun((s: State) => hashRoom.broadcastUpdateMessage(roomId, roomMessage))
           .thenRun((_: State) => userExtension.roomMessage(
             userId,
             ReactionRemoved
@@ -430,48 +486,19 @@ object Chatroom
   ): (State, Event) => State =
     (state, event) => event match {
       case JoinedRoom(participant, hash) =>
-        state.hashes.get(hash).fold(
-          state.copy(
-            hashes = state.hashes + (
-              hash -> HashRoom(hash).addParticipant(participant)
-            )
-          )
-        )(hashRoom => state.copy(
-          hashes = state.hashes.updated(hashRoom.name, hashRoom.addParticipant(
-            participant
-          ))
-        ))
-
-      case LeftRoom(roomId, userId) =>
         state.copy(
-          hashes = state.hashes.updated(roomId.name, state.hashes(roomId.name).removeParticipant(
-            roomId, userId
-          ))
+          roomMgr = state.roomMgr.addParticipant(hash, participant)
+        )
+
+      case LeftRoom(_, userId) =>
+        state.copy(
+          roomMgr = state.roomMgr.removeParticipant(userId)
         )
       case SetAiringStatus(status) =>
         state.copy(status = Some(status))
       case ClearAiring =>
         state.copy(status = Option.empty)
-      case MessageReceived(roomId, roomMessage) =>
-        state.copy(
-          hashes = state.hashes.updated(
-            roomId.name,
-            state.hashes(roomId.name).addMessage(roomId, roomMessage).get
-          )
-        )
-      case AddReactionReceived(roomId, roomMessage) =>
-        state.copy(
-          hashes = state.hashes.updated(
-            roomId.name,
-            state.hashes(roomId.name).updateMessage(roomId, roomMessage).get
-          )
-        )
-      case RemoveReactionReceived(roomId, roomMessage) =>
-        state.copy(
-          hashes = state.hashes.updated(
-            roomId.name,
-            state.hashes(roomId.name).updateMessage(roomId, roomMessage).get
-          )
-        )
+      case SaveRoomManager(roomManager) =>
+        state.copy(roomMgr = roomManager)
     }
 }

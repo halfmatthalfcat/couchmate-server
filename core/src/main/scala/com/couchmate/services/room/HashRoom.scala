@@ -3,9 +3,10 @@ package com.couchmate.services.room
 import java.util.UUID
 
 import akka.actor.typed.scaladsl.ActorContext
-import com.couchmate.common.models.api.room.message.{Message, Reactable, TenorMessage, TextMessage}
+import com.couchmate.common.models.api.room.message.{Message, MessageReference, MessageReferenceType, Reactable, TenorMessage, TextMessage}
 import com.couchmate.common.models.api.room.{Participant, Reaction}
 import com.couchmate.services.room.Chatroom.{Command, OutgoingRoomMessage, UpdateRoomMessage}
+import com.couchmate.services.user.PersistentUser
 import com.couchmate.util.akka.extensions.UserExtension
 
 import scala.collection.immutable.SortedSet
@@ -13,9 +14,6 @@ import scala.collection.immutable.SortedSet
 case class HashRoom private (
   name: String,
   rooms: SortedSet[Room]
-)(
-  implicit
-  ctx: ActorContext[Command]
 ) {
 
   def getRoom(roomId: RoomId): Option[Room] =
@@ -23,6 +21,9 @@ case class HashRoom private (
 
   def getAllButRoom(roomId: RoomId): SortedSet[Room] =
     rooms.filter(_.roomId != roomId)
+
+  def getTotalParticipants: List[Participant] =
+    rooms.foldLeft(List.empty[Participant])(_ ++ _.participants)
 
   def addParticipant(participant: Participant): HashRoom = {
     if (rooms.head.isFull) {
@@ -42,9 +43,13 @@ case class HashRoom private (
     rooms =
       rooms
       .filterNot(_.roomId == roomId) + rooms
-        .find(_.roomId == roomId)
-        .get
-        .removeParticipant(userId)
+      .find(_.roomId == roomId)
+      .get
+      .removeParticipant(userId)
+  )
+
+  def removeParticipant(userId: UUID): HashRoom = this.copy(
+    rooms = rooms.map(_.removeParticipant(userId))
   )
 
   def getParticipantRoom(userId: UUID): Option[Room] =
@@ -53,7 +58,8 @@ case class HashRoom private (
   def createTextMessage(
     roomId: RoomId,
     userId: UUID,
-    message: String
+    message: String,
+    rooms: Map[String, Int]
   ): Option[TextMessage] = for {
     room <- getRoom(roomId)
     participant <- room.getParticipant(userId)
@@ -61,6 +67,11 @@ case class HashRoom private (
     message,
     participant,
     List.empty,
+    findReferences(
+      message,
+      room.participants,
+      rooms
+    ),
     isSelf = true
   )
 
@@ -153,8 +164,46 @@ case class HashRoom private (
       OutgoingRoomMessage(message)
     )))
 
+  def broadcastInCluster(message: Command)(
+    implicit
+    userExtension: UserExtension
+  ): Unit = getTotalParticipants.foreach(p => userExtension.roomMessage(
+    p.userId,
+    message
+  ))
+
   def getLastMessage(roomId: RoomId): Option[Message] =
     getRoom(roomId).flatMap(_.messages.headOption)
+
+  private[this] def findReferences(
+    message: String,
+    participants: List[Participant],
+    rooms: Map[String, Int]
+  ): List[MessageReference] = {
+    val userReferences: List[MessageReference] = participants
+      .map(p => List.from(s"@${p.username}"
+        .r.findAllMatchIn(message)
+        .map(m => MessageReference(
+          messageReferenceType = MessageReferenceType.User,
+          id = p.userId.toString,
+          value = p.username,
+          startIdx = m.start,
+          endIdx = m.end
+        ))))
+      .foldLeft(List.empty[MessageReference])(_ ++ _)
+    val hashReferences: List[MessageReference] =
+      List.from("(?:\\s?#(\\w+)\\s?)".r.findAllMatchIn(message))
+        .map(m => MessageReference(
+          messageReferenceType = MessageReferenceType.HashRoom,
+          id = m.group(1),
+          value = rooms
+            .getOrElse(m.group(1), 0)
+            .toString,
+          startIdx = m.start,
+          endIdx = m.end
+        ))
+    userReferences ++ hashReferences
+  }
 }
 
 object HashRoom {
