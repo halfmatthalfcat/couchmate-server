@@ -361,7 +361,7 @@ object PersistentUser {
                 userContext.user.userId.get,
                 word
               )
-            case External.JoinRoom(airingId, hash) if RoomCommands.hashValid(hash) =>
+            case External.JoinRoom(airingId, hash) if hash.forall(RoomCommands.hashValid) =>
               Effect.none.thenRun(_ => lobby.join(
                 airingId,
                 userContext,
