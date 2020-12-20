@@ -11,16 +11,20 @@ case class GracenoteAiring(
   startTime: LocalDateTime,
   endTime: LocalDateTime,
   duration: Int,
+  qualifiers: Seq[String],
   program: GracenoteProgram,
 ) {
   override def equals(obj: Any): Boolean = obj match {
-    case GracenoteAiring(startTime, endTime, _, program) => (
+    case GracenoteAiring(startTime, endTime, _, _, program) => (
       program.rootId == this.program.rootId &&
       startTime.isEqual(this.startTime) &&
       endTime.isEqual(this.endTime)
     )
     case _ => super.equals(obj)
   }
+
+  def isNew: Boolean =
+    qualifiers.contains("New")
 }
 
 object GracenoteAiring {
@@ -40,6 +44,7 @@ object GracenoteAiring {
                       DateTimeFormatter.ofPattern("u-MM-dd'T'HH:mm:ss"),
                     )) and
     (__ \ "duration").read[Int] and
+    (__ \ "qualifiers").read[Seq[String]].orElse(Reads.pure(Seq.empty[String])) and
     (__ \ "program").read[GracenoteProgram]
   )(GracenoteAiring.apply _)
 

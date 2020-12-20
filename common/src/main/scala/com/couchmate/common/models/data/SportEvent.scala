@@ -13,5 +13,4 @@ case class SportEvent(
 object SportEvent extends JsonConfig {
   implicit val format: Format[SportEvent] = Json.format[SportEvent]
   implicit val rowParser: GetResult[SportEvent] = RowParser[SportEvent]
-
 }

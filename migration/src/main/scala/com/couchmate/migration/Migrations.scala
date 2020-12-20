@@ -39,7 +39,11 @@ object Migrations extends LazyLogging {
     ListingJobMigrations.init,
     UserActivityMigrations.addDeviceMetrics,
     UserReportMigrations.init,
-    UserWordBlockMigrations.init
+    UserWordBlockMigrations.init,
+    AiringMigrations.addIsNew,
+    SportTeamMigrations.init,
+    SportEventTeamMigrations.init,
+    UserNotificationConfigurationMigrations.init
   )
 
   private[this] def applyMigrations()(

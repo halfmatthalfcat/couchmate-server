@@ -13,12 +13,14 @@ class AiringTable(tag: Tag) extends Table[Airing](tag, "airing") {
   def startTime: Rep[LocalDateTime] = column[LocalDateTime]("start_time", O.SqlType("timestamp"))
   def endTime: Rep[LocalDateTime] = column[LocalDateTime]("end_time", O.SqlType("timestamp"))
   def duration: Rep[Int] = column[Int]("duration")
+  def isNew: Rep[Boolean] = column[Boolean]("is_new", O.Default(false))
   def * = (
     airingId.?,
     showId,
     startTime,
     endTime,
     duration,
+    isNew,
   ) <> ((Airing.apply _).tupled, Airing.unapply)
 
   def showFk = foreignKey(

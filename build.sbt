@@ -106,7 +106,8 @@ lazy val core = (project in file("core"))
       "net.sargue"                  %   "mailgun"                       % "1.9.2",
       "com.lihaoyi"                 %%  "scalatags"                     % "0.8.2",
       "io.lemonlabs"                %%  "scala-uri"                     % "3.0.0",
-      "net.ruippeixotog"            %%  "scala-scraper"                 % "2.2.0"
+      "net.ruippeixotog"            %%  "scala-scraper"                 % "2.2.0",
+      "com.malliina"                %%  "mobile-push"                   % "1.24.1"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     discoveredMainClasses in Compile := Seq(),

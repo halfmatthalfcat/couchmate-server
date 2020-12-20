@@ -27,6 +27,7 @@ case class GracenoteProgram(
   organizationId: Option[Long],
   sportsId: Option[Long],
   gameDate: Option[LocalDateTime],
+  teams: Option[Seq[GracenoteSportTeam]]
   // -- End Sport
 ) extends Product with Serializable {
   def isSport: Boolean = {
@@ -38,6 +39,20 @@ case class GracenoteProgram(
     seriesId.isDefined &&
     !seriesId.contains(rootId)
   }
+
+  def hasTeams: Boolean =
+    teams.nonEmpty
+
+  /**
+   * Get the home team
+   * Either marked has isHome or the first in the array
+   */
+  def getHomeTeam: Option[GracenoteSportTeam] =
+    teams.flatMap(_.find(_.isHome.getOrElse(false))) match {
+      case team @ Some(_) => team
+      case None => teams.map(_.head)
+    }
+
 }
 
 object GracenoteProgram {
@@ -107,7 +122,8 @@ object GracenoteProgram {
       (__ \ "sportsId").readNullable[String].map(_.map(_.toLong)) or
       (__ \ "sportsId").readNullable[Long]
     ) and
-    (__ \ "gameDate").readNullable[String].map(dateToLocalDateTime)
+    (__ \ "gameDate").readNullable[String].map(dateToLocalDateTime) and
+    (__ \ "teams").readNullable[Seq[GracenoteSportTeam]]
     // -- End Sport
   )(GracenoteProgram.apply _)
 

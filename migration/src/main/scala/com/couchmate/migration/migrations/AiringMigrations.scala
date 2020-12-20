@@ -21,4 +21,9 @@ object AiringMigrations {
     )
   )()
 
+ val addIsNew = MigrationItem(29L, AiringTable.table)(
+   _.addColumns(
+     _.isNew
+   )
+ )()
 }

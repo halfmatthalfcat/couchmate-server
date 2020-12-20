@@ -50,6 +50,7 @@ trait PgProfile
     implicit val showTypeMapper = enumMappedColumn(ShowType)
     implicit val listingJobStatusMapper = enumMappedColumn(ListingJobStatus)
     implicit val userReportMapper = enumMappedColumn(UserReportType)
+    implicit val applicationPlatformMapper = enumMappedColumn(ApplicationPlatform)
 
     implicit val countryCodeMappedColumn: BaseColumnType[CountryCode] =
       MappedColumnType.base[CountryCode, String](

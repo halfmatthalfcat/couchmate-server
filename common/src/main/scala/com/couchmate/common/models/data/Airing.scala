@@ -15,6 +15,7 @@ case class Airing(
   startTime: LocalDateTime,
   endTime: LocalDateTime,
   duration: Int,
+  isNew: Boolean
 )
 
 object Airing extends JsonConfig {
