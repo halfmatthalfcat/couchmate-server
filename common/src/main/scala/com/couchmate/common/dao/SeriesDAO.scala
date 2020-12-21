@@ -110,9 +110,9 @@ object SeriesDAO {
            LEFT   JOIN sel   s USING (ext_id)
            WHERE  s.ext_id IS NULL
            ON     CONFLICT (ext_id) DO UPDATE
-           SET    series_name = srs.series_name,
-                  total_seasons = srs.total_seasons,
-                  total_episodes = srs.total_episodes
+           SET    series_name = excluded.series_name,
+                  total_seasons = excluded.total_seasons,
+                  total_episodes = excluded.total_episodes
            RETURNING series_id, ext_id, series_name, total_seasons, total_episodes
          )  SELECT series_id, ext_id, series_name, total_seasons, total_episodes FROM sel
             UNION  ALL

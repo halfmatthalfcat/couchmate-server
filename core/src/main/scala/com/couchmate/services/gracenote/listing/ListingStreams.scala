@@ -9,12 +9,12 @@ import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.Materializer
 import akka.stream.scaladsl.{RestartSource, Source}
-import com.couchmate.common.dao.{EpisodeDAO, LineupDAO, ListingCacheDAO, ProviderChannelDAO, ProviderDAO, ShowDAO, SportEventDAO}
+import com.couchmate.common.dao.{EpisodeDAO, LineupDAO, ListingCacheDAO, ProviderChannelDAO, ProviderDAO, ShowDAO, SportEventDAO, SportEventTeamDAO, SportTeamDAO}
 import com.couchmate.common.models.thirdparty.gracenote
 import com.couchmate.common.models.thirdparty.gracenote.{GracenoteAiring, GracenoteAiringPlan, GracenoteChannelAiring, GracenoteProgram, GracenoteSlotAiring, GracenoteSport}
 import com.couchmate.common.util.DateUtils
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.{Airing, Channel, ChannelOwner, Episode, Lineup, Series, Show, ShowType, SportEvent, SportOrganization}
+import com.couchmate.common.models.data.{Airing, Channel, ChannelOwner, Episode, Lineup, Series, Show, ShowType, SportEvent, SportEventTeam, SportOrganization, SportTeam}
 import com.couchmate.services.gracenote._
 import com.typesafe.config.Config
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
@@ -31,6 +31,8 @@ object ListingStreams
   with ShowDAO
   with EpisodeDAO
   with SportEventDAO
+  with SportTeamDAO
+  with SportEventTeamDAO
   with LineupDAO {
 
   def slots(pullType: ListingPullType, startTime: LocalDateTime): Source[LocalDateTime, NotUsed] =
@@ -119,13 +121,13 @@ object ListingStreams
     randomFactor = 0,
     maxRestarts = 3
   )(() => Source.future(gracenoteAiring match {
-    case GracenoteAiring(_, _, _, program) if program.sportsId.nonEmpty =>
+    case GracenoteAiring(_, _, _, _, program) if program.sportsId.nonEmpty =>
       sport(program, sports).recoverWith {
         case ex: Throwable =>
           System.out.println(s"Sport failed")
           Future.failed(ex)
       }
-    case GracenoteAiring(_, _, _, program) if (
+    case GracenoteAiring(_, _, _, _, program) if (
       program.seriesId.nonEmpty &&
       program.sportsId.isEmpty
     ) =>
@@ -134,7 +136,7 @@ object ListingStreams
           System.out.println(s"Episode failed")
           Future.failed(ex)
       }
-    case GracenoteAiring(_, _, _, program) => addOrGetShow(Show(
+    case GracenoteAiring(_, _, _, _, program) => addOrGetShow(Show(
       showId = None,
       extId = program.rootId,
       `type` = ShowType.Show,
@@ -158,7 +160,8 @@ object ListingStreams
       showId = show.showId.get,
       startTime = gracenoteAiring.startTime,
       endTime = gracenoteAiring.endTime,
-      duration = gracenoteAiring.duration
+      duration = gracenoteAiring.duration,
+      isNew = gracenoteAiring.isNew
     )
   ))
 
@@ -247,6 +250,19 @@ object ListingStreams
         sportName = gnSport.map(_.sportsName).getOrElse("N/A"),
       ))
 
+    val teams: Seq[SportTeam] =
+      program.teams.map(teams => teams.map(team => SportTeam(
+        sportTeamId = None,
+        extSportTeamId = team.teamBrandId.toLong,
+        name = team.name,
+      ))).getOrElse(Seq.empty)
+
+    val homeId: Option[Long] =
+      program
+        .teams
+        .flatMap(_.find(_.isHome.getOrElse(false)))
+        .map(_.teamBrandId.toLong)
+
     getOrAddSportEvent(
       Show(
         showId = None,
@@ -262,7 +278,9 @@ object ListingStreams
         originalAirDate = program.origAirDate
       ),
       org,
-      event
+      event,
+      teams,
+      homeId,
     )
   }
 

@@ -117,10 +117,10 @@ object SportOrganizationDAO {
            LEFT   JOIN sel   s USING (ext_sport_id, ext_org_id)
            WHERE  s.ext_sport_id IS NULL
            ON     CONFLICT (ext_sport_id, ext_org_id) DO UPDATE
-           SET    ext_sport_id = so.ext_sport_id,
-                  ext_org_id = so.ext_org_id,
-                  sport_name = so.sport_name,
-                  org_name = so.org_name
+           SET    ext_sport_id = excluded.ext_sport_id,
+                  ext_org_id = excluded.ext_org_id,
+                  sport_name = excluded.sport_name,
+                  org_name = excluded.org_name
            RETURNING sport_organization_id, ext_sport_id, ext_org_id, sport_name, org_name
          )  SELECT sport_organization_id, ext_sport_id, ext_org_id, sport_name, org_name FROM sel
             UNION  ALL

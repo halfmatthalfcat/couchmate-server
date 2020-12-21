@@ -139,9 +139,9 @@ object EpisodeDAO {
            LEFT   JOIN sel   s USING (series_id, season, episode)
            WHERE  s.series_id IS NULL
            ON     CONFLICT (series_id, season, episode) DO UPDATE
-           SET    series_id = ep.series_id,
-                  season = ep.season,
-                  episode = ep.episode
+           SET    series_id = excluded.series_id,
+                  season = excluded.season,
+                  episode = excluded.episode
            RETURNING episode_id, series_id, season, episode
          )  SELECT episode_id, series_id, season, episode FROM sel
             UNION  ALL

@@ -11,4 +11,10 @@ object SportTeamMigrations {
       _.name
     )
   )()
+
+  val uniqueExtIndex = MigrationItem(33L, SportTeamTable.table)(
+    _.addIndexes(
+      _.uniqueExtId
+    )
+  )()
 }

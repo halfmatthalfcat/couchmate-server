@@ -4,7 +4,7 @@ import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
-import com.couchmate.common.models.data.{Show, SportEvent, SportOrganization}
+import com.couchmate.common.models.data.{Show, SportEvent, SportEventTeam, SportOrganization, SportTeam}
 import com.couchmate.common.tables.SportEventTable
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -60,7 +60,9 @@ trait SportEventDAO {
   def getOrAddSportEvent(
     show: Show,
     sportOrganization: SportOrganization,
-    sportEvent: SportEvent
+    sportEvent: SportEvent,
+    teams: Seq[SportTeam],
+    homeId: Option[Long]
   )(
     implicit
     ec: ExecutionContext,
@@ -70,6 +72,12 @@ trait SportEventDAO {
     se <- db.run(SportEventDAO.addOrGetSportEvent(sportEvent.copy(
       sportOrganizationId = so.sportOrganizationId
     )).head)
+    ts <- Future.sequence(teams.map(team => db.run(SportTeamDAO.addOrGetSportTeam(team)))).map(_.flatten)
+    _ <- Future.sequence(ts.map(team => db.run(SportEventTeamDAO.getOrAddSportEventTeam(SportEventTeam(
+      sportEventId = se.sportEventId.get,
+      sportTeamId = team.sportTeamId.get,
+      isHome = homeId.contains(team.extSportTeamId)
+    ))))).map(_.flatten)
     s <- db.run(ShowDAO.addOrGetShow(show.copy(
       sportEventId = se.sportEventId
     )).head)
@@ -137,8 +145,8 @@ object SportEventDAO {
            LEFT   JOIN sel   s USING (sport_organization_id, sport_event_title)
            WHERE  s.sport_organization_id IS NULL
            ON     CONFLICT (sport_organization_id, sport_event_title) DO UPDATE
-           SET    sport_organization_id = se.sport_organization_id,
-                  sport_event_title = se.sport_event_title
+           SET    sport_organization_id = excluded.sport_organization_id,
+                  sport_event_title = excluded.sport_event_title
            RETURNING sport_event_id, sport_organization_id, sport_event_title
          )  SELECT sport_event_id, sport_organization_id, sport_event_title FROM sel
             UNION  ALL

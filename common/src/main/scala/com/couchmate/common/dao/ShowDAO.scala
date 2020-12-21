@@ -117,9 +117,9 @@ object ShowDAO {
            LEFT   JOIN sel   s USING (ext_id)
            WHERE  s.ext_id IS NULL
            ON     CONFLICT (ext_id) DO UPDATE
-           SET    type = shw.type,
-                  episode_id = shw.episode_id,
-                  sport_event_id = shw.sport_event_id
+           SET    type = excluded.type,
+                  episode_id = excluded.episode_id,
+                  sport_event_id = excluded.sport_event_id
            RETURNING show_id, ext_id, type, episode_id, sport_event_id, title, description, original_air_date
          )  SELECT show_id, ext_id, type, episode_id, sport_event_id, title, description, original_air_date FROM sel
             UNION  ALL

@@ -226,39 +226,39 @@ object AiringDAO {
 
   private[common] def addOrGetAiring(a: Airing) =
     sql"""
-         WITH input_rows(airing_id, show_id, start_time, end_time, duration) AS (
-          VALUES (${a.airingId}, ${a.showId}, ${a.startTime}::timestamp, ${a.endTime}::timestamp, ${a.duration})
+         WITH input_rows(airing_id, show_id, start_time, end_time, duration, is_new) AS (
+          VALUES (${a.airingId}, ${a.showId}, ${a.startTime}::timestamp, ${a.endTime}::timestamp, ${a.duration}, ${a.isNew})
          ), ins AS (
-          INSERT INTO airing AS a (airing_id, show_id, start_time, end_time, duration)
+          INSERT INTO airing AS a (airing_id, show_id, start_time, end_time, duration, is_new)
           SELECT * FROM input_rows
           ON CONFLICT (show_id, start_time, end_time) DO NOTHING
-          RETURNING airing_id, show_id, start_time, end_time, duration
+          RETURNING airing_id, show_id, start_time, end_time, duration, is_new
          ), sel AS (
-          SELECT airing_id, show_id, start_time, end_time, duration
+          SELECT airing_id, show_id, start_time, end_time, duration, is_new
           FROM ins
           UNION ALL
-          SELECT a.airing_id, a.show_id, start_time, end_time, a.duration
+          SELECT a.airing_id, a.show_id, start_time, end_time, a.duration, a.is_new
           FROM input_rows
           JOIN airing as a USING (show_id, start_time, end_time)
          ), ups AS (
-           INSERT INTO airing AS air (airing_id, show_id, start_time, end_time, duration)
+           INSERT INTO airing AS air (airing_id, show_id, start_time, end_time, duration, is_new)
            SELECT i.*
            FROM   input_rows i
            LEFT   JOIN sel   s USING (show_id, start_time, end_time)
            WHERE  s.show_id IS NULL
            ON     CONFLICT (show_id, start_time, end_time) DO UPDATE
-           SET    show_id = air.show_id,
-                  start_time = air.start_time,
-                  end_time = air.end_time
-           RETURNING airing_id, show_id, start_time, end_time, duration
-         )  SELECT airing_id, show_id, start_time, end_time, duration FROM sel
+           SET    show_id = excluded.show_id,
+                  start_time = excluded.start_time,
+                  end_time = excluded.end_time
+           RETURNING airing_id, show_id, start_time, end_time, duration, is_new
+         )  SELECT airing_id, show_id, start_time, end_time, duration, is_new FROM sel
             UNION  ALL
             TABLE  ups;
          """.as[Airing]
 
   private[common] def getAiringStatus(airingId: String): SqlStreamingAction[Seq[AiringStatus], AiringStatus, Effect] =
     sql"""
-       SELECT  a.airing_id, a.show_id, a.start_time, a.end_time, a.duration, CASE
+       SELECT  a.airing_id, a.show_id, a.start_time, a.end_time, a.duration, a.is_new, CASE
         WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 15 AND
                 EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 > 0
                 THEN ${RoomStatusType.PreGame}
