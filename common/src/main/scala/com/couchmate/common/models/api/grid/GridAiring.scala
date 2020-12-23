@@ -21,13 +21,35 @@ case class GridAiring(
   description: String,
   `type`: String,
   seriesTitle: Option[String],
+  sportEventId: Option[Long],
   sportTitle: Option[String],
   episode: Option[Long],
   season: Option[Long],
   originalAiringDate: Option[LocalDateTime],
   status: RoomStatusType,
-  count: Long,
-)
+  count: Long
+) {
+  def toExtended(teams: Seq[GridSportTeam]): GridAiringExtended = GridAiringExtended(
+    airingId = this.airingId,
+    startTime = this.startTime,
+    endTime = this.endTime,
+    duration = this.duration,
+    channelId = this.channelId,
+    channel = this.channel,
+    callsign = this.callsign,
+    title = this.title,
+    description = this.description,
+    `type` = this.`type`,
+    seriesTitle = this.seriesTitle,
+    sportTitle = this.sportTitle,
+    teams = teams,
+    episode = this.episode,
+    season = this.season,
+    originalAiringDate = this.originalAiringDate,
+    status = this.status,
+    count = this.count
+  )
+}
 
 object GridAiring {
   implicit val format: OFormat[GridAiring] = Json.format[GridAiring]

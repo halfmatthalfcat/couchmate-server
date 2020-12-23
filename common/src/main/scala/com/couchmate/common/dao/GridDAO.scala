@@ -3,8 +3,10 @@ package com.couchmate.common.dao
 import com.couchmate.common.db.PgProfile.plainAPI._
 import java.time.{LocalDateTime, ZoneId}
 
-import com.couchmate.common.models.api.grid.{Grid, GridAiring, GridChannel, GridPage}
+import com.couchmate.common.dao.RoomActivityDAO.getUserLatestQuery
+import com.couchmate.common.models.api.grid.{Grid, GridAiring, GridAiringExtended, GridChannel, GridPage, GridSportTeam}
 import com.couchmate.common.models.data.{RoomActivityType, RoomStatusType}
+import com.couchmate.common.tables.{AiringTable, ChannelTable, LineupTable, ProviderChannelTable, ProviderTable, RoomActivityTable, ShowTable}
 import com.couchmate.common.util.DateUtils
 import slick.sql.SqlStreamingAction
 
@@ -51,42 +53,57 @@ object GridDAO {
   )(
     implicit
     ec: ExecutionContext
-  ): DBIO[GridPage] = {
-    getGrid(providerId, startDate, startDate.plusHours(1)) map { airings =>
-      airings.foldLeft(GridPage(startDate, List.empty)) { case (page, airing) =>
-        val channel: GridChannel = page.channels.headOption.getOrElse(
-          GridChannel(
-            airing.channelId,
-            airing.channel,
-            airing.callsign,
-            Seq.empty
-          )
+  ): DBIO[GridPage] = for {
+    airings <- getGrid(providerId, startDate, startDate.plusHours(1))
+    extendedAirings <- DBIO.sequence(
+      airings.map(airing => airing.sportEventId.fold[DBIO[GridAiringExtended]](DBIO.successful(airing.toExtended(Seq.empty))) {
+        sportEventId => for {
+          eventTeams <- SportEventTeamDAO.getSportEventTeams(sportEventId)
+          teams <- DBIO.sequence(eventTeams.map(eT => SportTeamDAO.getSportTeam(eT.sportTeamId))).map(_.flatten)
+        } yield airing.toExtended(
+          teams.map(team => GridSportTeam(
+            sportTeamId = team.sportTeamId.get,
+            name = team.name,
+            isHome = eventTeams.exists { eT =>
+              team.sportTeamId.contains(eT.sportTeamId) &&
+              eT.isHome
+            }
+          ))
         )
+      })
+    )
+  } yield extendedAirings.foldLeft(GridPage(startDate, List.empty)) { case (page, airing) =>
+    val channel: GridChannel = page.channels.headOption.getOrElse(
+      GridChannel(
+        airing.channelId,
+        airing.channel,
+        airing.callsign,
+        Seq.empty
+      )
+    )
 
-        if (channel.channelId == airing.channelId && page.channels.nonEmpty) {
-          page.copy(
-            channels = channel.copy(
-              airings = channel.airings :+ airing
-            ) :: page.channels.tail
-          )
-        } else if (channel.channelId == airing.channelId) {
-          page.copy(
-            channels = channel.copy(
-              airings = channel.airings :+ airing
-            ) :: page.channels
-          )
-        } else {
-          page.copy(
-            channels = GridChannel(
-              airing.channelId,
-              airing.channel,
-              airing.callsign,
-              Seq(airing)
-            ) :: page.channels
-          )
-        }
-      }
-    } map { page => page.copy(channels = page.channels.reverse) }
+    if (channel.channelId == airing.channelId && page.channels.nonEmpty) {
+      page.copy(
+        channels = channel.copy(
+          airings = channel.airings :+ airing
+        ) :: page.channels.tail
+      )
+    } else if (channel.channelId == airing.channelId) {
+      page.copy(
+        channels = channel.copy(
+          airings = channel.airings :+ airing
+        ) :: page.channels
+      )
+    } else {
+      page.copy(
+        channels = GridChannel(
+          airing.channelId,
+          airing.channel,
+          airing.callsign,
+          Seq(airing)
+        ) :: page.channels
+      )
+    }
   }
 
   private[common] def getGrid(
@@ -98,7 +115,7 @@ object GridDAO {
                             pc.provider_channel_id, pc.channel, c.callsign,
                             s.title, s.description, s.type,
                             se.series_name,
-                            spe.sport_event_title,
+                            spe.sport_event_id, spe.sport_event_title,
                             e.episode, e.season,
                             s.original_air_date,
                             roomStatus.status as status,

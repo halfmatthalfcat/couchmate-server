@@ -1,6 +1,6 @@
 package com.couchmate.api.ws
 
-import com.couchmate.common.models.api.grid.{Grid, GridAiring}
+import com.couchmate.common.models.api.grid.{Grid, GridAiring, GridAiringExtended}
 import com.couchmate.common.models.data.{RoomStatusType, User, UserMeta}
 import com.couchmate.common.models.api.user.{UserMute, User => ExternalUser}
 
@@ -12,13 +12,13 @@ case class SessionContext(
   token: String,
   mutes: Seq[UserMute],
   wordMutes: Seq[String],
-  airings: Set[GridAiring],
+  airings: Set[GridAiringExtended],
   grid: Grid,
 ) {
   def setAiringsFromGrid(grid: Grid): SessionContext =
     this.copy(
-      airings = grid.pages.foldLeft(Set.empty[GridAiring]) {
-        case (a1, gridPage) => a1 ++ gridPage.channels.foldLeft(Set.empty[GridAiring]) {
+      airings = grid.pages.foldLeft(Set.empty[GridAiringExtended]) {
+        case (a1, gridPage) => a1 ++ gridPage.channels.foldLeft(Set.empty[GridAiringExtended]) {
           case (a2, channel) => a2 ++ channel.airings
         }
       }

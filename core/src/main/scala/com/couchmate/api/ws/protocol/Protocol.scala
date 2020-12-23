@@ -8,7 +8,7 @@ import com.couchmate.common.models.api.room.Participant
 import com.couchmate.common.models.api.room.message.Message
 import com.couchmate.common.models.api.room.tenor.TenorGif
 import com.couchmate.common.models.api.user.{User, UserMute}
-import com.couchmate.common.models.data.UserReportType
+import com.couchmate.common.models.data.{ApplicationPlatform, UserReportType}
 import com.couchmate.common.util.json.CountryCodePlayJson
 import com.neovisionaries.i18n.CountryCode
 import julienrf.json.derived
@@ -59,6 +59,12 @@ object External {
   case class LoginFailure(
     cause: LoginErrorCause
   ) extends Protocol
+
+  case class EnableNotifications(
+    os: ApplicationPlatform,
+    token: String
+  ) extends Protocol
+  case object DisableNotifications extends Protocol
 
   case object Logout extends Protocol
 

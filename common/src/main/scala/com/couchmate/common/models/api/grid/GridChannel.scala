@@ -6,7 +6,7 @@ case class GridChannel(
   channelId: Long,
   channelNumber: String,
   callsign: String,
-  airings: Seq[GridAiring]
+  airings: Seq[GridAiringExtended]
 )
 
 object GridChannel {
