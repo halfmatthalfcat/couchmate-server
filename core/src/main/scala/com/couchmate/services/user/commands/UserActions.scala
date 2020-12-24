@@ -33,6 +33,7 @@ object UserActions
   with UserActivityDAO
   with UserProviderDAO
   with UserReportDAO
+  with UserNotificationConfigurationDAO
   with ProviderDAO
   with GridDAO {
 
@@ -523,6 +524,24 @@ object UserActions
       ))
     }
   }
+
+  private[commands] def enableNotifications(
+    userId: UUID,
+    os: ApplicationPlatform,
+    token: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+  ): Future[UserNotificationConfiguration] = upsertUserNotificationConfiguration(UserNotificationConfiguration(
+    userId, active = true, os, Some(token)
+  ))
+
+  private[commands] def disableNotifications(userId: UUID)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Unit] = updateUserNotificationActive(userId, active = false).map(_ => ())
 
   private[this] def getDefaultProvider(context: GeoContext): GracenoteDefaultProvider = context match {
     case GeoContext("EST" | "EDT", Some(CountryCode.US)) =>

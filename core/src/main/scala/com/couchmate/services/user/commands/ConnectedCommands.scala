@@ -10,7 +10,7 @@ import com.couchmate.common.dao.UserActivityDAO
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.user.UserMute
-import com.couchmate.common.models.data.{User, UserActivity, UserActivityType, UserMeta}
+import com.couchmate.common.models.data.{ApplicationPlatform, User, UserActivity, UserActivityType, UserMeta}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser._
@@ -407,4 +407,32 @@ object ConnectedCommands
           External.UpdateWordMutes(userContext.wordMutes)
         )
       })
+
+  private[user] def enableNotifications(
+    userId: UUID,
+    os: ApplicationPlatform,
+    token: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.enableNotifications(userId, os, token)) {
+      case Success(_) => EnabledNotifications
+      case Failure(exception) => EnableNotificationsFailed(exception)
+    })
+
+  private[user] def disableNotifications(userId: UUID)(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.disableNotifications(userId)) {
+      case Success(_) => DisabledNotifications
+      case Failure(exception) => DisableNotificationsFailed(exception)
+    })
 }

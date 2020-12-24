@@ -34,6 +34,13 @@ trait UserNotificationConfigurationDAO {
   ): Future[UserNotificationConfiguration] =
     db.run(UserNotificationConfigurationDAO.upsertUserNotificationConfiguration(configuration))
 
+  def updateUserNotificationActive(userId: UUID, active: Boolean)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Int] =
+    db.run(UserNotificationConfigurationDAO.updateUserNotificationActive(userId, active))
+
 }
 
 object UserNotificationConfigurationDAO {
@@ -52,6 +59,10 @@ object UserNotificationConfigurationDAO {
         un.platform === app
       }
   }
+
+  private[common] def updateUserNotificationActive(userId: UUID, active: Boolean) = (for {
+    configurations <- UserNotificationConfigurationTable.table if configurations.userId === userId
+  } yield configurations.active).update(active)
 
   private[common] def getUserNotificationConfiguration(userId: UUID, app: ApplicationPlatform): DBIO[Option[UserNotificationConfiguration]] =
     getUserNotificationConfigurationQuery(userId, app).result.headOption

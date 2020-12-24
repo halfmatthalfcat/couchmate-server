@@ -66,6 +66,9 @@ object External {
   ) extends Protocol
   case object DisableNotifications extends Protocol
 
+  case object NotificationsEnabled extends Protocol
+  case object NotificationsDisabled extends Protocol
+
   case object Logout extends Protocol
 
   case class ForgotPassword(

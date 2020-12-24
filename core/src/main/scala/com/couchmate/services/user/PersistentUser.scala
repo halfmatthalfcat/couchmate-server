@@ -107,6 +107,12 @@ object PersistentUser {
   final case class TenorTrending(keywords: Seq[String]) extends Command
   final case class TenorSearched(gifs: Seq[TenorGif]) extends Command
 
+  final case object EnabledNotifications extends Command
+  final case class EnableNotificationsFailed(ex: Throwable) extends Command
+
+  final case object DisabledNotifications extends Command
+  final case class DisableNotificationsFailed(ex: Throwable) extends Command
+
   // -- EVENTS
 
   sealed trait Event
@@ -299,6 +305,16 @@ object PersistentUser {
           case UnmuteWord(mutes) =>
             ConnectedCommands.wordUnmuted(mutes)
           case UnmuteWordFailed(_) => Effect.none
+          case EnabledNotifications =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.NotificationsEnabled
+            ))
+          case EnableNotificationsFailed(_) => Effect.none
+          case DisabledNotifications =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.NotificationsDisabled
+            ))
+          case DisableNotificationsFailed(_) => Effect.none
           /**
            * WSMessage wraps _inbound_ messages via a Websocket
            * with the intention that a message will be relayed back
@@ -367,6 +383,16 @@ object PersistentUser {
                 userContext,
                 hash
               ))
+            case External.EnableNotifications(os, token) =>
+              ConnectedCommands.enableNotifications(
+                userContext.user.userId.get,
+                os,
+                token
+              )
+            case External.DisableNotifications =>
+              ConnectedCommands.disableNotifications(
+                userContext.user.userId.get
+              )
             case _ => Effect.unhandled
           }
           /**
