@@ -70,6 +70,18 @@ object UserNotificationConfigurationDAO {
   private[common] def upsertUserNotificationConfiguration(notification: UserNotificationConfiguration)(
     implicit
     ec: ExecutionContext
-  ): DBIO[UserNotificationConfiguration] =
-    (UserNotificationConfigurationTable.table returning UserNotificationConfigurationTable.table) += notification
+  ): DBIO[UserNotificationConfiguration] = for {
+    n <- getUserNotificationConfiguration(
+      notification.userId,
+      notification.platform
+    )
+    newNotification <- n.fold[DBIO[UserNotificationConfiguration]](
+      (UserNotificationConfigurationTable.table returning UserNotificationConfigurationTable.table) += notification
+    )(_ => UserNotificationConfigurationTable.table.filter { uNC =>
+      uNC.userId === notification.userId &&
+      uNC.platform === notification.platform
+    }.map(uNC => (uNC.active, uNC.token))
+     .update((notification.active, notification.token))
+     .map(_ => notification))
+  } yield newNotification
 }
