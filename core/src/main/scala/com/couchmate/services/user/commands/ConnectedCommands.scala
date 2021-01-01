@@ -435,4 +435,94 @@ object ConnectedCommands
       case Success(_) => DisabledNotifications
       case Failure(exception) => DisableNotificationsFailed(exception)
     })
+
+  private[user] def addShowNotification(
+    userId: UUID,
+    airingId: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.addShowNotification(userId, airingId)) {
+      case Success(notifications) => notifications
+      case Failure(exception) => UserNotificationAddFailed(exception)
+    })
+
+  private[user] def removeShowNotification(
+    userId: UUID,
+    airingId: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.removeShowNotification(userId, airingId)) {
+      case Success(notifications) => notifications
+      case Failure(exception) => UserNotificationRemoveFailed(exception)
+    })
+
+  private[user] def addSeriesNotification(
+    userId: UUID,
+    seriesId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.addSeriesNotification(userId, seriesId)) {
+      case Success(notifications) => notifications
+      case Failure(exception) => UserNotificationAddFailed(exception)
+    })
+
+  private[user] def removeSeriesNotification(
+    userId: UUID,
+    seriesId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.removeSeriesNotification(userId, seriesId)) {
+      case Success(notifications) => notifications
+      case Failure(exception) => UserNotificationRemoveFailed(exception)
+    })
+
+  private[user] def addTeamNotification(
+    userId: UUID,
+    teamId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.addTeamNotification(userId, teamId)) {
+      case Success(notifications) => notifications
+      case Failure(exception) => UserNotificationAddFailed(exception)
+    })
+
+  private[user] def removeTeamNotification(
+    userId: UUID,
+    teamId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.removeTeamNotification(userId, teamId)) {
+      case Success(notifications) => notifications
+      case Failure(exception) => UserNotificationRemoveFailed(exception)
+    })
 }

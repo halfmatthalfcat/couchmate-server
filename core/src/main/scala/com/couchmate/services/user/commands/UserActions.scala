@@ -15,7 +15,7 @@ import com.couchmate.common.models.data.{UserMute, User => InternalUser, _}
 import com.couchmate.common.models.api.user.{UserMute => ExternalUserMute}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
 import com.couchmate.services.user.PersistentUser
-import com.couchmate.services.user.PersistentUser.{EmailValidated, UsernameValidated}
+import com.couchmate.services.user.PersistentUser.{EmailValidated, UserNotificationAdded, UserNotificationRemoved, UsernameValidated}
 import com.couchmate.services.user.context.{GeoContext, UserContext}
 import com.couchmate.util.akka.extensions.{JwtExtension, MailExtension}
 import com.couchmate.util.jwt.Jwt.ExpiredJwtError
@@ -34,6 +34,9 @@ object UserActions
   with UserProviderDAO
   with UserReportDAO
   with UserNotificationConfigurationDAO
+  with UserNotificationShowDAO
+  with UserNotificationSeriesDAO
+  with UserNotificationTeamDAO
   with ProviderDAO
   with GridDAO {
 
@@ -542,6 +545,88 @@ object UserActions
     ec: ExecutionContext,
     db: Database
   ): Future[Unit] = updateUserNotificationActive(userId, active = false).map(_ => ())
+
+  private[commands] def addShowNotification(
+    userId: UUID,
+    airingId: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotificationAdded] = for {
+    _ <- addOrGetUserShowNotification(userId, airingId)
+    notifications <- getUserNotifications(userId)
+  } yield UserNotificationAdded(notifications)
+
+  private[commands] def removeShowNotification(
+    userId: UUID,
+    airingId: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotificationRemoved] = for {
+    _ <- removeUserShowNotification(userId, airingId)
+    notifications <- getUserNotifications(userId)
+  } yield UserNotificationRemoved(notifications)
+
+  private[commands] def addTeamNotification(
+    userId: UUID,
+    teamId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotificationAdded] = for {
+    _ <- addOrGetUserTeamNotification(userId, teamId)
+    notifications <- getUserNotifications(userId)
+  } yield UserNotificationAdded(notifications)
+
+  private[commands] def removeTeamNotification(
+    userId: UUID,
+    teamId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotificationRemoved] = for {
+    _ <- removeUserTeamNotification(userId, teamId)
+    notifications <- getUserNotifications(userId)
+  } yield UserNotificationRemoved(notifications)
+
+  private[commands] def addSeriesNotification(
+    userId: UUID,
+    seriesId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotificationAdded] = for {
+    _ <- addOrGetUserSeriesNotification(userId, seriesId)
+    notifications <- getUserNotifications(userId)
+  } yield UserNotificationAdded(notifications)
+
+  private[commands] def removeSeriesNotification(
+    userId: UUID,
+    seriesId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotificationRemoved] = for {
+    _ <- removeUserSeriesNotification(userId, seriesId)
+    notifications <- getUserNotifications(userId)
+  } yield UserNotificationRemoved(notifications)
+
+  private[this] def getUserNotifications(userId: UUID)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotifications] = for {
+    shows <- getUserShowNotifications(userId)
+    series <- getUserSeriesNotifications(userId)
+    teams <- getUserTeamNotifications(userId)
+  } yield UserNotifications(shows, series, teams)
 
   private[this] def getDefaultProvider(context: GeoContext): GracenoteDefaultProvider = context match {
     case GeoContext("EST" | "EDT", Some(CountryCode.US)) =>

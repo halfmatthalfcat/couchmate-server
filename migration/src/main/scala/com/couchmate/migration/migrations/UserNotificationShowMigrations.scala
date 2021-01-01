@@ -14,5 +14,5 @@ object UserNotificationShowMigrations {
       _.userIdFk,
       _.airingIdFk
     )
-  )
+  )()
 }

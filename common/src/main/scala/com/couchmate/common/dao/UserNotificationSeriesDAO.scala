@@ -41,7 +41,7 @@ trait UserNotificationSeriesDAO {
       userId, seriesId
     ))
 
-  def deleteUserSeriesNotification(
+  def removeUserSeriesNotification(
     userId: UUID,
     seriesId: Long
   )(

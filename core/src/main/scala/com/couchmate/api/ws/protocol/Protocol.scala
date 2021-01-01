@@ -69,6 +69,24 @@ object External {
   case object NotificationsEnabled extends Protocol
   case object NotificationsDisabled extends Protocol
 
+  case class AddShowNotification(airingId: String) extends Protocol
+  case class RemoveShowNotification(airingId: String) extends Protocol
+
+  case class AddSeriesNotification(seriesId: Long) extends Protocol
+  case class RemoveSeriesNotification(seriesId: Long) extends Protocol
+
+  case class AddTeamNotification(teamId: Long) extends Protocol
+  case class RemoveTeamNotification(teamId: Long) extends Protocol
+
+  case class UpdateNotifications(
+    show: Seq[String],
+    series: Seq[Long],
+    team: Seq[Long]
+  ) extends Protocol
+
+  case object NotificationAddedSuccess extends Protocol
+  case object NotificationAddedFailed extends Protocol
+
   case object Logout extends Protocol
 
   case class ForgotPassword(

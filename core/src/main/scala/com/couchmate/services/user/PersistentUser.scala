@@ -13,7 +13,7 @@ import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.room.Participant
 import com.couchmate.common.models.api.room.tenor.TenorGif
 import com.couchmate.common.models.api.user.UserMute
-import com.couchmate.common.models.data.{UserMeta, UserReportType, UserRole}
+import com.couchmate.common.models.data.{UserMeta, UserNotificationSeries, UserNotificationShow, UserNotificationTeam, UserNotifications, UserReportType, UserRole}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.TenorService.{GetTenorTrending, SearchTenor}
@@ -112,6 +112,15 @@ object PersistentUser {
 
   final case object DisabledNotifications extends Command
   final case class DisableNotificationsFailed(ex: Throwable) extends Command
+
+  final case class UserNotificationAdded(
+    notifications: UserNotifications
+  ) extends Command
+  final case class UserNotificationAddFailed(ex: Throwable) extends Command
+  final case class UserNotificationRemoved(
+    notifications: UserNotifications
+  ) extends Command
+  final case class  UserNotificationRemoveFailed(ex: Throwable) extends Command
 
   // -- EVENTS
 
@@ -315,6 +324,24 @@ object PersistentUser {
               External.NotificationsDisabled
             ))
           case DisableNotificationsFailed(_) => Effect.none
+          case UserNotificationAdded(notifications) =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.UpdateNotifications(
+                show = notifications.show.map(_.airingId),
+                series = notifications.series.map(_.seriesId),
+                team = notifications.teams.map(_.teamId)
+              )
+            ))
+          case UserNotificationAddFailed(_) => Effect.none
+          case UserNotificationRemoved(notifications) =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.UpdateNotifications(
+                show = notifications.show.map(_.airingId),
+                series = notifications.series.map(_.seriesId),
+                team = notifications.teams.map(_.teamId)
+              )
+            ))
+          case UserNotificationRemoveFailed(_) => Effect.none
           /**
            * WSMessage wraps _inbound_ messages via a Websocket
            * with the intention that a message will be relayed back
@@ -393,6 +420,37 @@ object PersistentUser {
               ConnectedCommands.disableNotifications(
                 userContext.user.userId.get
               )
+            case External.AddShowNotification(airingId) =>
+              ConnectedCommands.addShowNotification(
+                userContext.user.userId.get,
+                airingId
+              )
+            case External.RemoveShowNotification(airingId) =>
+              ConnectedCommands.removeShowNotification(
+                userContext.user.userId.get,
+                airingId
+              )
+            case External.AddSeriesNotification(seriesId) =>
+              ConnectedCommands.addSeriesNotification(
+                userContext.user.userId.get,
+                seriesId
+              )
+            case External.RemoveSeriesNotification(seriesId) =>
+              ConnectedCommands.removeSeriesNotification(
+                userContext.user.userId.get,
+                seriesId
+              )
+            case External.AddTeamNotification(teamId) =>
+              ConnectedCommands.addTeamNotification(
+                userContext.user.userId.get,
+                teamId
+              )
+            case External.RemoveTeamNotification(teamId) =>
+              ConnectedCommands.removeTeamNotification(
+                userContext.user.userId.get,
+                teamId
+              )
+
             case _ => Effect.unhandled
           }
           /**

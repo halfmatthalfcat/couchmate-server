@@ -14,5 +14,5 @@ object UserNotificationTeamMigrations {
       _.userIdFk,
       _.teamIdFk
     )
-  )
+  )()
 }

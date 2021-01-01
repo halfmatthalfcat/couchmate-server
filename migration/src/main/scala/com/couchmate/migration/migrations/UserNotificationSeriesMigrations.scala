@@ -14,5 +14,5 @@ object UserNotificationSeriesMigrations {
       _.userIdFk,
       _.seriesIdFk
     )
-  )
+  )()
 }
