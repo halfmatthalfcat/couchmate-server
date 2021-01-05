@@ -3,6 +3,7 @@ package com.couchmate.util.akka.extensions
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Extension, ExtensionId, SupervisorStrategy}
 import akka.cluster.typed.{ClusterSingleton, SingletonActor}
+import com.couchmate.services.notification.NotificationCoordinator
 import com.couchmate.services.room.{LinkScanner, TenorService}
 import com.couchmate.services.{GracenoteCoordinator, GridCoordinator, ListingCoordinator, ListingUpdater, ProviderCoordinator}
 
@@ -76,6 +77,16 @@ class SingletonExtension(system: ActorSystem[_]) extends Extension {
           TenorService()
         ).onFailure[Exception](SupervisorStrategy.restart),
         "TenorService"
+      )
+    )
+
+  val notificationCoordinator: ActorRef[NotificationCoordinator.Command] =
+    singletonManager.init(
+      SingletonActor(
+        Behaviors.supervise(
+          NotificationCoordinator()
+        ).onFailure[Exception](SupervisorStrategy.restart),
+        "NotificationCoordinator"
       )
     )
 }

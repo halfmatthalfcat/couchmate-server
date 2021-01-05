@@ -224,6 +224,39 @@ object AiringDAO {
     (_, se) <- ShowTable.table.joinLeft(SportEventTable.table).on(_.sportEventId === _.sportEventId)
   } yield (s, series, se)).result.headOption
 
+  private[this] def getLastAiringIdForShow(showId: Long)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Option[String]] = AiringTable
+    .table
+    .groupBy(row => (row.showId, row.airingId))
+    .filter(_._1._1 === showId)
+    .map {
+      case ((_, airingId), query) =>
+        airingId -> query.map(_.startTime).max
+    }.map(_._1).result.headOption
+
+  private[common] def getLastAiringForShow(showId: Long)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Option[Airing]] = for {
+    exists <- getLastAiringIdForShow(showId)
+    airing <- exists.fold[DBIO[Option[Airing]]](DBIO.successful(Option.empty[Airing]))(getAiring)
+  } yield airing
+
+  private[common] def getLastAiringForShow(showId: Long) =
+    sql"""SELECT a.*
+          FROM   airing as a
+          LEFT OUTER JOIN (
+            SELECT    show_id, max(start_time) as start_time
+            FROM      airing
+            GROUP BY  show_id
+          ) as latest
+          ON     a.show_id = latest.show_id
+          AND    a.start_time = latest.start_time
+          WHERE  a.show_id = $showId
+         """.as[Airing]
+
   private[common] def addOrGetAiring(a: Airing) =
     sql"""
          WITH input_rows(airing_id, show_id, start_time, end_time, duration, is_new) AS (

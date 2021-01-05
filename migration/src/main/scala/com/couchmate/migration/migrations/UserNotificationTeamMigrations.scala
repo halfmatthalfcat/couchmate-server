@@ -7,7 +7,9 @@ object UserNotificationTeamMigrations {
   val init = MigrationItem(36L, UserNotificationTeamTable.table)(
     _.create.addColumns(
       _.userId,
-      _.teamId
+      _.teamId,
+      _.hash,
+      _.created
     ).addPrimaryKeys(
       _.pk
     ).addForeignKeys(

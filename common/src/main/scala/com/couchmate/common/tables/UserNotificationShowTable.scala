@@ -1,5 +1,6 @@
 package com.couchmate.common.tables
 
+import java.time.LocalDateTime
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
@@ -9,10 +10,14 @@ import com.couchmate.common.util.slick.WithTableQuery
 class UserNotificationShowTable(tag: Tag) extends Table[UserNotificationShow](tag, "user_notification_show") {
   def userId: Rep[UUID] = column("user_id", O.SqlType("uuid"))
   def airingId: Rep[String] = column("airing_id")
+  def hash: Rep[Option[String]] = column("hash")
+  def created: Rep[LocalDateTime] = column("created")
 
   def * = (
     userId,
-    airingId
+    airingId,
+    hash,
+    created
   ) <> ((UserNotificationShow.apply _).tupled, UserNotificationShow.unapply)
 
   def pk = primaryKey(

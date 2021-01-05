@@ -37,6 +37,13 @@ trait SeriesDAO {
   ): Flow[Long, Option[Series], NotUsed] =
     Slick.flowWithPassThrough(SeriesDAO.getSeriesByExt)
 
+  def getSeriesByEpisode(episodeId: Long)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Option[Series]] =
+    db.run(SeriesDAO.getSeriesByEpisode(episodeId))
+
   def upsertSeries(series: Series)(
     implicit
     db: Database,
@@ -72,6 +79,14 @@ object SeriesDAO {
 
   private[common] def getSeriesByExt(extId: Long): DBIO[Option[Series]] =
     getSeriesByExtQuery(extId).result.headOption
+
+  private[common] def getSeriesByEpisode(episodeId: Long)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Option[Series]] = for {
+    exists <- EpisodeDAO.getEpisode(episodeId)
+    series <- exists.fold[DBIO[Option[Series]]](DBIO.successful(Option.empty))(e => getSeries(e.seriesId.get))
+  } yield series
 
   private[common] def upsertSeries(series: Series)(
     implicit

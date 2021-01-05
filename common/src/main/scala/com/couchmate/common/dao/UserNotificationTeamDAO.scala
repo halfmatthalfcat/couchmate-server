@@ -1,5 +1,6 @@
 package com.couchmate.common.dao
 
+import java.time.LocalDateTime
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
@@ -29,6 +30,13 @@ trait UserNotificationTeamDAO {
       userId, teamId
     ))
 
+  def getNotificationsForSportEvent(sportEventId: Long)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Seq[UserNotificationTeam]] =
+    db.run(UserNotificationTeamDAO.getNotificationsForSportEvent(sportEventId))
+
   def addUserTeamNotification(userId: UUID, teamId: Long)(
     implicit
     db: Database
@@ -46,18 +54,22 @@ trait UserNotificationTeamDAO {
       userId, teamId
     ))
 
-  def addOrGetUserTeamNotification(userId: UUID, teamId: Long)(
+  def addOrGetUserTeamNotification(
+    userId: UUID,
+    teamId: Long,
+    hash: Option[String] = None
+  )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationTeam] =
     db.run(UserNotificationTeamDAO.addOrGetUserTeamNotification(
-      userId, teamId
+      userId, teamId, hash
     ))
 }
 
 object UserNotificationTeamDAO {
-  private[this] val getUserTeamNotificationsQuery = Compiled {
+  private[this] lazy val getUserTeamNotificationsQuery = Compiled {
     (userId: Rep[UUID]) =>
       UserNotificationTeamTable.table.filter(_.userId === userId)
   }
@@ -65,7 +77,7 @@ object UserNotificationTeamDAO {
   private[common] def getUserTeamNotifications(userId: UUID): DBIO[Seq[UserNotificationTeam]] =
     getUserTeamNotificationsQuery(userId).result
 
-  private[this] val getNotificationsForTeamQuery = Compiled {
+  private[this] lazy val getNotificationsForTeamQuery = Compiled {
     (teamId: Rep[Long]) =>
       UserNotificationTeamTable.table.filter(_.teamId === teamId)
   }
@@ -73,7 +85,7 @@ object UserNotificationTeamDAO {
   private[common] def getNotificationsForTeam(teamId: Long): DBIO[Seq[UserNotificationTeam]] =
     getNotificationsForTeamQuery(teamId).result
 
-  private[this] val getUserTeamNotificationQuery = Compiled {
+  private[this] lazy val getUserTeamNotificationQuery = Compiled {
     (userId: Rep[UUID], teamId: Rep[Long]) =>
       UserNotificationTeamTable.table.filter { uNT =>
         uNT.userId === userId &&
@@ -84,9 +96,24 @@ object UserNotificationTeamDAO {
   private[common] def getUserTeamNotification(userId: UUID, teamId: Long): DBIO[Option[UserNotificationTeam]] =
     getUserTeamNotificationQuery(userId, teamId).result.headOption
 
-  private[common] def addUserTeamNotification(userId: UUID, teamId: Long): DBIO[UserNotificationTeam] =
+  private[common] def getNotificationsForSportEvent(sportEventId: Long)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Seq[UserNotificationTeam]] = for {
+    sET <- SportEventTeamDAO.getSportEventTeams(sportEventId)
+    notifications <- DBIO.fold(
+      sET.map(team => getNotificationsForTeam(team.sportTeamId)),
+      Seq.empty
+    )(_ ++ _)
+  } yield notifications
+
+  private[common] def addUserTeamNotification(
+    userId: UUID,
+    teamId: Long,
+    hash: Option[String] = None
+  ): DBIO[UserNotificationTeam] =
     (UserNotificationTeamTable.table returning UserNotificationTeamTable.table ) += UserNotificationTeam(
-      userId, teamId
+      userId, teamId, hash, LocalDateTime.now()
     )
 
   private[common] def removeUserTeamNotification(userId: UUID, teamId: Long)(
@@ -98,13 +125,17 @@ object UserNotificationTeamDAO {
       uNT.teamId === teamId
     }.delete.map(_ > 0)
 
-  private[common] def addOrGetUserTeamNotification(userId: UUID, teamId: Long)(
+  private[common] def addOrGetUserTeamNotification(
+    userId: UUID,
+    teamId: Long,
+    hash: Option[String]
+  )(
     implicit
     ec: ExecutionContext
   ): DBIO[UserNotificationTeam] = for {
     exists <- getUserTeamNotification(userId, teamId)
     uNT <- exists.map(DBIO.successful).getOrElse(addUserTeamNotification(
-      userId, teamId
+      userId, teamId, hash
     ))
   } yield uNT
 }

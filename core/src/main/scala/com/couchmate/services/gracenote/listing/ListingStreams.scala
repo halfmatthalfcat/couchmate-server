@@ -9,7 +9,7 @@ import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.Materializer
 import akka.stream.scaladsl.{RestartSource, Source}
-import com.couchmate.common.dao.{EpisodeDAO, LineupDAO, ListingCacheDAO, ProviderChannelDAO, ProviderDAO, ShowDAO, SportEventDAO, SportEventTeamDAO, SportTeamDAO}
+import com.couchmate.common.dao.{EpisodeDAO, LineupDAO, ListingCacheDAO, ProviderChannelDAO, ProviderDAO, ShowDAO, SportEventDAO, SportEventTeamDAO, SportTeamDAO, UserNotificationQueueDAO, UserNotificationSeriesDAO, UserNotificationShowDAO, UserNotificationTeamDAO}
 import com.couchmate.common.models.thirdparty.gracenote
 import com.couchmate.common.models.thirdparty.gracenote.{GracenoteAiring, GracenoteAiringPlan, GracenoteChannelAiring, GracenoteProgram, GracenoteSlotAiring, GracenoteSport}
 import com.couchmate.common.util.DateUtils
@@ -33,7 +33,11 @@ object ListingStreams
   with SportEventDAO
   with SportTeamDAO
   with SportEventTeamDAO
-  with LineupDAO {
+  with LineupDAO
+  with UserNotificationShowDAO
+  with UserNotificationSeriesDAO
+  with UserNotificationTeamDAO
+  with UserNotificationQueueDAO {
 
   def slots(pullType: ListingPullType, startTime: LocalDateTime): Source[LocalDateTime, NotUsed] =
     Source
@@ -153,17 +157,39 @@ object ListingStreams
         System.out.println(s"Show failed")
         Future.failed(ex)
     }
-  })).mapAsync(1)(show => getOrAddLineup(
-    providerChannelId,
-    Airing(
-      airingId = Some(Airing.generateShortcode),
-      showId = show.showId.get,
-      startTime = gracenoteAiring.startTime,
-      endTime = gracenoteAiring.endTime,
-      duration = gracenoteAiring.duration,
-      isNew = gracenoteAiring.isNew
+  })).mapAsync(1)(show => for {
+    l <- getOrAddLineup(
+      providerChannelId,
+      Airing(
+        airingId = Some(Airing.generateShortcode),
+        showId = show.showId.get,
+        startTime = gracenoteAiring.startTime,
+        endTime = gracenoteAiring.endTime,
+        duration = gracenoteAiring.duration,
+        isNew = gracenoteAiring.isNew
+      )
     )
-  ))
+    _ <- {
+      if (show.sportEventId.nonEmpty) {
+        addUserNotificationsForSport(
+          l.airingId,
+          show.sportEventId.get,
+          gracenoteAiring.startTime.minusMinutes(15)
+        )
+      } else if (show.episodeId.nonEmpty) {
+        addUserNotificationsForEpisode(
+          l.airingId,
+          show.episodeId.get,
+          gracenoteAiring.startTime.minusMinutes(15)
+        )
+      } else {
+        addUserNotificationsForShow(
+          l.airingId,
+          gracenoteAiring.startTime.minusMinutes(15)
+        )
+      }
+    }
+  } yield l)
 
   def disable(
     providerChannelId: Long,

@@ -27,6 +27,14 @@ trait UserNotificationConfigurationDAO {
       userId, platform
     ))
 
+  def getActiveUserNotificationConfigurationsForPlatform(app: ApplicationPlatform)(
+    implicit
+    db: Database
+  ): Future[Seq[UserNotificationConfiguration]] =
+    db.run(UserNotificationConfigurationDAO.getActiveUserNotificationConfigurationsForPlatform(
+      app
+    ))
+
   def upsertUserNotificationConfiguration(configuration: UserNotificationConfiguration)(
     implicit
     ec: ExecutionContext,
@@ -51,6 +59,16 @@ object UserNotificationConfigurationDAO {
 
   private[common] def getUserNotificationConfigurations(userId: UUID): DBIO[Seq[UserNotificationConfiguration]] =
     getUserNotificationConfigurationsQuery(userId).result
+
+  private[this] lazy val getActiveUserNotificationConfigurationsForPlatformQuery = Compiled {
+    (app: Rep[ApplicationPlatform]) =>
+      UserNotificationConfigurationTable.table.filter { un =>
+        un.active && un.platform === app
+      }
+  }
+
+  private[common] def getActiveUserNotificationConfigurationsForPlatform(app: ApplicationPlatform): DBIO[Seq[UserNotificationConfiguration]] =
+    getActiveUserNotificationConfigurationsForPlatformQuery(app).result
 
   private[this] lazy val getUserNotificationConfigurationQuery = Compiled {
     (userId: Rep[UUID], app: Rep[ApplicationPlatform]) =>

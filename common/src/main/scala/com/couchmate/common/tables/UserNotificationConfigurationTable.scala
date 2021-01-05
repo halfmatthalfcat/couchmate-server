@@ -21,7 +21,7 @@ class UserNotificationConfigurationTable(tag: Tag) extends Table[UserNotificatio
 
   def pk = primaryKey(
     "user_notification_pk",
-    (userId, platform)
+    (userId, platform, token)
   )
 
   def userIdFk = foreignKey(

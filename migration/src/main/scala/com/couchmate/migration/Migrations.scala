@@ -47,7 +47,8 @@ object Migrations extends LazyLogging {
     SportTeamMigrations.uniqueExtIndex,
     UserNotificationShowMigrations.init,
     UserNotificationSeriesMigrations.init,
-    UserNotificationTeamMigrations.init
+    UserNotificationTeamMigrations.init,
+    UserNotificationQueueMigrations.init
   )
 
   private[this] def applyMigrations()(

@@ -67,6 +67,7 @@ lazy val core = (project in file("core"))
     Scala2TSPlugin,
     JavaAppPackaging,
     DockerPlugin,
+    JavaAgent
   )
   .dependsOn(common)
   .settings(commonSettings: _*)
@@ -74,6 +75,9 @@ lazy val core = (project in file("core"))
   .settings(dockerSettings: _*)
   .settings(
     name := "core",
+    javaAgents ++= Seq(
+      "org.mortbay.jetty.alpn" % "jetty-alpn-agent" % "2.0.10" % "runtime"
+    ),
     libraryDependencies ++= Seq(
       akka("actor-typed"),
       akka("remote"),
@@ -107,7 +111,7 @@ lazy val core = (project in file("core"))
       "com.lihaoyi"                 %%  "scalatags"                     % "0.8.2",
       "io.lemonlabs"                %%  "scala-uri"                     % "3.0.0",
       "net.ruippeixotog"            %%  "scala-scraper"                 % "2.2.0",
-      "com.malliina"                %%  "mobile-push"                   % "1.24.1"
+      "com.malliina"                %%  "mobile-push"                   % "1.24.2-SNAPSHOT"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
     discoveredMainClasses in Compile := Seq(),

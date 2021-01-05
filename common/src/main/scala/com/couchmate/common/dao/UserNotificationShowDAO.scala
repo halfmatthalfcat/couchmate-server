@@ -1,5 +1,6 @@
 package com.couchmate.common.dao
 
+import java.time.LocalDateTime
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
@@ -65,7 +66,7 @@ trait UserNotificationShowDAO {
 }
 
 object UserNotificationShowDAO {
-  private[this] val getUserShowNotificationsQuery = Compiled {
+  private[this] lazy val getUserShowNotificationsQuery = Compiled {
     (userId: Rep[UUID]) =>
       UserNotificationShowTable.table.filter(_.userId === userId)
   }
@@ -73,7 +74,7 @@ object UserNotificationShowDAO {
   private[common] def getUserShowNotifications(userId: UUID): DBIO[Seq[UserNotificationShow]] =
     getUserShowNotificationsQuery(userId).result
 
-  private[this] val getNotificationsForShowQuery = Compiled {
+  private[this] lazy val getNotificationsForShowQuery = Compiled {
     (airingId: Rep[String]) =>
       UserNotificationShowTable.table.filter(_.airingId === airingId)
   }
@@ -81,7 +82,7 @@ object UserNotificationShowDAO {
   private[common] def getNotificationsForShow(airingId: String): DBIO[Seq[UserNotificationShow]] =
     getNotificationsForShowQuery(airingId).result
 
-  private[this] val getUserShowNotificationQuery = Compiled {
+  private[this] lazy val getUserShowNotificationQuery = Compiled {
     (userId: Rep[UUID], airingId: Rep[String]) =>
       UserNotificationShowTable.table.filter { uNS =>
         uNS.userId === userId &&
@@ -92,9 +93,13 @@ object UserNotificationShowDAO {
   private[common] def getUserShowNotification(userId: UUID, airingId: String): DBIO[Option[UserNotificationShow]] =
     getUserShowNotificationQuery(userId, airingId).result.headOption
 
-  private[common] def addUserShowNotification(userId: UUID, airingId: String): DBIO[UserNotificationShow] =
+  private[common] def addUserShowNotification(
+    userId: UUID,
+    airingId: String,
+    hash: Option[String] = None
+  ): DBIO[UserNotificationShow] =
     (UserNotificationShowTable.table returning UserNotificationShowTable.table) += UserNotificationShow(
-      userId, airingId
+      userId, airingId, hash, LocalDateTime.now()
     )
 
   private[common] def removeUserShowNotification(userId: UUID, airingId: String)(
@@ -106,13 +111,17 @@ object UserNotificationShowDAO {
       uSN.airingId === airingId
     }.delete.map(_ > 0)
 
-  private[common] def addOrGetUserShowNotification(userId: UUID, airingId: String)(
+  private[common] def addOrGetUserShowNotification(
+    userId: UUID,
+    airingId: String,
+    hash: Option[String] = None
+  )(
     implicit
     ec: ExecutionContext
   ): DBIO[UserNotificationShow] = for {
     exists <- getUserShowNotification(userId, airingId)
     uSN <- exists
       .map(DBIO.successful)
-      .getOrElse(addUserShowNotification(userId, airingId))
+      .getOrElse(addUserShowNotification(userId, airingId, hash))
   } yield uSN
 }

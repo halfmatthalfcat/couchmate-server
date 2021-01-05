@@ -8,6 +8,8 @@ object UserNotificationSeriesMigrations {
     _.create.addColumns(
       _.userId,
       _.seriesId,
+      _.hash,
+      _.created
     ).addPrimaryKeys(
       _.pk
     ).addForeignKeys(
