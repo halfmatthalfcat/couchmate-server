@@ -64,14 +64,15 @@ trait UserNotificationSeriesDAO {
   def addOrGetUserSeriesNotification(
     userId: UUID,
     seriesId: Long,
-    hash: Option[String] = None
+    hash: Option[String] = None,
+    onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationSeries] =
     db.run(UserNotificationSeriesDAO.addOrGetUserSeriesNotification(
-      userId, seriesId, hash
+      userId, seriesId, hash, onlyNew
     ))
 }
 
@@ -115,10 +116,11 @@ object UserNotificationSeriesDAO {
   private[common] def addUserSeriesNotification(
     userId: UUID,
     seriesId: Long,
-    hash: Option[String] = None
+    hash: Option[String] = None,
+    onlyNew: Boolean = true
   ): DBIO[UserNotificationSeries] =
     (UserNotificationSeriesTable.table returning UserNotificationSeriesTable.table) += UserNotificationSeries(
-      userId, seriesId, hash, LocalDateTime.now()
+      userId, seriesId, hash, onlyNew, LocalDateTime.now()
     )
 
   private[common] def removeUserSeriesNotification(
@@ -136,7 +138,8 @@ object UserNotificationSeriesDAO {
   private[common] def addOrGetUserSeriesNotification(
     userId: UUID,
     seriesId: Long,
-    hash: Option[String] = None
+    hash: Option[String] = None,
+    onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext
@@ -144,6 +147,6 @@ object UserNotificationSeriesDAO {
     exists <- getUserSeriesNotification(userId, seriesId)
     uSN <- exists
       .map(DBIO.successful)
-      .getOrElse(addUserSeriesNotification(userId, seriesId, hash))
+      .getOrElse(addUserSeriesNotification(userId, seriesId, hash, onlyNew))
   } yield uSN
 }

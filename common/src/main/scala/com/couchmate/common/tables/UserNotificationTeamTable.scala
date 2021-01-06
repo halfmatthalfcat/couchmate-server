@@ -11,12 +11,14 @@ class UserNotificationTeamTable(tag: Tag) extends Table[UserNotificationTeam](ta
   def userId: Rep[UUID] = column("user_id", O.SqlType("uuid"))
   def teamId: Rep[Long] = column("team_id")
   def hash: Rep[Option[String]] = column("hash")
+  def onlyNew: Rep[Boolean] = column("only_new")
   def created: Rep[LocalDateTime] = column("created")
 
   def * = (
     userId,
     teamId,
     hash,
+    onlyNew,
     created
   ) <> ((UserNotificationTeam.apply _).tupled, UserNotificationTeam.unapply)
 

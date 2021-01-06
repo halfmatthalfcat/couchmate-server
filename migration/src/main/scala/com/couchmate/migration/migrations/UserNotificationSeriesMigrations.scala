@@ -9,6 +9,7 @@ object UserNotificationSeriesMigrations {
       _.userId,
       _.seriesId,
       _.hash,
+      _.onlyNew,
       _.created
     ).addPrimaryKeys(
       _.pk

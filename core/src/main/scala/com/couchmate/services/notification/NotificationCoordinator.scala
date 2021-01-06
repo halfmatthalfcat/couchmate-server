@@ -31,10 +31,10 @@ object NotificationCoordinator
     ctx.log.info(s"Starting NotificationCoordinator")
 
     Behaviors.withTimers { timers =>
-      timers.startTimerAtFixedRate(
-        Run,
-        10 seconds
-      )
+//      timers.startTimerAtFixedRate(
+//        Run,
+//        10 seconds
+//      )
 
       Behaviors.receiveMessage {
         case Run =>

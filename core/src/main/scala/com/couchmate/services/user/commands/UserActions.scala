@@ -37,6 +37,7 @@ object UserActions
   with UserNotificationShowDAO
   with UserNotificationSeriesDAO
   with UserNotificationTeamDAO
+  with UserNotificationQueueDAO
   with ProviderDAO
   with GridDAO {
 
@@ -554,7 +555,8 @@ object UserActions
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationAdded] = for {
-    _ <- addOrGetUserShowNotification(userId, airingId)
+    _ <- addOrGetUserShowNotification(userId, airingId, true)
+    _ <- addUserShowNotification(userId, airingId)
     notifications <- getUserNotifications(userId)
   } yield UserNotificationAdded(notifications)
 
@@ -578,7 +580,8 @@ object UserActions
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationAdded] = for {
-    _ <- addOrGetUserTeamNotification(userId, teamId)
+    _ <- addOrGetUserTeamNotification(userId, teamId, None, true)
+    _ <- addUserTeamNotification(userId, teamId)
     notifications <- getUserNotifications(userId)
   } yield UserNotificationAdded(notifications)
 
@@ -602,7 +605,10 @@ object UserActions
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationAdded] = for {
-    _ <- addOrGetUserSeriesNotification(userId, seriesId)
+    _ <- addOrGetUserSeriesNotification(userId, seriesId, None, true)
+    _ <- addUserNotificationForSeries(
+      seriesId, userId, None, true
+    )
     notifications <- getUserNotifications(userId)
   } yield UserNotificationAdded(notifications)
 

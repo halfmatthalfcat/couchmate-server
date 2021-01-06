@@ -9,6 +9,7 @@ object UserNotificationTeamMigrations {
       _.userId,
       _.teamId,
       _.hash,
+      _.onlyNew,
       _.created
     ).addPrimaryKeys(
       _.pk

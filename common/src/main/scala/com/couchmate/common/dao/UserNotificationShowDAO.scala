@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.UserNotificationShow
+import com.couchmate.common.models.data.{UserNotificationQueueItem, UserNotificationShow}
 import com.couchmate.common.tables.UserNotificationShowTable
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -34,10 +34,11 @@ trait UserNotificationShowDAO {
     airingId: String
   )(
     implicit
-    db: Database
-  ): Future[UserNotificationShow] =
-    db.run(UserNotificationShowDAO.addUserShowNotification(
-      userId, airingId
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Seq[UserNotificationQueueItem]] =
+    db.run(UserNotificationQueueDAO.addUserNotificationForShow(
+      airingId, userId, None
     ))
 
   def removeUserShowNotification(
@@ -54,14 +55,15 @@ trait UserNotificationShowDAO {
 
   def addOrGetUserShowNotification(
     userId: UUID,
-    airingId: String
+    airingId: String,
+    onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationShow] =
     db.run(UserNotificationShowDAO.addOrGetUserShowNotification(
-      userId, airingId
+      userId, airingId, None, onlyNew
     ))
 }
 
@@ -96,10 +98,11 @@ object UserNotificationShowDAO {
   private[common] def addUserShowNotification(
     userId: UUID,
     airingId: String,
-    hash: Option[String] = None
+    hash: Option[String] = None,
+    onlyNew: Boolean = false
   ): DBIO[UserNotificationShow] =
     (UserNotificationShowTable.table returning UserNotificationShowTable.table) += UserNotificationShow(
-      userId, airingId, hash, LocalDateTime.now()
+      userId, airingId, hash, onlyNew, LocalDateTime.now()
     )
 
   private[common] def removeUserShowNotification(userId: UUID, airingId: String)(
@@ -114,7 +117,8 @@ object UserNotificationShowDAO {
   private[common] def addOrGetUserShowNotification(
     userId: UUID,
     airingId: String,
-    hash: Option[String] = None
+    hash: Option[String] = None,
+    onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext
@@ -122,6 +126,6 @@ object UserNotificationShowDAO {
     exists <- getUserShowNotification(userId, airingId)
     uSN <- exists
       .map(DBIO.successful)
-      .getOrElse(addUserShowNotification(userId, airingId, hash))
+      .getOrElse(addUserShowNotification(userId, airingId, hash, onlyNew))
   } yield uSN
 }

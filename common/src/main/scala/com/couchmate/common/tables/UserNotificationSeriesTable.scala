@@ -11,12 +11,14 @@ class UserNotificationSeriesTable(tag: Tag) extends Table[UserNotificationSeries
   def userId: Rep[UUID] = column("user_id", O.SqlType("uuid"))
   def seriesId: Rep[Long] = column("series_id")
   def hash: Rep[Option[String]] = column("hash")
+  def onlyNew: Rep[Boolean] = column("only_new")
   def created: Rep[LocalDateTime] = column("created")
 
   def * = (
     userId,
     seriesId,
     hash,
+    onlyNew,
     created
   ) <> ((UserNotificationSeries.apply _).tupled, UserNotificationSeries.unapply)
 

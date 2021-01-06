@@ -1,11 +1,13 @@
 package com.couchmate.common.dao
 
+import java.time.LocalDateTime
+
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
-import com.couchmate.common.models.data.Series
-import com.couchmate.common.tables.SeriesTable
+import com.couchmate.common.models.data.{Airing, Series}
+import com.couchmate.common.tables.{AiringTable, EpisodeTable, SeriesTable, ShowTable}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -43,6 +45,13 @@ trait SeriesDAO {
     db: Database
   ): Future[Option[Series]] =
     db.run(SeriesDAO.getSeriesByEpisode(episodeId))
+
+  def getUpcomingSeriesAirings(seriesId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Seq[Airing]] =
+    db.run(SeriesDAO.getUpcomingSeriesAirings(seriesId))
 
   def upsertSeries(series: Series)(
     implicit
@@ -87,6 +96,18 @@ object SeriesDAO {
     exists <- EpisodeDAO.getEpisode(episodeId)
     series <- exists.fold[DBIO[Option[Series]]](DBIO.successful(Option.empty))(e => getSeries(e.seriesId.get))
   } yield series
+
+  private[common] def getUpcomingSeriesAirings(seriesId: Long)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Seq[Airing]] = (for {
+    e <- EpisodeTable.table if e.seriesId === seriesId
+    s <- ShowTable.table if s.episodeId === e.episodeId
+    a <- AiringTable.table if (
+      a.showId === s.showId &&
+      a.startTime >= LocalDateTime.now()
+    )
+  } yield a).result
 
   private[common] def upsertSeries(series: Series)(
     implicit

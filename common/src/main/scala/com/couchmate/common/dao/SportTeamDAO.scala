@@ -1,8 +1,10 @@
 package com.couchmate.common.dao
 
+import java.time.LocalDateTime
+
 import com.couchmate.common.db.PgProfile.plainAPI._
-import com.couchmate.common.models.data.SportTeam
-import com.couchmate.common.tables.SportTeamTable
+import com.couchmate.common.models.data.{Airing, SportTeam}
+import com.couchmate.common.tables.{AiringTable, ShowTable, SportEventTable, SportEventTeamTable, SportTeamTable}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -43,6 +45,15 @@ object SportTeamDAO {
 
   private[common] def getSportTeamByExt(extSportTeamId: Long): DBIO[Option[SportTeam]] =
     getSportTeamByExtQuery(extSportTeamId).result.headOption
+
+  private[common] def getUpcomingSportTeamAirings(sportTeamId: Long): DBIO[Seq[Airing]] = (for {
+    sET <- SportEventTeamTable.table if sET.sportTeamId === sportTeamId
+    s <- ShowTable.table if s.sportEventId === sET.sportEventId
+    a <- AiringTable.table if (
+      a.showId === s.showId &&
+      a.startTime >= LocalDateTime.now()
+    )
+  } yield a).result
 
   private[common] def upsertSportTeam(sportTeam: SportTeam): DBIO[SportTeam] =
     (SportTeamTable.table returning SportTeamTable.table) += sportTeam

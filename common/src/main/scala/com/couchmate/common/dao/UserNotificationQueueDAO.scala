@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.{Airing, ApplicationPlatform, UserNotificationQueueItem}
+import com.couchmate.common.models.data.{Airing, ApplicationPlatform, Show, UserNotificationConfiguration, UserNotificationQueueItem, UserNotificationSeries, UserNotificationShow, UserNotificationTeam}
 import com.couchmate.common.tables.UserNotificationQueueTable
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -60,42 +60,78 @@ trait UserNotificationQueueDAO {
       item, success
     ))
 
-  def addUserNotificationsForShow(
-    airingId: String,
-    deliverAt: LocalDateTime
-  )(
+  def addUserNotificationsForShow(airingId: String)(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[Seq[UserNotificationQueueItem]] =
     db.run(UserNotificationQueueDAO.addUserNotificationsForShow(
-      airingId, deliverAt
+      airingId
+    ))
+
+  def addUserNotificationForShow(
+    airingId: String,
+    userId: UUID,
+    hash: Option[String]
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Seq[UserNotificationQueueItem]] =
+    db.run(UserNotificationQueueDAO.addUserNotificationForShow(
+      airingId, userId, hash
     ))
 
   def addUserNotificationsForEpisode(
     airingId: String,
-    episodeId: Long,
-    deliverAt: LocalDateTime
+    episodeId: Long
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[Seq[UserNotificationQueueItem]] =
     db.run(UserNotificationQueueDAO.addUserNotificationsForEpisode(
-      airingId, episodeId, deliverAt
+      airingId, episodeId
+    ))
+
+  def addUserNotificationForSeries(
+    seriesId: Long,
+    userId: UUID,
+    hash: Option[String],
+    onlyNew: Boolean
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Seq[UserNotificationQueueItem]] =
+    db.run(UserNotificationQueueDAO.addUserNotificationForSeries(
+      seriesId, userId, hash, onlyNew
     ))
 
   def addUserNotificationsForSport(
     airingId: String,
-    sportEventId: Long,
-    deliverAt: LocalDateTime
+    sportEventId: Long
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[Seq[UserNotificationQueueItem]] =
     db.run(UserNotificationQueueDAO.addUserNotificationsForSport(
-      airingId, sportEventId, deliverAt
+      airingId, sportEventId
+    ))
+
+  def addUserNotificationForSportTeam(
+    sportTeamId: Long,
+    userId: UUID,
+    hash: Option[String],
+    onlyNew: Boolean
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Seq[UserNotificationQueueItem]] =
+    db.run(UserNotificationQueueDAO.addUserNotificationForSportTeam(
+      sportTeamId, userId, hash, onlyNew
     ))
 
 }
@@ -151,14 +187,14 @@ object UserNotificationQueueDAO {
       userId, airingId, platform, deliverAt
     ).result.headOption
 
-  private[common] def addUserNotificationsForShow(
-    airingId: String,
-    deliverAt: LocalDateTime
-  )(
+  private[common] def addUserNotificationsForShow(airingId: String)(
     implicit
     ec: ExecutionContext
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
-    users <- UserNotificationShowDAO.getNotificationsForShow(airingId)
+    airing <- AiringDAO.getAiring(airingId)
+    users <- airing.fold[DBIO[Seq[UserNotificationShow]]](DBIO.successful(Seq.empty[UserNotificationShow]))(
+      a => UserNotificationShowDAO.getNotificationsForShow(airingId).map(_.filter(_.onlyNew == a.isNew))
+    )
     configurations <- DBIO.fold(
       users.map(user => UserNotificationConfigurationDAO.getUserNotificationConfigurations(
         user.userId
@@ -172,20 +208,49 @@ object UserNotificationQueueDAO {
         airingId = airingId,
         hash = users.find(_.userId == configuration.userId).flatMap(_.hash),
         applicationPlatform = configuration.platform,
-        deliverAt = deliverAt
+        // This should never throw because if there is no airing, we dont return any users
+        // and in turn, no configurations and we never reach this point
+        deliverAt = airing.get.startTime.minusMinutes(15)
       )))
     )
+  } yield notifications
+
+  private[common] def addUserNotificationForShow(
+    airingId: String,
+    userId: UUID,
+    hash: Option[String]
+  )(implicit ec: ExecutionContext): DBIO[Seq[UserNotificationQueueItem]] = for {
+    airing <- AiringDAO.getAiring(airingId)
+    _ <- UserNotificationShowDAO.addOrGetUserShowNotification(
+      userId, airingId, hash, true
+    )
+    configurations <- airing.fold[DBIO[Seq[UserNotificationConfiguration]]](DBIO.successful(Seq.empty))(
+      _ => UserNotificationConfigurationDAO.getUserNotificationConfigurations(userId)
+    )
+    notifications <- DBIO.sequence(
+      configurations.map(configuration => addOrGetUserNotificationQueueItem(UserNotificationQueueItem(
+        notificationId = UUID.randomUUID(),
+        userId = configuration.userId,
+        airingId = airingId,
+        hash = hash,
+        applicationPlatform = configuration.platform,
+        // This should never throw because if there is no airing, we dont return any users
+        // and in turn, no configurations and we never reach this point
+        deliverAt = airing.get.startTime.minusMinutes(15)
+      ))))
   } yield notifications
 
   private[common] def addUserNotificationsForEpisode(
     airingId: String,
-    episodeId: Long,
-    deliverAt: LocalDateTime
+    episodeId: Long
   )(
     implicit
     ec: ExecutionContext
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
-    users <- UserNotificationSeriesDAO.getNotificationsForEpisode(episodeId)
+    airing <- AiringDAO.getAiring(airingId)
+    users <- airing.fold[DBIO[Seq[UserNotificationSeries]]](DBIO.successful(Seq.empty))(
+      _ => UserNotificationSeriesDAO.getNotificationsForEpisode(episodeId)
+    )
     configurations <- DBIO.fold(
       users.map(user => UserNotificationConfigurationDAO.getUserNotificationConfigurations(
         user.userId
@@ -199,24 +264,57 @@ object UserNotificationQueueDAO {
         airingId = airingId,
         hash = users.find(_.userId == configuration.userId).flatMap(_.hash),
         applicationPlatform = configuration.platform,
-        deliverAt = deliverAt
+        // This should never throw because if there is no airing, we dont return any users
+        // and in turn, no configurations and we never reach this point
+        deliverAt = airing.get.startTime.minusMinutes(15)
       )))
     )
   } yield notifications
 
+  private[common] def addUserNotificationForSeries(
+    seriesId: Long,
+    userId: UUID,
+    hash: Option[String],
+    onlyNew: Boolean
+  )(implicit ec: ExecutionContext): DBIO[Seq[UserNotificationQueueItem]] = for {
+    series <- SeriesDAO.getSeries(seriesId)
+    airings <- series.fold[DBIO[Seq[Airing]]](DBIO.successful(Seq.empty))(
+      _ => SeriesDAO.getUpcomingSeriesAirings(seriesId)
+    )
+    _ <- UserNotificationSeriesDAO.addOrGetUserSeriesNotification(
+      userId, seriesId, hash, onlyNew
+    )
+    configurations <- UserNotificationConfigurationDAO.getUserNotificationConfigurations(userId)
+    n = airings.foldLeft[Seq[UserNotificationQueueItem]](Seq.empty)((acc, airing) => acc ++ configurations.map(
+      configuration => UserNotificationQueueItem(
+        notificationId = UUID.randomUUID(),
+        userId = configuration.userId,
+        airingId = airing.airingId.get,
+        hash = hash,
+        applicationPlatform = configuration.platform,
+        // This should never throw because if there is no airing, we dont return any users
+        // and in turn, no configurations and we never reach this point
+        deliverAt = airing.startTime.minusMinutes(15)
+      )
+    ))
+    notifications <- DBIO.sequence(n.map(addOrGetUserNotificationQueueItem))
+  } yield notifications
+
   private[common] def addUserNotificationsForSport(
     airingId: String,
-    sportEventId: Long,
-    deliverAt: LocalDateTime
+    sportEventId: Long
   )(
     implicit
     ec: ExecutionContext
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
     teams <- SportEventTeamDAO.getSportEventTeams(sportEventId)
-    users <- DBIO.fold(
-      teams.map(team => UserNotificationTeamDAO.getNotificationsForTeam(team.sportTeamId)),
-      Seq.empty
-    )(_ ++ _)
+    airing <- AiringDAO.getAiring(airingId)
+    users <- airing.fold[DBIO[Seq[UserNotificationTeam]]](DBIO.successful(Seq.empty))(
+      a => DBIO.fold(
+        teams.map(team => UserNotificationTeamDAO.getNotificationsForTeam(team.sportTeamId)),
+        Seq.empty
+      )(_ ++ _.filter(_.onlyNew == a.isNew))
+    )
     configurations <- DBIO.fold(
       users.map(user => UserNotificationConfigurationDAO.getUserNotificationConfigurations(
         user.userId
@@ -230,9 +328,40 @@ object UserNotificationQueueDAO {
         airingId = airingId,
         hash = users.find(_.userId == configuration.userId).flatMap(_.hash),
         applicationPlatform = configuration.platform,
-        deliverAt = deliverAt
+        // This should never throw because if there is no airing, we dont return any users
+        // and in turn, no configurations and we never reach this point
+        deliverAt = airing.get.startTime.minusMinutes(15)
       )))
     )
+  } yield notifications
+
+  private[common] def addUserNotificationForSportTeam(
+    sportTeamId: Long,
+    userId: UUID,
+    hash: Option[String],
+    onlyNew: Boolean
+  )(implicit ec: ExecutionContext): DBIO[Seq[UserNotificationQueueItem]] = for {
+    team <- SportTeamDAO.getSportTeam(sportTeamId)
+    airings <- team.fold[DBIO[Seq[Airing]]](DBIO.successful(Seq.empty))(
+      _ => SportTeamDAO.getUpcomingSportTeamAirings(sportTeamId)
+    )
+    _ <- UserNotificationTeamDAO.addOrGetUserTeamNotification(
+      userId, sportTeamId, hash, onlyNew
+    )
+    configurations <- UserNotificationConfigurationDAO.getUserNotificationConfigurations(userId)
+    n = airings.foldLeft[Seq[UserNotificationQueueItem]](Seq.empty)((acc, airing) => acc ++ configurations.map(
+      configuration => UserNotificationQueueItem(
+        notificationId = UUID.randomUUID(),
+        userId = configuration.userId,
+        airingId = airing.airingId.get,
+        hash = hash,
+        applicationPlatform = configuration.platform,
+        // This should never throw because if there is no airing, we dont return any users
+        // and in turn, no configurations and we never reach this point
+        deliverAt = airing.startTime.minusMinutes(15)
+      )
+    ))
+    notifications <- DBIO.sequence(n.map(addOrGetUserNotificationQueueItem))
   } yield notifications
 
   private[common] def addOrGetUserNotificationQueueItem(item: UserNotificationQueueItem)(

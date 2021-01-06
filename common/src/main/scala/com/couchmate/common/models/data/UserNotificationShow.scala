@@ -9,6 +9,7 @@ case class UserNotificationShow(
   userId: UUID,
   airingId: String,
   hash: Option[String],
+  onlyNew: Boolean,
   created: LocalDateTime
 )
 

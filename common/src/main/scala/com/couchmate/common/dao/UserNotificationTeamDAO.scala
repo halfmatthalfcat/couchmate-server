@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.UserNotificationTeam
+import com.couchmate.common.models.data.{UserNotificationQueueItem, UserNotificationTeam}
 import com.couchmate.common.tables.UserNotificationTeamTable
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -37,12 +37,16 @@ trait UserNotificationTeamDAO {
   ): Future[Seq[UserNotificationTeam]] =
     db.run(UserNotificationTeamDAO.getNotificationsForSportEvent(sportEventId))
 
-  def addUserTeamNotification(userId: UUID, teamId: Long)(
+  def addUserTeamNotification(
+    userId: UUID,
+    teamId: Long
+  )(
     implicit
-    db: Database
-  ): Future[UserNotificationTeam] =
-    db.run(UserNotificationTeamDAO.addUserTeamNotification(
-      userId, teamId
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Seq[UserNotificationQueueItem]] =
+    db.run(UserNotificationQueueDAO.addUserNotificationForSportTeam(
+      teamId, userId, None, true
     ))
 
   def removeUserTeamNotification(userId: UUID, teamId: Long)(
@@ -57,14 +61,15 @@ trait UserNotificationTeamDAO {
   def addOrGetUserTeamNotification(
     userId: UUID,
     teamId: Long,
-    hash: Option[String] = None
+    hash: Option[String] = None,
+    onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationTeam] =
     db.run(UserNotificationTeamDAO.addOrGetUserTeamNotification(
-      userId, teamId, hash
+      userId, teamId, hash, onlyNew
     ))
 }
 
@@ -110,10 +115,11 @@ object UserNotificationTeamDAO {
   private[common] def addUserTeamNotification(
     userId: UUID,
     teamId: Long,
-    hash: Option[String] = None
+    hash: Option[String] = None,
+    onlyNew: Boolean = false
   ): DBIO[UserNotificationTeam] =
     (UserNotificationTeamTable.table returning UserNotificationTeamTable.table ) += UserNotificationTeam(
-      userId, teamId, hash, LocalDateTime.now()
+      userId, teamId, hash, onlyNew, LocalDateTime.now()
     )
 
   private[common] def removeUserTeamNotification(userId: UUID, teamId: Long)(
@@ -128,14 +134,15 @@ object UserNotificationTeamDAO {
   private[common] def addOrGetUserTeamNotification(
     userId: UUID,
     teamId: Long,
-    hash: Option[String]
+    hash: Option[String],
+    onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext
   ): DBIO[UserNotificationTeam] = for {
     exists <- getUserTeamNotification(userId, teamId)
     uNT <- exists.map(DBIO.successful).getOrElse(addUserTeamNotification(
-      userId, teamId, hash
+      userId, teamId, hash, onlyNew
     ))
   } yield uNT
 }

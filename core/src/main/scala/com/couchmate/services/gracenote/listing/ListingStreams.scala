@@ -173,19 +173,16 @@ object ListingStreams
       if (show.sportEventId.nonEmpty) {
         addUserNotificationsForSport(
           l.airingId,
-          show.sportEventId.get,
-          gracenoteAiring.startTime.minusMinutes(15)
+          show.sportEventId.get
         )
       } else if (show.episodeId.nonEmpty) {
         addUserNotificationsForEpisode(
           l.airingId,
-          show.episodeId.get,
-          gracenoteAiring.startTime.minusMinutes(15)
+          show.episodeId.get
         )
       } else {
         addUserNotificationsForShow(
-          l.airingId,
-          gracenoteAiring.startTime.minusMinutes(15)
+          l.airingId
         )
       }
     }

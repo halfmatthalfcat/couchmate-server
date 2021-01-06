@@ -9,6 +9,7 @@ case class UserNotificationSeries(
   userId: UUID,
   seriesId: Long,
   hash: Option[String],
+  onlyNew: Boolean,
   created: LocalDateTime
 )
 

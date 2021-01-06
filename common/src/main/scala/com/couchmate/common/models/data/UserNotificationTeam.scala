@@ -9,6 +9,7 @@ case class UserNotificationTeam(
   userId: UUID,
   teamId: Long,
   hash: Option[String],
+  onlyNew: Boolean,
   created: LocalDateTime
 )
 
