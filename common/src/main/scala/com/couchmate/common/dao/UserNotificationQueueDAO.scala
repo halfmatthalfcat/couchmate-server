@@ -1,6 +1,6 @@
 package com.couchmate.common.dao
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneId}
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
@@ -10,6 +10,12 @@ import com.couchmate.common.tables.UserNotificationQueueTable
 import scala.concurrent.{ExecutionContext, Future}
 
 trait UserNotificationQueueDAO {
+
+  def getUserNotificationQueueItem(notificationId: UUID)(
+    implicit
+    db: Database
+  ): Future[Option[UserNotificationQueueItem]] =
+    db.run(UserNotificationQueueDAO.getUserNotificationQueueItem(notificationId))
 
   def getUserNotificationQueueItemsForUser(userId: UUID)(
     implicit
@@ -54,15 +60,15 @@ trait UserNotificationQueueDAO {
     db.run(UserNotificationQueueDAO.addOrGetUserNotificationQueueItem(item))
 
   def deliverUserNotificationItem(
-    item: UserNotificationQueueItem,
+    notificationId: UUID,
     success: Boolean
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[UserNotificationQueueItem] =
+  ): Future[Boolean] =
     db.run(UserNotificationQueueDAO.deliverUserNotificationItem(
-      item, success
+      notificationId, success
     ))
 
   def addUserNotificationsForShow(airingId: String)(
@@ -142,6 +148,14 @@ trait UserNotificationQueueDAO {
 }
 
 object UserNotificationQueueDAO {
+  private[this] lazy val getUserNotificationQueueItemQuery = Compiled {
+    (notificationId: Rep[UUID]) =>
+      UserNotificationQueueTable.table.filter(_.notificationId === notificationId)
+  }
+
+  private[common] def getUserNotificationQueueItem(notificationId: UUID): DBIO[Option[UserNotificationQueueItem]] =
+    getUserNotificationQueueItemQuery(notificationId).result.headOption
+
   private[this] lazy val getUserNotificationQueueItemsForUserQuery = Compiled {
     (userId: Rep[UUID]) =>
       UserNotificationQueueTable.table.filter(_.userId === userId)
@@ -429,40 +443,18 @@ object UserNotificationQueueDAO {
   } yield uNQ
 
   private[common] def deliverUserNotificationItem(
-    item: UserNotificationQueueItem,
+    notificationId: UUID,
     success: Boolean
-  )(implicit ec: ExecutionContext): DBIO[UserNotificationQueueItem] = for {
-    exists <- getUserNotificationItemForUserAiringAndPlatform(
-      item.userId, item.airingId, item.applicationPlatform, item.deliverAt
-    )
-    toInsert = exists.map(_.copy(
-      deliveredAt = Some(LocalDateTime.now()),
-      success = success
-    )).getOrElse(UserNotificationQueueItem(
-      notificationId = UUID.randomUUID(),
-      userId = item.userId,
-      airingId = item.airingId,
-      applicationPlatform = item.applicationPlatform,
-      token = None,
-      hash = None,
-      title = "Show Reminder",
-      deliverAt = LocalDateTime.now(),
-      deliveredAt = Some(LocalDateTime.now()),
-      success = success
-    ))
-    uNQ <- exists.map(_ => (for {
-      cUNQ <- UserNotificationQueueTable.table if (
-        cUNQ.userId === item.userId &&
-        cUNQ.airingId === item.airingId &&
-        cUNQ.platform === item.applicationPlatform &&
-        cUNQ.deliverAt === item.deliverAt
-      )
-    } yield (cUNQ.deliveredAt, cUNQ.success)).update((
-      Some(LocalDateTime.now()), success
-    )).map(_ => toInsert)).getOrElse(
-      (UserNotificationQueueTable.table returning UserNotificationQueueTable.table) += toInsert
-    )
-  } yield uNQ
+  )(implicit ec: ExecutionContext): DBIO[Boolean] = for {
+    exists <- getUserNotificationQueueItem(notificationId)
+    notification <- exists.fold[DBIO[Boolean]](DBIO.successful(false))(
+      n => (for {
+        cUNQ <- UserNotificationQueueTable.table
+          if cUNQ.notificationId === n.notificationId
+      } yield (cUNQ.deliveredAt, cUNQ.success)).update((
+        Some(LocalDateTime.now(ZoneId.of("UTC"))), success
+      )).map(r => r > 0))
+  } yield notification
 
   private[this] def getShowTitle(airing: Option[Airing])(
     implicit

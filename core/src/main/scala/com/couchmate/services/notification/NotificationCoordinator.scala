@@ -1,6 +1,6 @@
 package com.couchmate.services.notification
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneId}
 import java.time.temporal.ChronoUnit
 
 import akka.actor.typed.Behavior
@@ -12,7 +12,7 @@ import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{ApplicationPlatform, UserNotificationQueueItem}
 import com.couchmate.common.util.DateUtils
 import com.couchmate.util.akka.extensions.{APNSExtension, DatabaseExtension}
-import com.malliina.push.apns.{APNSError, APNSIdentifier}
+import play.api.libs.json.JsString
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -27,7 +27,9 @@ object NotificationCoordinator
   private final case class Send(items: Seq[UserNotificationQueueItem]) extends Command
   private final case class SendError(ex: Throwable) extends Command
 
-  private final case class SendResults(results: Seq[Either[APNSError, APNSIdentifier]]) extends Command
+  private final case class SendResults(
+    results: Seq[Either[NotificationFailure, NotificationSuccess]]
+  ) extends Command
 
   private sealed trait Event
 
@@ -46,15 +48,16 @@ object NotificationCoordinator
     ctx.log.info(s"Starting NotificationCoordinator")
 
     Behaviors.withTimers { timers =>
-//      timers.startTimerAtFixedRate(
-//        Run,
-//        1 minute
-//      )
+      timers.startTimerAtFixedRate(
+        Run,
+        1 minute
+      )
 
       def commandHandler: (State, Command) => Effect[Event, State] =
         (_, command) => command match {
           case Run =>
             Effect.persist(IncMinute).thenRun(state => {
+              ctx.log.info(s"Running notifications for ${state.currentMinute.toString}")
               ctx.pipeToSelf(getUserNotificationItems(
                 state.lastMinute,
                 state.currentMinute
@@ -66,8 +69,15 @@ object NotificationCoordinator
           case Send(items) => Effect.none.thenRun(_ => {
             ctx.pipeToSelf(
               Future.sequence(items.collect({
-                case UserNotificationQueueItem(_, _, _, _, title, _, Some(token), _, _, _, _) => apns.sendNotification(
-                  token, title, Some("Click to join the conversation!")
+                case UserNotificationQueueItem(notificationId, _, airingId, hash, title, ApplicationPlatform.iOS, Some(token), _, _, _, _) => apns.sendNotification(
+                  notificationId,
+                  token,
+                  "is starting soon! Click to join the conversation on Couchmate.",
+                  Some(title),
+                  Map(
+                    "airingId" -> JsString(airingId),
+                    "hash" -> hash.map(JsString).getOrElse(JsString("general"))
+                  )
                 )
               })),
             ) {
@@ -76,14 +86,13 @@ object NotificationCoordinator
             }
           })
           case SendResults(results) => Effect.none.thenRun(_ => {
-            ctx.log.info(s"Got ${results.size} results back from notifications")
-            results.foreach {
-              case Left(value) =>
-                ctx.log.info(s"Notification error: ${value.reason}")
-              case Right(value) =>
-                ctx.log.info(s"Notification successful: ${value.id}")
-            }
-
+            Future.sequence(results.collect({
+              case Right(NotificationSuccess(notificationId)) =>
+                deliverUserNotificationItem(notificationId, true)
+              case Left(NotificationFailure(notificationId, cause, description)) =>
+                ctx.log.error(s"Failed to deliver notification: ${cause}:${description}")
+                deliverUserNotificationItem(notificationId, false)
+            }))
           })
           case SendError(ex) => Effect.none.thenRun(_ => {
             ctx.log.error(s"Got APNS send error", ex)
@@ -94,12 +103,12 @@ object NotificationCoordinator
         (state, event) => event match {
           case IncMinute => state.copy(
             lastMinute = state.currentMinute,
-            currentMinute = state.currentMinute.plusMinutes(1)
+            currentMinute = DateUtils.roundNearestMinute(LocalDateTime.now(ZoneId.of("UTC")))
           )
         }
 
       val initDate: LocalDateTime =
-        DateUtils.roundNearestMinute(LocalDateTime.now())
+        DateUtils.roundNearestMinute(LocalDateTime.now(ZoneId.of("UTC")))
 
       EventSourcedBehavior(
         PersistenceId.ofUniqueId("NotificationCoordinator"),

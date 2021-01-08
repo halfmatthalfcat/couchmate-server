@@ -1,11 +1,14 @@
 package com.couchmate.util.akka.extensions
 
+import java.util.UUID
+
 import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
+import com.couchmate.services.notification.{NotificationFailure, NotificationSuccess}
 import com.malliina.push.apns._
 import com.typesafe.config.ConfigFactory
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsString, JsValue}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 
 class APNSExtension(system: ActorSystem[_]) extends Extension {
@@ -27,24 +30,28 @@ class APNSExtension(system: ActorSystem[_]) extends Extension {
   )
 
   def sendNotification(
+    notificationId: UUID,
     token: String,
-    body: String,
-    title: Option[String] = None,
-    data: Map[String, JsValue] = Map()
-  ): Future[Either[APNSError, APNSIdentifier]] =
+    title: String,
+    body: Option[String] = None,
+    data: Map[String, JsString] = Map()
+  )(implicit ec: ExecutionContext): Future[Either[NotificationFailure, NotificationSuccess]] =
     client.push(
       APNSToken.build(token).get,
       APNSRequest.withTopic(
         topic,
         APNSMessage(
           APSPayload.full(
-            AlertPayload(body, title),
+            AlertPayload(title, body),
             badge = Some(0),
             sound = Some("default")
           )
         ).copy(data = data)
       )
-    )
+    ) map {
+      case Left(value) => Left(NotificationFailure(notificationId, Some(value.reason), Some(value.description)))
+      case Right(_) => Right(NotificationSuccess(notificationId))
+    }
 
 }
 

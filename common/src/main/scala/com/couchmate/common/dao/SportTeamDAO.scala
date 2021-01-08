@@ -1,6 +1,6 @@
 package com.couchmate.common.dao
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneId}
 
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.{Airing, SportTeam}
@@ -51,7 +51,7 @@ object SportTeamDAO {
     s <- ShowTable.table if s.sportEventId === sET.sportEventId
     a <- AiringTable.table if (
       a.showId === s.showId &&
-      a.startTime >= LocalDateTime.now()
+      a.startTime >= LocalDateTime.now(ZoneId.of("UTC"))
     )
   } yield a).result
 

@@ -1,6 +1,6 @@
 package com.couchmate.common.dao
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneId}
 
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
@@ -105,7 +105,7 @@ object SeriesDAO {
     s <- ShowTable.table if s.episodeId === e.episodeId
     a <- AiringTable.table if (
       a.showId === s.showId &&
-      a.startTime >= LocalDateTime.now()
+      a.startTime >= LocalDateTime.now(ZoneId.of("UTC"))
     )
   } yield a).result
 
