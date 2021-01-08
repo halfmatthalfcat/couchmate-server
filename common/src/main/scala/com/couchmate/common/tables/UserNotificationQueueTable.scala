@@ -12,7 +12,9 @@ class UserNotificationQueueTable(tag: Tag) extends Table[UserNotificationQueueIt
   def userId: Rep[UUID] = column("user_id", O.SqlType("uuid"))
   def airingId: Rep[String] = column("airing_id")
   def hash: Rep[Option[String]] = column("hash")
+  def title: Rep[String] = column("title")
   def platform: Rep[ApplicationPlatform] = column("platform")
+  def token: Rep[Option[String]] = column("token")
   def deliverAt: Rep[LocalDateTime] = column("deliver_at")
   def deliveredAt: Rep[Option[LocalDateTime]] = column("delivered_at")
   def success: Rep[Boolean] = column("success")
@@ -23,7 +25,9 @@ class UserNotificationQueueTable(tag: Tag) extends Table[UserNotificationQueueIt
     userId,
     airingId,
     hash,
+    title,
     platform,
+    token,
     deliverAt,
     deliveredAt,
     success,
@@ -32,7 +36,7 @@ class UserNotificationQueueTable(tag: Tag) extends Table[UserNotificationQueueIt
 
   def uniqueIdx = index(
     "user_notification_unique_idx",
-    (userId, airingId, platform, deliverAt),
+    (userId, airingId, platform, token),
     unique = true
   )
 

@@ -11,6 +11,7 @@ class UserActivityTable(tag: Tag) extends Table[UserActivity](tag, "user_activit
   def userId: Rep[UUID] = column[UUID]("user_id", O.SqlType("uuid"))
   def action: Rep[UserActivityType] = column[UserActivityType]("action")
   def created: Rep[LocalDateTime] = column[LocalDateTime]("created", O.SqlType("timestamp"))
+  def deviceId: Rep[Option[String]] = column[Option[String]]("device_id")
   def os: Rep[Option[String]] = column[Option[String]]("os")
   def osVersion: Rep[Option[String]] = column[Option[String]]("os_version")
   def brand: Rep[Option[String]] = column[Option[String]]("brand")
@@ -20,6 +21,7 @@ class UserActivityTable(tag: Tag) extends Table[UserActivity](tag, "user_activit
     userId,
     action,
     created,
+    deviceId,
     os,
     osVersion,
     brand,

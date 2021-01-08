@@ -14,7 +14,7 @@ import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser.{Disconnected, HashRoomChanged, RoomJoined, RoomLeft, State, UpdateGrid}
 import com.couchmate.services.user.commands.ConnectedCommands.addUserActivity
 import com.couchmate.services.user.commands.InitialCommands.getGrid
-import com.couchmate.services.user.context.{GeoContext, RoomContext, UserContext}
+import com.couchmate.services.user.context.{DeviceContext, GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, SingletonExtension}
 
@@ -26,6 +26,7 @@ object RoomCommands
   private[user] def disconnect(
     userContext: UserContext,
     geoContext: GeoContext,
+    device: Option[DeviceContext],
     roomContext: RoomContext
   )(
     implicit
@@ -54,10 +55,11 @@ object RoomCommands
     .thenRun((_: State) => addUserActivity(UserActivity(
       userContext.user.userId.get,
       UserActivityType.Logout,
-      os = Option.empty,
-      osVersion = Option.empty,
-      brand = Option.empty,
-      model = Option.empty,
+      os = device.flatMap(_.os),
+      osVersion = device.flatMap(_.osVersion),
+      brand = device.flatMap(_.brand),
+      model = device.flatMap(_.model),
+      deviceId = device.map(_.deviceId)
     )))
 
   private[user] def roomJoined(

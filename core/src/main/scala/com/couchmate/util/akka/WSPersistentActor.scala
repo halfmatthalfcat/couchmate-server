@@ -12,7 +12,7 @@ import akka.stream.typed.scaladsl.{ActorSink, ActorSource}
 import com.couchmate.Server
 import com.couchmate.api.ws.protocol.External.Disconnect
 import com.couchmate.api.ws.protocol.Protocol
-import com.couchmate.services.user.context.{GeoContext, UserContext}
+import com.couchmate.services.user.context.{DeviceContext, GeoContext, UserContext}
 import com.couchmate.util.akka.extensions.UserExtension
 import com.typesafe.scalalogging.LazyLogging
 import play.api.libs.json.Json
@@ -38,17 +38,23 @@ object WSPersistentActor extends LazyLogging {
   private[this] def switchboard(
     currentUserId: UUID,
     geoContext: GeoContext,
+    device: Option[DeviceContext],
     userExtension: UserExtension,
     socket: Option[ActorRef[Command]]
   ): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.receiveMessage {
       case SetUser(userId) =>
-        userExtension.connect(userId, geoContext, ctx.self)
-        switchboard(userId, geoContext, userExtension, socket)
+        userExtension.connect(
+          userId,
+          geoContext,
+          device,
+          ctx.self
+        )
+        switchboard(userId, geoContext, device, userExtension, socket)
       case SetSocket(socket) =>
         ctx.watchWith(socket, Terminate)
-        userExtension.connect(currentUserId, geoContext, ctx.self)
-        switchboard(currentUserId, geoContext, userExtension, Some(socket))
+        userExtension.connect(currentUserId, geoContext, device, ctx.self)
+        switchboard(currentUserId, geoContext, device, userExtension, Some(socket))
       case IncomingMessage(protocol: Protocol) =>
         userExtension.incomingMessage(currentUserId, protocol)
         Behaviors.same
@@ -68,12 +74,19 @@ object WSPersistentActor extends LazyLogging {
   def apply(
     userId: UUID,
     geo: GeoContext,
+    device: Option[DeviceContext],
     userExtension: UserExtension,
     ctx: ActorContext[Server.Command]
   ): Flow[Message, Message, NotUsed] = {
     val sb: ActorRef[Command] =
       ctx.spawn(
-        switchboard(userId, geo, userExtension, Option.empty),
+        switchboard(
+          userId,
+          geo,
+          device,
+          userExtension,
+          Option.empty
+        ),
         s"$userId-switchboard"
       )
     val incomingSink: Sink[Message, NotUsed] = Flow[Message]

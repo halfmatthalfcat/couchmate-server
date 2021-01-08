@@ -9,7 +9,8 @@ object UserNotificationConfigurationMigrations {
       _.userId,
       _.platform,
       _.active,
-      _.token
+      _.token,
+      _.deviceId
     ).addPrimaryKeys(
       _.pk
     ).addForeignKeys(

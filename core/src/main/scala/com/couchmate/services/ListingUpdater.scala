@@ -89,7 +89,7 @@ object ListingUpdater
 
     ctx.self ! ColdStart
 
-    ctx.self ! StartUpdate
+    ctx.self ! StartShortRefresh
 
     def commandHandler: (State, Command) => Effect[Event, State] = {
       (_, command) => command match {

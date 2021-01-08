@@ -8,7 +8,8 @@ case class UserNotificationConfiguration(
   userId: UUID,
   active: Boolean,
   platform: ApplicationPlatform,
-  token: Option[String]
+  token: Option[String],
+  deviceId: Option[String]
 )
 
 object UserNotificationConfiguration {

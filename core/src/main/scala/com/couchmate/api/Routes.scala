@@ -1,5 +1,7 @@
 package com.couchmate.api
 
+import java.util.UUID
+
 import akka.actor.typed.scaladsl.ActorContext
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
@@ -9,7 +11,7 @@ import com.couchmate.Server
 import com.couchmate.api.http.{ListingRoutes, UserRoutes}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.services.user.commands.UserActions
-import com.couchmate.services.user.context.GeoContext
+import com.couchmate.services.user.context.{DeviceContext, GeoContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{JwtExtension, UserExtension}
 import com.typesafe.config.Config
@@ -59,7 +61,41 @@ trait Routes
               case Success(userId) => handleWebSocketMessages(
                 WSPersistentActor(userId, GeoContext(
                   locale, tz, region,
-                ), user, ctx)
+                ), Option.empty, user, ctx)
+              )
+              case Failure(ex) =>
+                ctx.log.error(s"Failed to getOrCreate user: $token", ex)
+                complete(StatusCodes.InternalServerError)
+            }
+          }
+        }
+      },
+      pathPrefix("v3") {
+        path("ws") {
+          parameters(
+            Symbol("token").as[Option[String]],
+            Symbol("tz").as[String],
+            Symbol("locale").as[String],
+            Symbol("region").as[String],
+            Symbol("model").as[Option[String]],
+            Symbol("brand").as[Option[String]],
+            Symbol("osVersion").as[Option[String]],
+            Symbol("os").as[Option[String]],
+            Symbol("deviceId").as[String]
+          ) { case (token, tz, locale, region, model, brand, osVersion, os, deviceId) =>
+            onComplete(UserActions.getOrCreateUser(token, GeoContext(
+              locale, tz, region,
+            ))) {
+              case Success(userId) => handleWebSocketMessages(
+                WSPersistentActor(userId, GeoContext(
+                  locale, tz, region,
+                ), Some(DeviceContext(
+                  deviceId,
+                  os,
+                  osVersion,
+                  brand,
+                  model
+                )), user, ctx)
               )
               case Failure(ex) =>
                 ctx.log.error(s"Failed to getOrCreate user: $token", ex)

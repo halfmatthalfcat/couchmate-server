@@ -77,7 +77,8 @@ object UserRoutes
               os = None,
               osVersion = None,
               brand = None,
-              model = None
+              model = None,
+              deviceId = Some("web"),
             ))
           } yield ()) {
             case Success(_) =>

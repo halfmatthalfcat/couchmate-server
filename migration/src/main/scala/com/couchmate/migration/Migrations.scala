@@ -48,7 +48,8 @@ object Migrations extends LazyLogging {
     UserNotificationShowMigrations.init,
     UserNotificationSeriesMigrations.init,
     UserNotificationTeamMigrations.init,
-    UserNotificationQueueMigrations.init
+    UserNotificationQueueMigrations.init,
+    UserActivityMigrations.addDeviceId
   )
 
   private[this] def applyMigrations()(

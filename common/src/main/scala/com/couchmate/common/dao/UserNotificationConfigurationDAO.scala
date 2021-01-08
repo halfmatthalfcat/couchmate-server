@@ -18,13 +18,14 @@ trait UserNotificationConfigurationDAO {
 
   def getUserNotificationConfiguration(
     userId: UUID,
-    platform: ApplicationPlatform
+    platform: ApplicationPlatform,
+    deviceId: Option[String]
   )(
     implicit
     db: Database
   ): Future[Option[UserNotificationConfiguration]] =
     db.run(UserNotificationConfigurationDAO.getUserNotificationConfiguration(
-      userId, platform
+      userId, platform, deviceId
     ))
 
   def getActiveUserNotificationConfigurationsForPlatform(app: ApplicationPlatform)(
@@ -71,10 +72,11 @@ object UserNotificationConfigurationDAO {
     getActiveUserNotificationConfigurationsForPlatformQuery(app).result
 
   private[this] lazy val getUserNotificationConfigurationQuery = Compiled {
-    (userId: Rep[UUID], app: Rep[ApplicationPlatform]) =>
+    (userId: Rep[UUID], app: Rep[ApplicationPlatform], deviceId: Rep[Option[String]]) =>
       UserNotificationConfigurationTable.table.filter { un =>
         un.userId === userId &&
-        un.platform === app
+        un.platform === app &&
+        un.deviceId === deviceId
       }
   }
 
@@ -82,8 +84,12 @@ object UserNotificationConfigurationDAO {
     configurations <- UserNotificationConfigurationTable.table if configurations.userId === userId
   } yield configurations.active).update(active)
 
-  private[common] def getUserNotificationConfiguration(userId: UUID, app: ApplicationPlatform): DBIO[Option[UserNotificationConfiguration]] =
-    getUserNotificationConfigurationQuery(userId, app).result.headOption
+  private[common] def getUserNotificationConfiguration(
+    userId: UUID,
+    app: ApplicationPlatform,
+    deviceId: Option[String]
+  ): DBIO[Option[UserNotificationConfiguration]] =
+    getUserNotificationConfigurationQuery(userId, app, deviceId).result.headOption
 
   private[common] def upsertUserNotificationConfiguration(notification: UserNotificationConfiguration)(
     implicit
@@ -91,13 +97,15 @@ object UserNotificationConfigurationDAO {
   ): DBIO[UserNotificationConfiguration] = for {
     n <- getUserNotificationConfiguration(
       notification.userId,
-      notification.platform
+      notification.platform,
+      notification.deviceId
     )
     newNotification <- n.fold[DBIO[UserNotificationConfiguration]](
       (UserNotificationConfigurationTable.table returning UserNotificationConfigurationTable.table) += notification
     )(_ => UserNotificationConfigurationTable.table.filter { uNC =>
       uNC.userId === notification.userId &&
-      uNC.platform === notification.platform
+      uNC.platform === notification.platform &&
+      uNC.deviceId === notification.deviceId
     }.map(uNC => (uNC.active, uNC.token))
      .update((notification.active, notification.token))
      .map(_ => notification))

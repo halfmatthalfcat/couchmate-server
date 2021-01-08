@@ -19,7 +19,7 @@ import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.TenorService.{GetTenorTrending, SearchTenor}
 import com.couchmate.services.room.{Chatroom, RoomId}
 import com.couchmate.services.user.commands.{ConnectedCommands, EmptyCommands, InitialCommands, RoomCommands, UserActions}
-import com.couchmate.services.user.context.{GeoContext, RoomContext, UserContext}
+import com.couchmate.services.user.context.{DeviceContext, GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{DatabaseExtension, JwtExtension, MailExtension, PromExtension, RoomExtension, SingletonExtension, UserExtension}
 
@@ -42,6 +42,7 @@ object PersistentUser {
   // Connect this PersistentUser to a websocket-based actor
   final case class Connect(
     geo: GeoContext,
+    device: Option[DeviceContext],
     ws: ActorRef[WSPersistentActor.Command]
   ) extends Command
   final case object Disconnect extends Command
@@ -132,6 +133,7 @@ object PersistentUser {
 
   final case class Connected(
     geo: GeoContext,
+    device: Option[DeviceContext],
     ws: ActorRef[WSPersistentActor.Command]
   ) extends Event
   final case object Disconnected extends Event
@@ -160,12 +162,14 @@ object PersistentUser {
   final case class ConnectedState(
     userContext: UserContext,
     geo: GeoContext,
+    device: Option[DeviceContext],
     ws: ActorRef[WSPersistentActor.Command]
   ) extends State
 
   final case class RoomState(
     userContext: UserContext,
     geo: GeoContext,
+    device: Option[DeviceContext],
     ws: ActorRef[WSPersistentActor.Command],
     roomContext: RoomContext
   ) extends State
@@ -221,10 +225,11 @@ object PersistentUser {
           userContext,
           roomContext,
         ) => command match {
-          case Connect(geo, ws) =>
+          case Connect(geo, device, ws) =>
             InitialCommands.connect(
               userContext,
               geo,
+              device,
               ws,
               roomContext
             )
@@ -241,6 +246,7 @@ object PersistentUser {
         case ConnectedState(
           userContext,
           geo,
+          device,
           ws,
         ) => command match {
           /**
@@ -248,10 +254,10 @@ object PersistentUser {
            * or responses to actions taken by a user. Most of these
            * are not persisted to state but only serve as a request/reply.
            */
-          case Connect(geo, ws) =>
-            InitialCommands.connect(userContext, geo, ws, Option.empty)
+          case Connect(geo, device, ws) =>
+            InitialCommands.connect(userContext, geo, device, ws, Option.empty)
           case Disconnect =>
-            ConnectedCommands.disconnect(userContext, geo)
+            ConnectedCommands.disconnect(userContext, geo, device)
           case UpdateGrid(grid) =>
             ConnectedCommands.updateGrid(grid, ws)
           case validated: EmailValidated =>
@@ -332,7 +338,8 @@ object PersistentUser {
                 team = notifications.teams.map(_.teamId)
               )
             ))
-          case UserNotificationAddFailed(_) => Effect.none
+          case UserNotificationAddFailed(ex) =>
+            Effect.none.thenRun(_ => ctx.log.error("Unable to add Notification", ex))
           case UserNotificationRemoved(notifications) =>
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
               External.UpdateNotifications(
@@ -414,7 +421,8 @@ object PersistentUser {
               ConnectedCommands.enableNotifications(
                 userContext.user.userId.get,
                 os,
-                token
+                token,
+                device.map(_.deviceId)
               )
             case External.DisableNotifications =>
               ConnectedCommands.disableNotifications(
@@ -468,12 +476,12 @@ object PersistentUser {
         /**
          * RoomState: The user is connected and currently in a room
          */
-        case RoomState(userContext, geo, ws, roomContext) => command match {
+        case RoomState(userContext, geo, device, ws, roomContext) => command match {
           /**
            * Any incoming Websocket messages while in-room
            */
           case Disconnect =>
-            RoomCommands.disconnect(userContext, geo, roomContext)
+            RoomCommands.disconnect(userContext, geo, device, roomContext)
           case TenorTrending(keywords) =>
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
               External.TenorTrendingResults(keywords)
@@ -600,13 +608,13 @@ object PersistentUser {
             InitialState(userContext, Option.empty)
         }
         case InitialState(userContext, _) => event match {
-          case Connected(geo, ws) => ConnectedState(
-            userContext, geo, ws
+          case Connected(geo, device, ws) => ConnectedState(
+            userContext, geo, device, ws
           )
         }
-        case state @ ConnectedState(userContext, geo, ws) => event match {
-          case Connected(geo, ws) => ConnectedState(
-            userContext, geo, ws
+        case state @ ConnectedState(userContext, geo, device, ws) => event match {
+          case Connected(geo, device, ws) => ConnectedState(
+            userContext, geo, device, ws
           )
           case Disconnected => InitialState(
             userContext,
@@ -643,6 +651,7 @@ object PersistentUser {
           case RoomJoined(airingId, roomId) => RoomState(
             userContext,
             geo,
+            device,
             ws,
             RoomContext(
               airingId,
@@ -652,10 +661,11 @@ object PersistentUser {
           case RoomLeft => ConnectedState(
             userContext,
             geo,
+            device,
             ws
           )
         }
-        case state @ RoomState(userContext, geo, ws, roomContext) => event match {
+        case state @ RoomState(userContext, geo, device, ws, roomContext) => event match {
           case Disconnected => InitialState(
             userContext,
             Some(roomContext)
@@ -663,6 +673,7 @@ object PersistentUser {
           case RoomLeft => ConnectedState(
             userContext,
             geo,
+            device,
             ws
           )
           case HashRoomChanged(roomId) => state.copy(

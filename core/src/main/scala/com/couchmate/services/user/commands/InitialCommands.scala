@@ -10,7 +10,7 @@ import com.couchmate.common.models.data.{UserActivity, UserActivityType}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser._
-import com.couchmate.services.user.context.{GeoContext, RoomContext, UserContext}
+import com.couchmate.services.user.context.{DeviceContext, GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, SingletonExtension}
 
@@ -20,9 +20,11 @@ import scala.util.Success
 object InitialCommands
   extends GridDAO
   with UserActivityDAO {
+
   private[user] def connect(
     userContext: UserContext,
     geo: GeoContext,
+    device: Option[DeviceContext],
     ws: ActorRef[WSPersistentActor.Command],
     roomContext: Option[RoomContext]
   )(
@@ -36,7 +38,7 @@ object InitialCommands
     room: RoomExtension
   ): Effect[Connected, State] = roomContext.fold(
     Effect
-      .persist(Connected(geo, ws))
+      .persist(Connected(geo, device, ws))
       .thenRun((_: State) => metrics.incSession(
         userContext.providerId,
         userContext.providerName,
@@ -46,10 +48,11 @@ object InitialCommands
       .thenRun((_: State) => addUserActivity(UserActivity(
         userId = userContext.user.userId.get,
         action = UserActivityType.Login,
-        os = Option.empty,
-        osVersion = Option.empty,
-        brand = Option.empty,
-        model = Option.empty
+        os = device.flatMap(_.os),
+        osVersion = device.flatMap(_.osVersion),
+        brand = device.flatMap(_.brand),
+        model = device.flatMap(_.model),
+        deviceId = device.map(_.deviceId)
       )))
       .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(External.SetSession(
         userContext.getClientUser,
@@ -65,7 +68,7 @@ object InitialCommands
         case Success(value) => UpdateGrid(value)
       })
       .thenRun({
-        case ConnectedState(_, _, ws) => ctx.watchWith(
+        case ConnectedState(_, _, _, ws) => ctx.watchWith(
           ws,
           Disconnect,
         )
@@ -74,7 +77,7 @@ object InitialCommands
       .thenUnstashAll()
   ) { roomContext =>
     Effect
-      .persist(Connected(geo, ws))
+      .persist(Connected(geo, device, ws))
       .thenRun((_: State) => metrics.incSession(
         userContext.providerId,
         userContext.providerName,
@@ -84,10 +87,11 @@ object InitialCommands
       .thenRun((_: State) => addUserActivity(UserActivity(
         userId = userContext.user.userId.get,
         action = UserActivityType.Login,
-        os = Option.empty,
-        osVersion = Option.empty,
-        brand = Option.empty,
-        model = Option.empty
+        os = device.flatMap(_.os),
+        osVersion = device.flatMap(_.osVersion),
+        brand = device.flatMap(_.brand),
+        model = device.flatMap(_.model),
+        deviceId = device.map(_.deviceId)
       )))
       .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(External.SetSession(
         userContext.getClientUser,
@@ -100,7 +104,7 @@ object InitialCommands
         Some(roomContext.roomId.name)
       ))
       .thenRun({
-        case ConnectedState(_, _, ws) => ctx.watchWith(
+        case ConnectedState(_, _, _, ws) => ctx.watchWith(
           ws,
           Disconnect,
         )

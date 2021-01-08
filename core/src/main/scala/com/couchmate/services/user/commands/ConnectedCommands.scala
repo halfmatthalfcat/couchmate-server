@@ -14,7 +14,7 @@ import com.couchmate.common.models.data.{ApplicationPlatform, User, UserActivity
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser._
-import com.couchmate.services.user.context.{GeoContext, UserContext}
+import com.couchmate.services.user.context.{DeviceContext, GeoContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{JwtExtension, MailExtension, PromExtension, SingletonExtension, UserExtension}
 
@@ -26,7 +26,8 @@ object ConnectedCommands
 
   private[user] def disconnect(
     userContext: UserContext,
-    geo: GeoContext
+    geo: GeoContext,
+    device: Option[DeviceContext]
   )(
     implicit
     ctx: ActorContext[PersistentUser.Command],
@@ -50,10 +51,11 @@ object ConnectedCommands
     .thenRun((_: State) => addUserActivity(UserActivity(
       userContext.user.userId.get,
       UserActivityType.Logout,
-      os = Option.empty,
-      osVersion = Option.empty,
-      brand = Option.empty,
-      model = Option.empty,
+      os = device.flatMap(_.os),
+      osVersion = device.flatMap(_.osVersion),
+      brand = device.flatMap(_.brand),
+      model = device.flatMap(_.model),
+      deviceId = device.map(_.deviceId)
     )))
     .thenRun((_: State) => ctx.log.debug(s"User ${userContext.user.userId.get} disconnected"))
     .thenStop
@@ -175,7 +177,7 @@ object ConnectedCommands
       )
     ))
     .thenRun {
-      case ConnectedState(userContext, _, ws) =>
+      case ConnectedState(userContext, _, _, ws) =>
         ws ! WSPersistentActor.OutgoingMessage(
           External.VerifyAccountSuccess(userContext.getClientUser)
         )
@@ -315,7 +317,7 @@ object ConnectedCommands
     Effect
       .persist(UsernameUpdated(userMeta))
       .thenRun({
-        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+        case ConnectedState(userContext, _, _, ws) => ws ! WSPersistentActor.OutgoingMessage(
           External.UpdateUsernameSuccess(userContext.getClientUser)
         )
       })
@@ -337,7 +339,7 @@ object ConnectedCommands
     Effect
       .persist(ParticipantMuted(mutes))
       .thenRun({
-        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+        case ConnectedState(_, _, _, ws) => ws ! WSPersistentActor.OutgoingMessage(
           External.UpdateMutes(mutes)
         )
       })
@@ -359,7 +361,7 @@ object ConnectedCommands
     Effect
       .persist(ParticipantUnmuted(mutes))
       .thenRun({
-        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+        case ConnectedState(userContext, _, _, ws) => ws ! WSPersistentActor.OutgoingMessage(
           External.UpdateMutes(userContext.mutes)
         )
       })
@@ -381,7 +383,7 @@ object ConnectedCommands
     Effect
       .persist(WordMuted(mutes))
       .thenRun({
-        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+        case ConnectedState(userContext, _, _, ws) => ws ! WSPersistentActor.OutgoingMessage(
           External.UpdateWordMutes(userContext.wordMutes)
         )
       })
@@ -403,7 +405,7 @@ object ConnectedCommands
     Effect
       .persist(WordUnmuted(mutes))
       .thenRun({
-        case ConnectedState(userContext, geo, ws) => ws ! WSPersistentActor.OutgoingMessage(
+        case ConnectedState(userContext, _, _, ws) => ws ! WSPersistentActor.OutgoingMessage(
           External.UpdateWordMutes(userContext.wordMutes)
         )
       })
@@ -411,7 +413,8 @@ object ConnectedCommands
   private[user] def enableNotifications(
     userId: UUID,
     os: ApplicationPlatform,
-    token: String
+    token: String,
+    deviceId: Option[String]
   )(
     implicit
     ec: ExecutionContext,
@@ -419,7 +422,7 @@ object ConnectedCommands
     ctx: ActorContext[PersistentUser.Command]
   ): EffectBuilder[Nothing, State] = Effect
     .none
-    .thenRun(_ => ctx.pipeToSelf(UserActions.enableNotifications(userId, os, token)) {
+    .thenRun(_ => ctx.pipeToSelf(UserActions.enableNotifications(userId, os, token, deviceId)) {
       case Success(_) => EnabledNotifications
       case Failure(exception) => EnableNotificationsFailed(exception)
     })

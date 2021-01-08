@@ -11,17 +11,19 @@ class UserNotificationConfigurationTable(tag: Tag) extends Table[UserNotificatio
   def platform: Rep[ApplicationPlatform] = column[ApplicationPlatform]("application_platform")
   def active: Rep[Boolean] = column[Boolean]("active")
   def token: Rep[Option[String]] = column[Option[String]]("token")
+  def deviceId: Rep[Option[String]] = column("device_id")
 
   def * = (
     userId,
     active,
     platform,
-    token
+    token,
+    deviceId
   ) <> ((UserNotificationConfiguration.apply _).tupled, UserNotificationConfiguration.unapply)
 
   def pk = primaryKey(
     "user_notification_pk",
-    (userId, platform, token)
+    (userId, platform, deviceId)
   )
 
   def userIdFk = foreignKey(

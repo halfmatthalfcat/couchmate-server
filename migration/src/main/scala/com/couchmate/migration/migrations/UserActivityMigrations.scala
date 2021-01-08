@@ -24,4 +24,10 @@ object UserActivityMigrations {
     )
   )()
 
+  val addDeviceId = MigrationItem(38L, UserActivityTable.table)(
+    _.addColumns(
+      _.deviceId
+    )
+  )()
+
 }

@@ -9,6 +9,7 @@ case class UserActivity(
   userId: UUID,
   action: UserActivityType,
   created: LocalDateTime = LocalDateTime.now(ZoneId.of("UTC")),
+  deviceId: Option[String],
   os: Option[String],
   osVersion: Option[String],
   brand: Option[String],

@@ -10,7 +10,7 @@ import com.couchmate.api.ws.protocol.Protocol
 import com.couchmate.services.room.Chatroom
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser.{Disconnect, RoomMessage, WSMessage}
-import com.couchmate.services.user.context.GeoContext
+import com.couchmate.services.user.context.{DeviceContext, GeoContext}
 import com.couchmate.util.akka.WSPersistentActor
 
 class UserExtension(system: ActorSystem[_]) extends Extension {
@@ -31,11 +31,12 @@ class UserExtension(system: ActorSystem[_]) extends Extension {
   def connect(
     userId: UUID,
     geo: GeoContext,
+    device: Option[DeviceContext],
     ws: ActorRef[WSPersistentActor.Command]
   ): Unit = {
     shardRegion ! ShardingEnvelope(
       userId.toString,
-      PersistentUser.Connect(geo, ws)
+      PersistentUser.Connect(geo, device, ws)
     )
   }
 

@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.{Airing, ApplicationPlatform, Show, UserNotificationConfiguration, UserNotificationQueueItem, UserNotificationSeries, UserNotificationShow, UserNotificationTeam}
+import com.couchmate.common.models.data.{Airing, ApplicationPlatform, Show, SportEventTeam, UserNotificationConfiguration, UserNotificationQueueItem, UserNotificationSeries, UserNotificationShow, UserNotificationTeam}
 import com.couchmate.common.tables.UserNotificationQueueTable
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -25,11 +25,16 @@ trait UserNotificationQueueDAO {
       userId, platform
     ))
 
-  def getUserNotificationItemsForDeliveryAt(deliveryAt: LocalDateTime)(
+  def getUserNotificationItemsForDelivery(deliveryAt: LocalDateTime)(
     implicit
     db: Database
   ): Future[Seq[UserNotificationQueueItem]] =
-    db.run(UserNotificationQueueDAO.getUserNotificationItemsForDeliveryAt(deliveryAt))
+    db.run(UserNotificationQueueDAO.getUserNotificationItemsForDelivery(deliveryAt))
+
+  def getUserNotificationItemsForDeliveryRange(
+    from: LocalDateTime, to: LocalDateTime
+  )(implicit db: Database): Future[Seq[UserNotificationQueueItem]] =
+    db.run(UserNotificationQueueDAO.getUserNotificationItemsForDeliveryRange(from, to))
 
   def getUserNotificationItemForUserAiringAndPlatform(
     userId: UUID,
@@ -159,13 +164,13 @@ object UserNotificationQueueDAO {
   ): DBIO[Seq[UserNotificationQueueItem]] =
     getUserNotificationQueueItemsForUserAndPlatformQuery(userId, platform).result
 
-  private[this] lazy val getUserNotificationItemsForDeliveryAtQuery = Compiled {
+  private[this] lazy val getUserNotificationItemsForDeliveryQuery = Compiled {
     (deliverAt: Rep[LocalDateTime]) =>
       UserNotificationQueueTable.table.filter(_.deliverAt === deliverAt)
   }
 
-  private[common] def getUserNotificationItemsForDeliveryAt(deliverAt: LocalDateTime): DBIO[Seq[UserNotificationQueueItem]] =
-    getUserNotificationItemsForDeliveryAtQuery(deliverAt).result
+  private[common] def getUserNotificationItemsForDelivery(deliverAt: LocalDateTime): DBIO[Seq[UserNotificationQueueItem]] =
+    getUserNotificationItemsForDeliveryQuery(deliverAt).result
 
   private[this] lazy val getUserNotificationItemForUserAiringAndPlatformQuery = Compiled {
     (userId: Rep[UUID], airingId: Rep[String], platform: Rep[ApplicationPlatform], deliverAt: Rep[LocalDateTime]) =>
@@ -187,11 +192,25 @@ object UserNotificationQueueDAO {
       userId, airingId, platform, deliverAt
     ).result.headOption
 
+  private[this] lazy val getUserNotificationItemsForDeliveryRangeQuery = Compiled {
+    (from: Rep[LocalDateTime], to: Rep[LocalDateTime]) =>
+      UserNotificationQueueTable.table.filter { uNQ =>
+        uNQ.deliverAt.between(from, to)
+      }
+  }
+
+  private[common] def getUserNotificationItemsForDeliveryRange(
+    from: LocalDateTime, to: LocalDateTime
+  ): DBIO[Seq[UserNotificationQueueItem]] =
+    getUserNotificationItemsForDeliveryRangeQuery(from, to).result
+
   private[common] def addUserNotificationsForShow(airingId: String)(
     implicit
-    ec: ExecutionContext
+    ec: ExecutionContext,
+    db: Database
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
     airing <- AiringDAO.getAiring(airingId)
+    title <- getShowTitle(airing)
     users <- airing.fold[DBIO[Seq[UserNotificationShow]]](DBIO.successful(Seq.empty[UserNotificationShow]))(
       a => UserNotificationShowDAO.getNotificationsForShow(airingId).map(_.filter(_.onlyNew == a.isNew))
     )
@@ -207,7 +226,9 @@ object UserNotificationQueueDAO {
         userId = configuration.userId,
         airingId = airingId,
         hash = users.find(_.userId == configuration.userId).flatMap(_.hash),
+        title = title,
         applicationPlatform = configuration.platform,
+        token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
         // and in turn, no configurations and we never reach this point
         deliverAt = airing.get.startTime.minusMinutes(15)
@@ -219,8 +240,13 @@ object UserNotificationQueueDAO {
     airingId: String,
     userId: UUID,
     hash: Option[String]
-  )(implicit ec: ExecutionContext): DBIO[Seq[UserNotificationQueueItem]] = for {
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): DBIO[Seq[UserNotificationQueueItem]] = for {
     airing <- AiringDAO.getAiring(airingId)
+    title <- getShowTitle(airing)
     _ <- UserNotificationShowDAO.addOrGetUserShowNotification(
       userId, airingId, hash, true
     )
@@ -233,7 +259,9 @@ object UserNotificationQueueDAO {
         userId = configuration.userId,
         airingId = airingId,
         hash = hash,
+        title = title,
         applicationPlatform = configuration.platform,
+        token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
         // and in turn, no configurations and we never reach this point
         deliverAt = airing.get.startTime.minusMinutes(15)
@@ -245,9 +273,11 @@ object UserNotificationQueueDAO {
     episodeId: Long
   )(
     implicit
-    ec: ExecutionContext
+    ec: ExecutionContext,
+    db: Database
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
     airing <- AiringDAO.getAiring(airingId)
+    title <- getShowTitle(airing)
     users <- airing.fold[DBIO[Seq[UserNotificationSeries]]](DBIO.successful(Seq.empty))(
       _ => UserNotificationSeriesDAO.getNotificationsForEpisode(episodeId)
     )
@@ -263,7 +293,9 @@ object UserNotificationQueueDAO {
         userId = configuration.userId,
         airingId = airingId,
         hash = users.find(_.userId == configuration.userId).flatMap(_.hash),
+        title = title,
         applicationPlatform = configuration.platform,
+        token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
         // and in turn, no configurations and we never reach this point
         deliverAt = airing.get.startTime.minusMinutes(15)
@@ -276,10 +308,16 @@ object UserNotificationQueueDAO {
     userId: UUID,
     hash: Option[String],
     onlyNew: Boolean
-  )(implicit ec: ExecutionContext): DBIO[Seq[UserNotificationQueueItem]] = for {
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): DBIO[Seq[UserNotificationQueueItem]] = for {
     series <- SeriesDAO.getSeries(seriesId)
-    airings <- series.fold[DBIO[Seq[Airing]]](DBIO.successful(Seq.empty))(
-      _ => SeriesDAO.getUpcomingSeriesAirings(seriesId)
+    airings <- series.fold[DBIO[Seq[(Airing, String)]]](DBIO.successful(Seq.empty))(
+      _ => SeriesDAO.getUpcomingSeriesAirings(seriesId).flatMap(results => DBIO.sequence(
+        results.map(a2 => getShowTitle(Some(a2)).map(title => (a2, title)))
+      ))
     )
     _ <- UserNotificationSeriesDAO.addOrGetUserSeriesNotification(
       userId, seriesId, hash, onlyNew
@@ -289,12 +327,14 @@ object UserNotificationQueueDAO {
       configuration => UserNotificationQueueItem(
         notificationId = UUID.randomUUID(),
         userId = configuration.userId,
-        airingId = airing.airingId.get,
+        airingId = airing._1.airingId.get,
         hash = hash,
+        title = airing._2,
         applicationPlatform = configuration.platform,
+        token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
         // and in turn, no configurations and we never reach this point
-        deliverAt = airing.startTime.minusMinutes(15)
+        deliverAt = airing._1.startTime.minusMinutes(15)
       )
     ))
     notifications <- DBIO.sequence(n.map(addOrGetUserNotificationQueueItem))
@@ -305,10 +345,12 @@ object UserNotificationQueueDAO {
     sportEventId: Long
   )(
     implicit
-    ec: ExecutionContext
+    ec: ExecutionContext,
+    db: Database
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
     teams <- SportEventTeamDAO.getSportEventTeams(sportEventId)
     airing <- AiringDAO.getAiring(airingId)
+    title <- getShowTitle(airing)
     users <- airing.fold[DBIO[Seq[UserNotificationTeam]]](DBIO.successful(Seq.empty))(
       a => DBIO.fold(
         teams.map(team => UserNotificationTeamDAO.getNotificationsForTeam(team.sportTeamId)),
@@ -327,7 +369,9 @@ object UserNotificationQueueDAO {
         userId = configuration.userId,
         airingId = airingId,
         hash = users.find(_.userId == configuration.userId).flatMap(_.hash),
+        title = title,
         applicationPlatform = configuration.platform,
+        token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
         // and in turn, no configurations and we never reach this point
         deliverAt = airing.get.startTime.minusMinutes(15)
@@ -340,10 +384,16 @@ object UserNotificationQueueDAO {
     userId: UUID,
     hash: Option[String],
     onlyNew: Boolean
-  )(implicit ec: ExecutionContext): DBIO[Seq[UserNotificationQueueItem]] = for {
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): DBIO[Seq[UserNotificationQueueItem]] = for {
     team <- SportTeamDAO.getSportTeam(sportTeamId)
-    airings <- team.fold[DBIO[Seq[Airing]]](DBIO.successful(Seq.empty))(
-      _ => SportTeamDAO.getUpcomingSportTeamAirings(sportTeamId)
+    airings <- team.fold[DBIO[Seq[(Airing, String)]]](DBIO.successful(Seq.empty))(
+      _ => SportTeamDAO.getUpcomingSportTeamAirings(sportTeamId).flatMap(results => DBIO.sequence(
+        results.map(a2 => getShowTitle(Some(a2)).map(title => (a2, title)))
+      ))
     )
     _ <- UserNotificationTeamDAO.addOrGetUserTeamNotification(
       userId, sportTeamId, hash, onlyNew
@@ -353,12 +403,14 @@ object UserNotificationQueueDAO {
       configuration => UserNotificationQueueItem(
         notificationId = UUID.randomUUID(),
         userId = configuration.userId,
-        airingId = airing.airingId.get,
+        airingId = airing._1.airingId.get,
         hash = hash,
+        title = airing._2,
         applicationPlatform = configuration.platform,
+        token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
         // and in turn, no configurations and we never reach this point
-        deliverAt = airing.startTime.minusMinutes(15)
+        deliverAt = airing._1.startTime.minusMinutes(15)
       )
     ))
     notifications <- DBIO.sequence(n.map(addOrGetUserNotificationQueueItem))
@@ -391,7 +443,9 @@ object UserNotificationQueueDAO {
       userId = item.userId,
       airingId = item.airingId,
       applicationPlatform = item.applicationPlatform,
+      token = None,
       hash = None,
+      title = "Show Reminder",
       deliverAt = LocalDateTime.now(),
       deliveredAt = Some(LocalDateTime.now()),
       success = success
@@ -409,4 +463,30 @@ object UserNotificationQueueDAO {
       (UserNotificationQueueTable.table returning UserNotificationQueueTable.table) += toInsert
     )
   } yield uNQ
+
+  private[this] def getShowTitle(airing: Option[Airing])(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): DBIO[String] = airing.fold[DBIO[String]](
+    DBIO.successful("Show Reminder")
+  )(a => for {
+    s <- ShowDAO.getShow(a.showId)
+    e <- s
+      .map(_.episodeId)
+      .map(eId => eId.fold[DBIO[Option[String]]](DBIO.successful(Option.empty))(
+        eId => SeriesDAO.getSeriesByEpisode(eId).map(_.map(_.seriesName))
+      )).getOrElse(DBIO.successful(Option.empty))
+    sport <- s
+      .map(_.sportEventId)
+      .map(sEId => sEId.fold[DBIO[Option[String]]](DBIO.successful(Option.empty))(
+        sEId => SportEventDAO.getSportEvent(sEId).map(_.map(_.sportEventTitle))
+      )).getOrElse(DBIO.successful(Option.empty))
+  } yield {
+    if (sport.nonEmpty) {
+      sport.get
+    } else if (e.nonEmpty) {
+      e.get
+    } else { s.map(_.title).getOrElse("Show Reminder") }
+  })
 }

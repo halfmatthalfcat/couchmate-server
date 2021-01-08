@@ -16,7 +16,7 @@ import com.couchmate.common.models.api.user.{UserMute => ExternalUserMute}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser.{EmailValidated, UserNotificationAdded, UserNotificationRemoved, UsernameValidated}
-import com.couchmate.services.user.context.{GeoContext, UserContext}
+import com.couchmate.services.user.context.{DeviceContext, GeoContext, UserContext}
 import com.couchmate.util.akka.extensions.{JwtExtension, MailExtension}
 import com.couchmate.util.jwt.Jwt.ExpiredJwtError
 import com.github.halfmatthalfcat.moniker.Moniker
@@ -76,7 +76,7 @@ object UserActions
 
   def getOrCreateUser(
     maybeToken: Option[String],
-    geo: GeoContext,
+    geo: GeoContext
   )(
     implicit
     ec: ExecutionContext,
@@ -90,7 +90,9 @@ object UserActions
       Map("scope" -> "access")
     ).toOption
   } yield claims.userId) match {
-    case None => createUser(geo).map(_.userId.get)
+    case None => for {
+      userId <- createUser(geo).map(_.userId.get)
+    } yield userId
     case Some(userId) => for {
       exists <- getUser(userId)
       userId <- exists.fold(
@@ -532,13 +534,14 @@ object UserActions
   private[commands] def enableNotifications(
     userId: UUID,
     os: ApplicationPlatform,
-    token: String
+    token: String,
+    deviceId: Option[String]
   )(
     implicit
     ec: ExecutionContext,
     db: Database,
   ): Future[UserNotificationConfiguration] = upsertUserNotificationConfiguration(UserNotificationConfiguration(
-    userId, active = true, os, Some(token)
+    userId, active = true, os, Some(token), deviceId
   ))
 
   private[commands] def disableNotifications(userId: UUID)(

@@ -5,12 +5,11 @@ import java.time.format.DateTimeFormatter
 
 object DateUtils {
 
-  def roundNearestHour(dateTime: LocalDateTime): LocalDateTime = {
-    dateTime
-      .withSecond(0)
-      .withMinute(0)
-      .withNano(0)
-  }
+  def roundNearestHour(dateTime: LocalDateTime): LocalDateTime =
+    roundNearestMinute(dateTime).withMinute(0)
+
+  def roundNearestMinute(dateTime: LocalDateTime): LocalDateTime =
+    dateTime.withSecond(0).withNano(0)
 
   def toLocalDateTime(formats: DateTimeFormatter*)(value: String): LocalDateTime = {
     val dateTime: Option[LocalDateTime] = formats.foldLeft[Option[LocalDateTime]](None) { (resolved: Option[LocalDateTime], format: DateTimeFormatter) =>
