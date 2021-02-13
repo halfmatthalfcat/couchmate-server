@@ -4,8 +4,9 @@ import java.time.{LocalDateTime, ZoneId}
 import java.util.UUID
 
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.{Airing, ApplicationPlatform, Show, SportEventTeam, UserNotificationConfiguration, UserNotificationQueueItem, UserNotificationSeries, UserNotificationShow, UserNotificationTeam}
-import com.couchmate.common.tables.UserNotificationQueueTable
+import com.couchmate.common.models.data._
+import com.couchmate.common.tables._
+import com.typesafe.config.Config
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -71,80 +72,133 @@ trait UserNotificationQueueDAO {
       notificationId, success
     ))
 
-  def addUserNotificationsForShow(airingId: String)(
+  def addUserNotificationsForShow(
+    airingId: String,
+    providerChannelId: Long
+  )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    config: Config
   ): Future[Seq[UserNotificationQueueItem]] =
     db.run(UserNotificationQueueDAO.addUserNotificationsForShow(
-      airingId
+      airingId, providerChannelId
     ))
 
   def addUserNotificationForShow(
-    airingId: String,
     userId: UUID,
-    hash: Option[String]
+    airingId: String,
+    providerChannelId: Long,
+    hash: String
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[Seq[UserNotificationQueueItem]] =
     db.run(UserNotificationQueueDAO.addUserNotificationForShow(
-      airingId, userId, hash
+      userId, airingId, providerChannelId, hash
     ))
 
   def addUserNotificationsForEpisode(
     airingId: String,
-    episodeId: Long
+    episodeId: Long,
+    providerChannelId: Long
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    config: Config
   ): Future[Seq[UserNotificationQueueItem]] =
     db.run(UserNotificationQueueDAO.addUserNotificationsForEpisode(
-      airingId, episodeId
+      airingId, episodeId, providerChannelId
     ))
 
   def addUserNotificationForSeries(
-    seriesId: Long,
     userId: UUID,
-    hash: Option[String],
+    seriesId: Long,
+    providerChannelId: Long,
+    hash: String,
     onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Seq[UserNotificationQueueItem]] =
+  ): Future[Int] =
     db.run(UserNotificationQueueDAO.addUserNotificationForSeries(
-      seriesId, userId, hash, onlyNew
+      userId, seriesId, providerChannelId, hash, onlyNew
     ))
 
   def addUserNotificationsForSport(
     airingId: String,
+    providerChannelId: Long,
     sportEventId: Long
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    config: Config
   ): Future[Seq[UserNotificationQueueItem]] =
     db.run(UserNotificationQueueDAO.addUserNotificationsForSport(
-      airingId, sportEventId
+      airingId, providerChannelId, sportEventId
     ))
 
   def addUserNotificationForSportTeam(
-    sportTeamId: Long,
     userId: UUID,
-    hash: Option[String],
+    teamId: Long,
+    providerId: Long,
+    hash: String,
     onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Seq[UserNotificationQueueItem]] =
+  ): Future[Int] =
     db.run(UserNotificationQueueDAO.addUserNotificationForSportTeam(
-      sportTeamId, userId, hash, onlyNew
+      userId, teamId, providerId, hash, onlyNew
     ))
 
+  def updateNotificationRead(notificationId: UUID)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Boolean] =
+    db.run(UserNotificationQueueDAO.updateNotificationRead(notificationId))
+
+  def removeUserNotificationForShow(
+    userId: UUID,
+    airingId: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Int] =
+    db.run(UserNotificationQueueDAO.removeUserNotificationForShow(userId, airingId))
+
+  def removeUserNotificationForSeries(
+    userId: UUID,
+    seriesId: Long,
+    providerChannelId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Int] =
+    db.run(UserNotificationQueueDAO.removeUserNotificationForSeries(
+      userId, seriesId, providerChannelId
+    ))
+
+  def removeUserNotificationForTeam(
+    userId: UUID,
+    sportOrganizationTeamId: Long,
+    providerId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Int] =
+    db.run(UserNotificationQueueDAO.removeUserNotificationForTeam(
+      userId, sportOrganizationTeamId, providerId
+    ))
 }
 
 object UserNotificationQueueDAO {
@@ -218,15 +272,20 @@ object UserNotificationQueueDAO {
   ): DBIO[Seq[UserNotificationQueueItem]] =
     getUserNotificationItemsForDeliveryRangeQuery(from, to).result
 
-  private[common] def addUserNotificationsForShow(airingId: String)(
+  private[common] def addUserNotificationsForShow(
+    airingId: String,
+    providerChannelId: Long,
+  )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    config: Config
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
     airing <- AiringDAO.getAiring(airingId)
     title <- getShowTitle(airing)
+    channel <- ChannelDAO.getChannelForProviderChannel(providerChannelId)
     users <- airing.fold[DBIO[Seq[UserNotificationShow]]](DBIO.successful(Seq.empty[UserNotificationShow]))(
-      a => UserNotificationShowDAO.getNotificationsForShow(airingId).map(_.filter(_.onlyNew == a.isNew))
+      _ => UserNotificationShowDAO.getNotificationsForShow(airingId, providerChannelId)
     )
     configurations <- DBIO.fold(
       users.map(user => UserNotificationConfigurationDAO.getUserNotificationConfigurations(
@@ -239,8 +298,13 @@ object UserNotificationQueueDAO {
         notificationId = UUID.randomUUID(),
         userId = configuration.userId,
         airingId = airingId,
-        hash = users.find(_.userId == configuration.userId).flatMap(_.hash),
+        notificationType = UserNotificationQueueItemType.Show,
+        hash = users
+          .find(_.userId == configuration.userId)
+          .map(_.hash)
+          .getOrElse(config.getString("features.room.default")),
         title = title,
+        callsign = channel.map(_.callsign),
         applicationPlatform = configuration.platform,
         token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
@@ -251,9 +315,10 @@ object UserNotificationQueueDAO {
   } yield notifications
 
   private[common] def addUserNotificationForShow(
-    airingId: String,
     userId: UUID,
-    hash: Option[String]
+    airingId: String,
+    providerChannelId: Long,
+    hash: String
   )(
     implicit
     ec: ExecutionContext,
@@ -261,9 +326,7 @@ object UserNotificationQueueDAO {
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
     airing <- AiringDAO.getAiring(airingId)
     title <- getShowTitle(airing)
-    _ <- UserNotificationShowDAO.addOrGetUserShowNotification(
-      userId, airingId, hash, true
-    )
+    channel <- ChannelDAO.getChannelForProviderChannel(providerChannelId)
     configurations <- airing.fold[DBIO[Seq[UserNotificationConfiguration]]](DBIO.successful(Seq.empty))(
       _ => UserNotificationConfigurationDAO.getUserNotificationConfigurations(userId)
     )
@@ -272,8 +335,10 @@ object UserNotificationQueueDAO {
         notificationId = UUID.randomUUID(),
         userId = configuration.userId,
         airingId = airingId,
+        notificationType = UserNotificationQueueItemType.Show,
         hash = hash,
         title = title,
+        callsign = channel.map(_.callsign),
         applicationPlatform = configuration.platform,
         token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
@@ -284,16 +349,24 @@ object UserNotificationQueueDAO {
 
   private[common] def addUserNotificationsForEpisode(
     airingId: String,
-    episodeId: Long
+    episodeId: Long,
+    providerChannelId: Long
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    config: Config
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
     airing <- AiringDAO.getAiring(airingId)
     title <- getShowTitle(airing)
+    channel <- ChannelDAO.getChannelForProviderChannel(providerChannelId)
     users <- airing.fold[DBIO[Seq[UserNotificationSeries]]](DBIO.successful(Seq.empty))(
-      _ => UserNotificationSeriesDAO.getNotificationsForEpisode(episodeId)
+      a => UserNotificationSeriesDAO
+        .getNotificationsForEpisode(episodeId, providerChannelId)
+        .map(_.filter {
+          case notification: UserNotificationSeries if notification.onlyNew => a.isNew
+          case _ => true
+        })
     )
     configurations <- DBIO.fold(
       users.map(user => UserNotificationConfigurationDAO.getUserNotificationConfigurations(
@@ -306,8 +379,13 @@ object UserNotificationQueueDAO {
         notificationId = UUID.randomUUID(),
         userId = configuration.userId,
         airingId = airingId,
-        hash = users.find(_.userId == configuration.userId).flatMap(_.hash),
+        notificationType = UserNotificationQueueItemType.Episode,
+        hash = users
+          .find(_.userId == configuration.userId)
+          .map(_.hash)
+          .getOrElse(config.getString("features.room.default")),
         title = title,
+        callsign = channel.map(_.callsign),
         applicationPlatform = configuration.platform,
         token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
@@ -317,33 +395,57 @@ object UserNotificationQueueDAO {
     )
   } yield notifications
 
-  private[common] def addUserNotificationForSeries(
-    seriesId: Long,
+  private[common] def removeUserNotificationForShow(
     userId: UUID,
-    hash: Option[String],
+    airingId: String
+  )(implicit ec: ExecutionContext): DBIO[Int] = (for {
+    n <- UserNotificationQueueTable.table if (
+      n.airingId === airingId &&
+      n.userId === userId &&
+      n.notificationType === (UserNotificationQueueItemType.Show: UserNotificationQueueItemType)
+    )
+  } yield n).delete
+
+  private[common] def updateNotificationRead(notificationId: UUID)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Boolean] = (for {
+    n <- UserNotificationQueueTable.table if n.notificationId === notificationId
+  } yield (n.read, n.readAt))
+    .update((true, Some(LocalDateTime.now(ZoneId.of("UTC")))))
+    .map(_ > 0)
+
+  private[common] def addUserNotificationForSeries(
+    userId: UUID,
+    seriesId: Long,
+    providerChannelId: Long,
+    hash: String,
     onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): DBIO[Seq[UserNotificationQueueItem]] = for {
+  ): DBIO[Int] = for {
     series <- SeriesDAO.getSeries(seriesId)
+    channel <- ChannelDAO.getChannelForProviderChannel(providerChannelId)
     airings <- series.fold[DBIO[Seq[(Airing, String)]]](DBIO.successful(Seq.empty))(
-      _ => SeriesDAO.getUpcomingSeriesAirings(seriesId).flatMap(results => DBIO.sequence(
+      _ => SeriesDAO.getUpcomingSeriesAirings(seriesId, providerChannelId).flatMap(results => DBIO.sequence(
         results.map(a2 => getShowTitle(Some(a2)).map(title => (a2, title)))
       ))
     )
-    _ <- UserNotificationSeriesDAO.addOrGetUserSeriesNotification(
-      userId, seriesId, hash, onlyNew
-    )
     configurations <- UserNotificationConfigurationDAO.getUserNotificationConfigurations(userId)
-    n = airings.foldLeft[Seq[UserNotificationQueueItem]](Seq.empty)((acc, airing) => acc ++ configurations.map(
+    n = airings.filter {
+      case (airing: Airing, _) if onlyNew => airing.isNew
+      case _ => true
+    }.foldLeft[Seq[UserNotificationQueueItem]](Seq.empty)((acc, airing) => acc ++ configurations.map(
       configuration => UserNotificationQueueItem(
         notificationId = UUID.randomUUID(),
         userId = configuration.userId,
         airingId = airing._1.airingId.get,
+        notificationType = UserNotificationQueueItemType.Episode,
         hash = hash,
         title = airing._2,
+        callsign = channel.map(_.callsign),
         applicationPlatform = configuration.platform,
         token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
@@ -351,25 +453,60 @@ object UserNotificationQueueDAO {
         deliverAt = airing._1.startTime.minusMinutes(15)
       )
     ))
+    _ = System.out.println(s"$n")
     notifications <- DBIO.sequence(n.map(addOrGetUserNotificationQueueItem))
-  } yield notifications
+  } yield notifications.size
+
+  private[common] def removeUserNotificationForSeries(
+    userId: UUID,
+    seriesId: Long,
+    providerChannelId: Long
+  )(implicit ec: ExecutionContext): DBIO[Int] = for {
+    a <- (for {
+      e <- EpisodeTable.table if e.seriesId === seriesId
+      s <- ShowTable.table if s.episodeId === e.episodeId
+      a <- AiringTable.table if (
+        a.showId === s.showId &&
+        a.startTime >= LocalDateTime.now(ZoneId.of("UTC"))
+      )
+      l <- LineupTable.table if (
+        a.airingId === l.airingId &&
+        l.providerChannelId === providerChannelId
+      )
+    } yield a.airingId).result
+    n <- UserNotificationQueueTable.table.filter { uNQ =>
+      uNQ.airingId.inSetBind(a) &&
+      uNQ.userId === userId &&
+      uNQ.notificationType === (UserNotificationQueueItemType.Episode: UserNotificationQueueItemType) &&
+      uNQ.deliverAt >= LocalDateTime.now(ZoneId.of("UTC"))
+    }.delete
+  } yield n
 
   private[common] def addUserNotificationsForSport(
     airingId: String,
+    providerChannelId: Long,
     sportEventId: Long
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    config: Config
   ): DBIO[Seq[UserNotificationQueueItem]] = for {
     teams <- SportEventTeamDAO.getSportEventTeams(sportEventId)
     airing <- AiringDAO.getAiring(airingId)
+    channel <- ChannelDAO.getChannelForProviderChannel(providerChannelId)
     title <- getShowTitle(airing)
     users <- airing.fold[DBIO[Seq[UserNotificationTeam]]](DBIO.successful(Seq.empty))(
       a => DBIO.fold(
-        teams.map(team => UserNotificationTeamDAO.getNotificationsForTeam(team.sportTeamId)),
+        teams.map(team => UserNotificationTeamDAO.getNotificationsForTeamAndProviderChannel(
+          team.sportOrganizationTeamId,
+          providerChannelId
+        )),
         Seq.empty
-      )(_ ++ _.filter(_.onlyNew == a.isNew))
+      )(_ ++ _.filter {
+        case notification: UserNotificationTeam if notification.onlyNew => a.isNew
+        case _ => true
+      })
     )
     configurations <- DBIO.fold(
       users.map(user => UserNotificationConfigurationDAO.getUserNotificationConfigurations(
@@ -382,8 +519,13 @@ object UserNotificationQueueDAO {
         notificationId = UUID.randomUUID(),
         userId = configuration.userId,
         airingId = airingId,
-        hash = users.find(_.userId == configuration.userId).flatMap(_.hash),
+        notificationType = UserNotificationQueueItemType.Team,
+        hash = users
+          .find(_.userId == configuration.userId)
+          .map(_.hash)
+          .getOrElse(config.getString("features.room.default")),
         title = title,
+        callsign = channel.map(_.callsign),
         applicationPlatform = configuration.platform,
         token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
@@ -393,33 +535,69 @@ object UserNotificationQueueDAO {
     )
   } yield notifications
 
-  private[common] def addUserNotificationForSportTeam(
-    sportTeamId: Long,
+  private[common] def removeUserNotificationForTeam(
     userId: UUID,
-    hash: Option[String],
+    sportOrganizationTeamId: Long,
+    providerId: Long
+  )(implicit ec: ExecutionContext): DBIO[Int] = for {
+    a <- (for {
+      sET <- SportEventTeamTable.table if sET.sportOrganizationTeamId === sportOrganizationTeamId
+      s <- ShowTable.table if s.sportEventId === sET.sportEventId
+      a <- AiringTable.table if (
+        a.showId === s.showId &&
+        a.startTime >= LocalDateTime.now(ZoneId.of("UTC"))
+      )
+      l <- LineupTable.table if l.airingId === a.airingId
+      pc <- ProviderChannelTable.table if pc.providerChannelId === l.providerChannelId
+      p <- ProviderTable.table if (
+        p.providerId === pc.providerId &&
+        p.providerId === providerId
+      )
+    } yield a.airingId).result
+    n <- UserNotificationQueueTable.table.filter { uNQ =>
+      uNQ.airingId.inSetBind(a) &&
+      uNQ.userId === userId &&
+      uNQ.notificationType === (UserNotificationQueueItemType.Team: UserNotificationQueueItemType) &&
+      uNQ.deliverAt >= LocalDateTime.now(ZoneId.of("UTC"))
+    }.delete
+  } yield n
+
+  private[common] def addUserNotificationForSportTeam(
+    userId: UUID,
+    teamId: Long,
+    providerId: Long,
+    hash: String,
     onlyNew: Boolean
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): DBIO[Seq[UserNotificationQueueItem]] = for {
-    team <- SportTeamDAO.getSportTeam(sportTeamId)
-    airings <- team.fold[DBIO[Seq[(Airing, String)]]](DBIO.successful(Seq.empty))(
-      _ => SportTeamDAO.getUpcomingSportTeamAirings(sportTeamId).flatMap(results => DBIO.sequence(
-        results.map(a2 => getShowTitle(Some(a2)).map(title => (a2, title)))
+  ): DBIO[Int] = for {
+    team <- SportOrganizationTeamDAO.getSportOrganizationTeam(teamId)
+    airings <- team.fold[DBIO[Seq[(Airing, String, Option[String])]]](DBIO.successful(Seq.empty))(
+      _ => SportTeamDAO.getUpcomingSportTeamAirings(teamId, providerId).flatMap(results => DBIO.sequence(
+        results.map(a2 => for {
+          c <- ChannelDAO.getChannelForProviderAndAiring(
+            providerId,
+            a2.airingId.get
+          )
+          title <- getShowTitle(Some(a2))
+        } yield (a2, title, c.map(_.callsign)))
       ))
     )
-    _ <- UserNotificationTeamDAO.addOrGetUserTeamNotification(
-      userId, sportTeamId, hash, onlyNew
-    )
     configurations <- UserNotificationConfigurationDAO.getUserNotificationConfigurations(userId)
-    n = airings.foldLeft[Seq[UserNotificationQueueItem]](Seq.empty)((acc, airing) => acc ++ configurations.map(
+    n = airings.filter {
+      case (airing: Airing, _, _) if onlyNew => airing.isNew
+      case _ => true
+    }.foldLeft[Seq[UserNotificationQueueItem]](Seq.empty)((acc, airing) => acc ++ configurations.map(
       configuration => UserNotificationQueueItem(
         notificationId = UUID.randomUUID(),
         userId = configuration.userId,
         airingId = airing._1.airingId.get,
+        notificationType = UserNotificationQueueItemType.Team,
         hash = hash,
         title = airing._2,
+        callsign = airing._3,
         applicationPlatform = configuration.platform,
         token = configuration.token,
         // This should never throw because if there is no airing, we dont return any users
@@ -428,7 +606,7 @@ object UserNotificationQueueDAO {
       )
     ))
     notifications <- DBIO.sequence(n.map(addOrGetUserNotificationQueueItem))
-  } yield notifications
+  } yield notifications.size
 
   private[common] def addOrGetUserNotificationQueueItem(item: UserNotificationQueueItem)(
     implicit
@@ -453,7 +631,7 @@ object UserNotificationQueueDAO {
           if cUNQ.notificationId === n.notificationId
       } yield (cUNQ.deliveredAt, cUNQ.success)).update((
         Some(LocalDateTime.now(ZoneId.of("UTC"))), success
-      )).map(r => r > 0))
+      )).map(_ > 0))
   } yield notification
 
   private[this] def getShowTitle(airing: Option[Airing])(

@@ -4,7 +4,7 @@ import com.couchmate.common.db.PgProfile.plainAPI._
 import java.time.{LocalDateTime, ZoneId}
 
 import com.couchmate.common.dao.RoomActivityDAO.getUserLatestQuery
-import com.couchmate.common.models.api.grid.{Grid, GridAiring, GridAiringExtended, GridChannel, GridPage, GridSportTeam}
+import com.couchmate.common.models.api.grid.{Grid, GridAiring, GridAiringExtended, GridChannel, GridPage, GridSeries, GridSport, GridSportTeam}
 import com.couchmate.common.models.data.{RoomActivityType, RoomStatusType}
 import com.couchmate.common.tables.{AiringTable, ChannelTable, LineupTable, ProviderChannelTable, ProviderTable, RoomActivityTable, ShowTable}
 import com.couchmate.common.util.DateUtils
@@ -55,23 +55,16 @@ object GridDAO {
     ec: ExecutionContext
   ): DBIO[GridPage] = for {
     airings <- getGrid(providerId, startDate, startDate.plusHours(1))
-    extendedAirings <- DBIO.sequence(
-      airings.map(airing => airing.sportEventId.fold[DBIO[GridAiringExtended]](DBIO.successful(airing.toExtended(Seq.empty))) {
-        sportEventId => for {
-          eventTeams <- SportEventTeamDAO.getSportEventTeams(sportEventId)
-          teams <- DBIO.sequence(eventTeams.map(eT => SportTeamDAO.getSportTeam(eT.sportTeamId))).map(_.flatten)
-        } yield airing.toExtended(
-          teams.map(team => GridSportTeam(
-            sportTeamId = team.sportTeamId.get,
-            name = team.name,
-            isHome = eventTeams.exists { eT =>
-              team.sportTeamId.contains(eT.sportTeamId) &&
-              eT.isHome
-            }
-          ))
-        )
-      })
-    )
+    extendedAirings <- DBIO.sequence(airings.map(airing => for {
+      series <- airing.episodeId.fold[DBIO[Option[GridSeries]]](DBIO.successful(Option.empty))(
+        episodeId => SeriesDAO.getGridSeries(episodeId).headOption
+      )
+      sport <- airing.sportEventId.fold[DBIO[Option[GridSport]]](DBIO.successful(Option.empty))(
+        sportEventId => SportTeamDAO.getGridSport(sportEventId)
+      )
+    } yield airing.toExtended(
+      series, sport
+    )))
   } yield extendedAirings.foldLeft(GridPage(startDate, List.empty)) { case (page, airing) =>
     val channel: GridChannel = page.channels.headOption.getOrElse(
       GridChannel(
@@ -112,14 +105,16 @@ object GridDAO {
     endTime: LocalDateTime,
   ): SqlStreamingAction[Seq[GridAiring], GridAiring, Effect] = {
     sql"""SELECT            a.airing_id, a.start_time, a.end_time, a.duration,
-                            pc.provider_channel_id, pc.channel, c.callsign,
+                            pc.provider_channel_id, pc.channel,
+                            c.callsign,
                             s.title, s.description, s.type,
-                            se.series_name,
-                            spe.sport_event_id, spe.sport_event_title,
-                            e.episode, e.season,
+                            a.is_new,
+                            spe.sport_event_id,
+                            e.episode_id,
                             s.original_air_date,
                             roomStatus.status as status,
-                            COALESCE(roomCount.count, 0) as count
+                            COALESCE(roomCount.count, 0) as count,
+                            COALESCE(followCount.following, 0) as following
           -- Main joins
           FROM              provider as p
           JOIN              provider_channel as pc
@@ -147,6 +142,17 @@ object GridDAO {
             GROUP BY  airing_id
           ) as roomCount
           ON roomCount.airing_id = a.airing_id
+          -- Following
+          LEFT OUTER JOIN (
+            SELECT t.airing_id, count(*) as following
+            FROM (
+                SELECT      airing_id
+                FROM        user_notification_queue
+                GROUP BY    user_id, airing_id
+            ) as t
+            GROUP BY t.airing_id
+          ) as followCount
+          ON followCount.airing_id = a.airing_id
           -- Room Status
           JOIN (
             SELECT  airing_id, CASE
@@ -167,12 +173,8 @@ object GridDAO {
           -- Optional Stuff
           LEFT OUTER JOIN   episode as e
           ON                s.episode_id = e.episode_id
-          LEFT OUTER JOIN   series as se
-          ON                e.series_id = se.series_id
           LEFT OUTER JOIN   sport_event as spe
           ON                s.sport_event_id = spe.sport_event_id
-          LEFT OUTER JOIN   sport_organization as so
-          ON                spe.sport_organization_id = so.sport_organization_id
           WHERE             p.provider_id = $providerId AND (
             (a.start_time >= $startTime AND a.start_time < $endTime) OR
             (a.end_time > $startTime AND a.end_time <= $endTime) OR

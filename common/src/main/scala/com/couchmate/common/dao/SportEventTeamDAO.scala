@@ -51,42 +51,26 @@ object SportEventTeamDAO {
     getSportEventTeamsQuery(sportEventId).result
 
   private[this] lazy val getEventsForSportsTeamQuery = Compiled {
-    (sportTeamId: Rep[Long]) =>
-      SportEventTeamTable.table.filter(_.sportTeamId === sportTeamId)
+    (sportOrganizationTeamId: Rep[Long]) =>
+      SportEventTeamTable.table.filter(_.sportOrganizationTeamId === sportOrganizationTeamId)
   }
 
-  private[common] def getEventsForSportsTeam(sportTeamId: Long): DBIO[Seq[SportEventTeam]] =
-    getEventsForSportsTeamQuery(sportTeamId).result
+  private[common] def getEventsForSportsTeam(sportOrganizationTeamId: Long): DBIO[Seq[SportEventTeam]] =
+    getEventsForSportsTeamQuery(sportOrganizationTeamId).result
 
   private[this] lazy val getSportEventTeamQuery = Compiled {
-    (sportEventId: Rep[Long], sportTeamId: Rep[Long]) =>
+    (sportEventId: Rep[Long], sportOrganizationTeamId: Rep[Long]) =>
       SportEventTeamTable.table.filter { sEV =>
         sEV.sportEventId === sportEventId &&
-        sEV.sportTeamId === sportTeamId
+        sEV.sportOrganizationTeamId === sportOrganizationTeamId
       }
   }
 
   private[common] def getSportEventTeam(
     sportEventId: Long,
-    sportTeamId: Long
+    sportOrganizationTeamId: Long
   ): DBIO[Option[SportEventTeam]] =
-    getSportEventTeamQuery(sportEventId, sportTeamId).result.headOption
-
-  private[common] def getGridSportTeamsForEvent(sportEventId: Long)(
-    implicit
-    ec: ExecutionContext
-  ): DBIO[Seq[GridSportTeam]] = for {
-    event <- SportEventTeamTable.table.filter(_.sportEventId === sportEventId).result
-    teams <- DBIO.sequence(
-      event.map(e =>
-        SportTeamDAO.getSportTeam(e.sportTeamId).map(_.map(st => GridSportTeam(
-          st.sportTeamId.get,
-          st.name,
-          e.isHome
-        )))
-      )
-    )
-  } yield teams.filter(_.nonEmpty).map(_.get)
+    getSportEventTeamQuery(sportEventId, sportOrganizationTeamId).result.headOption
 
   private[common] def upsertSportEventTeam(sportEventTeam: SportEventTeam)(
     implicit
@@ -94,7 +78,7 @@ object SportEventTeamDAO {
   ): DBIO[SportEventTeam] = for {
     exists <- getSportEventTeam(
       sportEventTeam.sportEventId,
-      sportEventTeam.sportTeamId
+      sportEventTeam.sportOrganizationTeamId
     )
     sEV <- exists.fold[DBIO[SportEventTeam]](
       (SportEventTeamTable.table returning SportEventTeamTable.table) += sportEventTeam
@@ -103,42 +87,42 @@ object SportEventTeamDAO {
         .table
         .filter { sEV =>
           sEV.sportEventId === sportEventTeam.sportEventId &&
-          sEV.sportTeamId === sportEventTeam.sportTeamId
+          sEV.sportOrganizationTeamId === sportEventTeam.sportOrganizationTeamId
         }.update(sportEventTeam)
       updated <- getSportEventTeam(
         sportEventTeam.sportEventId,
-        sportEventTeam.sportTeamId
+        sportEventTeam.sportOrganizationTeamId
       )
     } yield updated.get)
   } yield sEV
 
   private[common] def getOrAddSportEventTeam(sET: SportEventTeam) =
     sql"""
-         WITH input_rows(sport_event_id, sport_team_id, is_home) as (
-          VALUES(${sET.sportEventId}, ${sET.sportTeamId}, ${sET.isHome})
+         WITH input_rows(sport_event_id, sport_organization_team_id, is_home) as (
+          VALUES(${sET.sportEventId}, ${sET.sportOrganizationTeamId}, ${sET.isHome})
          ), ins AS (
-          INSERT INTO sport_event_team (sport_event_id, sport_team_id, is_home)
+          INSERT INTO sport_event_team (sport_event_id, sport_organization_team_id, is_home)
           SELECT * FROM input_rows
-          ON CONFLICT (sport_event_id, sport_team_id) DO NOTHING
-          RETURNING sport_event_id, sport_team_id, is_home
+          ON CONFLICT (sport_event_id, sport_organization_team_id) DO NOTHING
+          RETURNING sport_event_id, sport_organization_team_id, is_home
          ), sel AS (
-          SELECT sport_event_id, sport_team_id, is_home
+          SELECT sport_event_id, sport_organization_team_id, is_home
           FROM ins
           UNION ALL
-          SELECT sport_event_id, sport_team_id, set.is_home
+          SELECT sport_event_id, sport_organization_team_id, set.is_home
           FROM input_rows
-          JOIN sport_event_team as set USING (sport_event_id, sport_team_id)
+          JOIN sport_event_team as set USING (sport_event_id, sport_organization_team_id)
          ), ups AS (
-          INSERT INTO sport_event_team AS set (sport_event_id, sport_team_id, is_home)
+          INSERT INTO sport_event_team AS set (sport_event_id, sport_organization_team_id, is_home)
           SELECT  i.*
           FROM    input_rows  i
-          LEFT    JOIN sel    s USING (sport_event_id, sport_team_id)
-          WHERE   s.sport_team_id IS NULL AND
+          LEFT    JOIN sel    s USING (sport_event_id, sport_organization_team_id)
+          WHERE   s.sport_organization_team_id IS NULL AND
                   s.sport_event_id IS NULL
-          ON      CONFLICT (sport_event_id, sport_team_id) DO UPDATE
+          ON      CONFLICT (sport_event_id, sport_organization_team_id) DO UPDATE
           SET     is_home = set.is_home
-          RETURNING sport_event_id, sport_team_id, is_home
-         )  SELECT   sport_event_id, sport_team_id, is_home FROM sel
+          RETURNING sport_event_id, sport_organization_team_id, is_home
+         )  SELECT   sport_event_id, sport_organization_team_id, is_home FROM sel
             UNION    ALL
             TABLE    ups;
          """.as[SportEventTeam]

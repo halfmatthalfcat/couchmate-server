@@ -119,6 +119,63 @@ object RoomCommands
         geoContext.country
       ))
 
+  private[user] def roomEnded(
+    userContext: UserContext,
+    geoContext: GeoContext,
+    ws: ActorRef[WSPersistentActor.Command]
+  )(
+    implicit
+    singletons: SingletonExtension,
+    gridAdapter: ActorRef[GridCoordinator.Command],
+    metrics: PromExtension,
+    room: RoomExtension
+  ): Effect[RoomLeft.type, State] =
+    Effect
+      .persist(RoomLeft)
+      .thenRun((_: State) => singletons.gridCoordinator ! GridCoordinator.AddListener(
+        userContext.providerId, gridAdapter
+      ))
+      .thenRun((_: State) =>  metrics.decAttendance(
+        userContext.providerId,
+        userContext.providerName,
+        geoContext.timezone,
+        geoContext.country
+      ))
+      .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(
+        External.RoomEnded
+      ))
+
+  private[user] def swapRooms(
+    userContext: UserContext,
+    geoContext: GeoContext,
+    prevAiringId: String,
+    prevRoomId: RoomId,
+    airingId: String,
+    hash: Option[String]
+  )(
+    implicit
+    room: RoomExtension,
+    metrics: PromExtension
+  ): Effect[RoomLeft.type, State] =
+    Effect
+      .persist(RoomLeft)
+      .thenRun((_: State) => room.leave(
+        prevAiringId,
+        prevRoomId,
+        userContext.user.userId.get
+      ))
+      .thenRun((_: State) =>  metrics.decAttendance(
+        userContext.providerId,
+        userContext.providerName,
+        geoContext.timezone,
+        geoContext.country
+      ))
+      .thenRun((_: State) => room.join(
+        airingId,
+        userContext,
+        hash
+      ))
+
   private[user] def roomClosed(
     userContext: UserContext,
     ws: ActorRef[WSPersistentActor.Command]

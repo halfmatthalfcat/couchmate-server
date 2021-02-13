@@ -6,18 +6,18 @@ import com.couchmate.common.util.slick.WithTableQuery
 
 class SportEventTeamTable(tag: Tag) extends Table[SportEventTeam](tag, "sport_event_team") {
   def sportEventId: Rep[Long] = column[Long]("sport_event_id")
-  def sportTeamId: Rep[Long] = column[Long]("sport_team_id")
+  def sportOrganizationTeamId: Rep[Long] = column[Long]("sport_organization_team_id")
   def isHome: Rep[Boolean] = column[Boolean]("is_home")
 
   def * = (
     sportEventId,
-    sportTeamId,
+    sportOrganizationTeamId,
     isHome
   ) <> ((SportEventTeam.apply _).tupled, SportEventTeam.unapply)
 
   def sportEventTeamTablePk = primaryKey(
     "sport_event_team_pk",
-    (sportEventId, sportTeamId)
+    (sportEventId, sportOrganizationTeamId)
   )
 
   def sportEventFk = foreignKey(
@@ -30,6 +30,22 @@ class SportEventTeamTable(tag: Tag) extends Table[SportEventTeam](tag, "sport_ev
     onDelete = ForeignKeyAction.Restrict
   )
 
+  def sportOrgTeamFk = foreignKey(
+    "sport_event_team_sport_organization_team_fk",
+    sportOrganizationTeamId,
+    SportOrganizationTeamTable.table
+  )(
+    _.sportOrganizationTeamId,
+    onUpdate = ForeignKeyAction.Cascade,
+    onDelete = ForeignKeyAction.Restrict
+  )
+
+  // deprecated
+  def sportTeamId: Rep[Long] = column("sport_team_id")
+  def sportEventTeamTablePkOld = primaryKey(
+    "sport_event_team_pk",
+    (sportEventId, sportTeamId)
+  )
   def sportTeamFk = foreignKey(
     "sport_event_team_sport_team_fk",
     sportTeamId,

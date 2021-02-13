@@ -51,15 +51,14 @@ trait Editable {
 
 case class SystemMessage(
   messageId: String,
-  message: String
+  tpe: SystemMessageType
 ) extends Message
 
 object SystemMessage {
-  def apply(message: String): SystemMessage =
-    new SystemMessage(
-      Message.generateId,
-      message
-    )
+  def apply(tpe: SystemMessageType): SystemMessage = SystemMessage(
+    Message.generateId,
+    tpe
+  )
 }
 
 case class TextMessage(

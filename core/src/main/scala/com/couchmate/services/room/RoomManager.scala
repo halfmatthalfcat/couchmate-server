@@ -97,6 +97,20 @@ case class RoomManager(
     updatedRoom <- room.addMessage(roomId, message)
   } yield updateHashRoom(updatedRoom)).getOrElse(this)
 
+  def addSystemMessage(
+    message: Message
+  ): RoomManager = this.copy(
+    rooms = rooms.map {
+      case (name, hashRoom) => name -> hashRoom.copy(
+        rooms = hashRoom.rooms.map(
+          room => room.copy(
+            systemMessages = room.systemMessages :+ message
+          )
+        )
+      )
+    }
+  )
+
   def updateMessage(
     roomId: RoomId,
     message: Message

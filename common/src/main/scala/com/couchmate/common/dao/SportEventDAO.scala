@@ -4,7 +4,7 @@ import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
-import com.couchmate.common.models.data.{Show, SportEvent, SportEventTeam, SportOrganization, SportTeam}
+import com.couchmate.common.models.data.{Episode, Series, Show, SportEvent, SportEventTeam, SportOrganization, SportOrganizationTeam, SportTeam}
 import com.couchmate.common.tables.SportEventTable
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -59,6 +59,8 @@ trait SportEventDAO {
 
   def getOrAddSportEvent(
     show: Show,
+    series: Option[Series],
+    episode: Option[Episode],
     sportOrganization: SportOrganization,
     sportEvent: SportEvent,
     teams: Seq[SportTeam],
@@ -68,18 +70,33 @@ trait SportEventDAO {
     ec: ExecutionContext,
     db: Database
   ): Future[Show] = for {
+    srs <- series.fold[Future[Option[Series]]](Future.successful(Option.empty))(
+      series => db.run(SeriesDAO.addOrGetSeries(series).headOption)
+    )
+    e <- episode.fold[Future[Option[Episode]]](Future.successful(Option.empty))(
+      ep => srs.fold[Future[Option[Episode]]](Future.successful(Option.empty))(s => db.run(EpisodeDAO.addOrGetEpisode(ep.copy(
+        seriesId = s.seriesId
+      )).headOption))
+    )
     so <- db.run(SportOrganizationDAO.addOrGetSportOrganization(sportOrganization).head)
     se <- db.run(SportEventDAO.addOrGetSportEvent(sportEvent.copy(
       sportOrganizationId = so.sportOrganizationId
     )).head)
-    ts <- Future.sequence(teams.map(team => db.run(SportTeamDAO.addOrGetSportTeam(team)))).map(_.flatten)
-    _ <- Future.sequence(ts.map(team => db.run(SportEventTeamDAO.getOrAddSportEventTeam(SportEventTeam(
-      sportEventId = se.sportEventId.get,
-      sportTeamId = team.sportTeamId.get,
-      isHome = homeId.contains(team.extSportTeamId)
-    ))))).map(_.flatten)
+    _ <- Future.sequence(teams.map(team => for {
+      st <- db.run(SportTeamDAO.addOrGetSportTeam(team).head)
+      sot <- db.run(SportOrganizationTeamDAO.addOrGetSportOrganizationTeam(
+        st.sportTeamId.get,
+        so.sportOrganizationId.get
+      ).head)
+      set <- db.run(SportEventTeamDAO.getOrAddSportEventTeam(SportEventTeam(
+        sportEventId = se.sportEventId.get,
+        sportOrganizationTeamId = sot.sportOrganizationTeamId.get,
+        isHome = homeId.contains(st.extSportTeamId)
+      )))
+    } yield set))
     s <- db.run(ShowDAO.addOrGetShow(show.copy(
-      sportEventId = se.sportEventId
+      sportEventId = se.sportEventId,
+      episodeId = e.flatMap(_.episodeId)
     )).head)
   } yield s
 }

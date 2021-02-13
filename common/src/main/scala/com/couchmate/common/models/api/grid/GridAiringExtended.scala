@@ -16,18 +16,15 @@ case class GridAiringExtended(
   title: String,
   description: String,
   `type`: String,
-  seriesTitle: Option[String],
-  sportTitle: Option[String],
-  teams: Seq[GridSportTeam],
-  episode: Option[Long],
-  season: Option[Long],
   originalAiringDate: Option[LocalDateTime],
   status: RoomStatusType,
-  count: Long
+  isNew: Boolean,
+  count: Long,
+  following: Long,
+  sport: Option[GridSport],
+  series: Option[GridSeries]
 )
 
 object GridAiringExtended {
   implicit val format: Format[GridAiringExtended] = Json.format[GridAiringExtended]
-
-
 }

@@ -10,9 +10,8 @@ import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.typed.scaladsl.{ActorSink, ActorSource}
 import com.couchmate.Server
-import com.couchmate.api.ws.protocol.External.Disconnect
 import com.couchmate.api.ws.protocol.Protocol
-import com.couchmate.services.user.context.{DeviceContext, GeoContext, UserContext}
+import com.couchmate.services.user.context.{DeviceContext, GeoContext}
 import com.couchmate.util.akka.extensions.UserExtension
 import com.typesafe.scalalogging.LazyLogging
 import play.api.libs.json.Json
@@ -26,7 +25,7 @@ object WSPersistentActor extends LazyLogging {
   private final case class SetSocket(socket: ActorRef[Command]) extends Command
   private final case class IncomingMessage(protocol: Protocol) extends Command
 
-  private final case object Terminate extends Command
+  private final case class Terminate(cause: String) extends Command
   private final case class TerminateWithError(ex: Throwable) extends Command
 
   /**
@@ -44,6 +43,7 @@ object WSPersistentActor extends LazyLogging {
   ): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.receiveMessage {
       case SetUser(userId) =>
+        ctx.log.debug(s"Setting user to $userId for old user $currentUserId")
         userExtension.connect(
           userId,
           geoContext,
@@ -52,7 +52,7 @@ object WSPersistentActor extends LazyLogging {
         )
         switchboard(userId, geoContext, device, userExtension, socket)
       case SetSocket(socket) =>
-        ctx.watchWith(socket, Terminate)
+        ctx.watchWith(socket, Terminate("Socket died"))
         userExtension.connect(currentUserId, geoContext, device, ctx.self)
         switchboard(currentUserId, geoContext, device, userExtension, Some(socket))
       case IncomingMessage(protocol: Protocol) =>
@@ -61,7 +61,8 @@ object WSPersistentActor extends LazyLogging {
       case outgoing: OutgoingMessage if socket.nonEmpty =>
         socket.get ! outgoing
         Behaviors.same
-      case Terminate =>
+      case Terminate(cause) =>
+        ctx.log.error(s"Got Terminate ($cause) for user ${currentUserId}")
         userExtension.disconnect(currentUserId)
         Behaviors.stopped
       case TerminateWithError(ex) =>
@@ -100,13 +101,13 @@ object WSPersistentActor extends LazyLogging {
       }
       .to(ActorSink.actorRef[Command](
         sb,
-        Terminate,
+        Terminate("Upstream died"),
         TerminateWithError,
       ))
 
     val outgoingSource: Source[TextMessage.Strict, Unit] =
       ActorSource.actorRef[Command](
-        { case Terminate => },
+        { case Terminate(_) => },
         PartialFunction.empty,
         10,
         OverflowStrategy.dropNew,

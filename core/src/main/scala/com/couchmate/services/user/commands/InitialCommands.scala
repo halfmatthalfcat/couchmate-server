@@ -15,7 +15,7 @@ import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, SingletonExtension}
 
 import scala.concurrent.ExecutionContext
-import scala.util.Success
+import scala.util.{Failure, Success}
 
 object InitialCommands
   extends GridDAO
@@ -38,7 +38,7 @@ object InitialCommands
     room: RoomExtension
   ): Effect[Connected, State] = roomContext.fold(
     Effect
-      .persist(Connected(geo, device, ws))
+      .persist(Connected(userContext, geo, device, ws))
       .thenRun((_: State) => metrics.incSession(
         userContext.providerId,
         userContext.providerName,
@@ -55,7 +55,7 @@ object InitialCommands
         deviceId = device.map(_.deviceId)
       )))
       .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(External.SetSession(
-        userContext.getClientUser,
+        userContext.getClientUser(device.map(_.deviceId)),
         userContext.providerName,
         userContext.token,
       )))
@@ -66,6 +66,7 @@ object InitialCommands
       )
       .thenRun((_: State) => ctx.pipeToSelf(getGrid(userContext.providerId)) {
         case Success(value) => UpdateGrid(value)
+        case Failure(exception) => UpdateGridFailed(exception)
       })
       .thenRun({
         case ConnectedState(_, _, _, ws) => ctx.watchWith(
@@ -77,7 +78,7 @@ object InitialCommands
       .thenUnstashAll()
   ) { roomContext =>
     Effect
-      .persist(Connected(geo, device, ws))
+      .persist(Connected(userContext, geo, device, ws))
       .thenRun((_: State) => metrics.incSession(
         userContext.providerId,
         userContext.providerName,
@@ -94,7 +95,7 @@ object InitialCommands
         deviceId = device.map(_.deviceId)
       )))
       .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(External.SetSession(
-        userContext.getClientUser,
+        userContext.getClientUser(device.map(_.deviceId)),
         userContext.providerName,
         userContext.token,
       )))

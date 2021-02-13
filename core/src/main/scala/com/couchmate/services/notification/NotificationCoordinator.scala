@@ -11,7 +11,7 @@ import com.couchmate.common.dao.UserNotificationQueueDAO
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{ApplicationPlatform, UserNotificationQueueItem}
 import com.couchmate.common.util.DateUtils
-import com.couchmate.util.akka.extensions.{APNSExtension, DatabaseExtension}
+import com.couchmate.util.akka.extensions.{APNSExtension, DatabaseExtension, FCMExtension}
 import play.api.libs.json.JsString
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -44,6 +44,7 @@ object NotificationCoordinator
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val db: Database = DatabaseExtension(ctx.system).db
     val apns: APNSExtension = APNSExtension(ctx.system)
+    val google: FCMExtension = FCMExtension(ctx.system)
 
     ctx.log.info(s"Starting NotificationCoordinator")
 
@@ -69,14 +70,26 @@ object NotificationCoordinator
           case Send(items) => Effect.none.thenRun(_ => {
             ctx.pipeToSelf(
               Future.sequence(items.collect({
-                case UserNotificationQueueItem(notificationId, _, airingId, hash, title, ApplicationPlatform.iOS, Some(token), _, _, _, _) => apns.sendNotification(
+                case UserNotificationQueueItem(notificationId, _, airingId, _, hash, title, callsign, ApplicationPlatform.iOS, Some(token), _, _, _, _, _) => apns.sendNotification(
                   notificationId,
                   token,
                   "is starting soon! Click to join the conversation on Couchmate.",
-                  Some(title),
+                  Some(s"$title${callsign.map(cs => s" on $cs").getOrElse("")}"),
                   Map(
+                    "notificationId" -> JsString(notificationId.toString),
                     "airingId" -> JsString(airingId),
-                    "hash" -> hash.map(JsString).getOrElse(JsString("general"))
+                    "hash" -> JsString(hash)
+                  )
+                )
+                case UserNotificationQueueItem(notificationId, _, airingId, _, hash, title, callsign, ApplicationPlatform.Android, Some(token), _, _, _, _, _) => google.sendNotification(
+                  notificationId,
+                  token,
+                  "is starting soon! Click to join the conversation on Couchmate.",
+                  Some(s"$title${callsign.map(cs => s" on $cs").getOrElse("")}"),
+                  Map(
+                    "notificationId" -> notificationId.toString,
+                    "airingId" -> airingId,
+                    "hash" -> hash
                   )
                 )
               })),

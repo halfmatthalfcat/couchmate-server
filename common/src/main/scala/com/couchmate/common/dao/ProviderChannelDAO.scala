@@ -5,7 +5,7 @@ import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{Channel, ChannelOwner, ProviderChannel}
-import com.couchmate.common.tables.ProviderChannelTable
+import com.couchmate.common.tables.{AiringTable, LineupTable, ProviderChannelTable}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -36,6 +36,12 @@ trait ProviderChannelDAO {
     Slick.flowWithPassThrough(
       (ProviderChannelDAO.getProviderChannelForProviderAndChannel _).tupled
     )
+
+  def getProviderChannelForProviderAndAiring(
+    providerId: Long,
+    airingId: String
+  )(implicit db: Database): Future[Option[ProviderChannel]] =
+    db.run(ProviderChannelDAO.getProviderChannelForProviderAndAiring(providerId, airingId))
 
   def upsertProviderChannel(providerChannel: ProviderChannel)(
     implicit
@@ -90,6 +96,22 @@ object ProviderChannelDAO {
     channelId: Long
   ): DBIO[Option[ProviderChannel]] =
     getProviderChannelForProviderAndChannelQuery(providerId, channelId).result.headOption
+
+  private[this] lazy val getProviderChannelForProviderAndAiringQuery = Compiled {
+    (providerId: Rep[Long], airingId: Rep[String]) => for {
+      l <- LineupTable.table if l.airingId === airingId
+      pc <- ProviderChannelTable.table if (
+        pc.providerChannelId === l.providerChannelId &&
+        pc.providerId === providerId
+      )
+    } yield pc
+  }
+
+  private[common] def getProviderChannelForProviderAndAiring(
+    providerId: Long,
+    airingId: String
+  ): DBIO[Option[ProviderChannel]] =
+    getProviderChannelForProviderAndAiringQuery(providerId, airingId).result.headOption
 
   private[common] def upsertProviderChannel(providerChannel: ProviderChannel)(
     implicit

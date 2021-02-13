@@ -12,10 +12,30 @@ object UserNotificationSeriesMigrations {
       _.onlyNew,
       _.created
     ).addPrimaryKeys(
-      _.pk
+      _.pkOld
     ).addForeignKeys(
       _.userIdFk,
       _.seriesIdFk
+    )
+  )()
+
+  val addChannelProviderAndActive = MigrationItem(40L, UserNotificationSeriesTable.table)(
+    _.dropPrimaryKeys(
+      _.pkOld
+    ).addColumns(
+      _.providerChannelId,
+      _.active
+    ).addPrimaryKeys(
+      _.pk
+    ).addForeignKeys(
+      _.providerChannelFk
+    )
+  )()
+
+  val addNameAndCallsign = MigrationItem(46L, UserNotificationSeriesTable.table)(
+    _.addColumns(
+      _.name,
+      _.callsign
     )
   )()
 }

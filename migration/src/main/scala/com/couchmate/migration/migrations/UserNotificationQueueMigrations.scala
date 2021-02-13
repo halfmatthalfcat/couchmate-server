@@ -18,10 +18,32 @@ object UserNotificationQueueMigrations {
       _.success,
       _.read
     ).addIndexes(
-      _.uniqueIdx
+      _.uniqueIdxOld
     ).addForeignKeys(
       _.userIdFk,
       _.airingIdFk
+    )
+  )()
+
+  val addCallsign = MigrationItem(39L, UserNotificationQueueTable.table)(
+    _.addColumns(
+      _.callsign
+    )
+  )()
+
+  val addNotificationType = MigrationItem(43L, UserNotificationQueueTable.table)(
+    _.dropIndexes(
+      _.uniqueIdxOld
+    ).addColumns(
+      _.notificationType
+    ).addIndexes(
+      _.uniqueIdx
+    )
+  )()
+
+  val addReadAt = MigrationItem(50L, UserNotificationQueueTable.table)(
+    _.addColumns(
+      _.readAt
     )
   )()
 }

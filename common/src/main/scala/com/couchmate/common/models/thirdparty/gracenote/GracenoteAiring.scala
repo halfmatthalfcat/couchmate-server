@@ -24,7 +24,12 @@ case class GracenoteAiring(
   }
 
   def isNew: Boolean =
-    qualifiers.contains("New")
+    qualifiers.contains("New") &&
+    qualifiers.forall(!Seq(
+      "Delay",
+      "Repeat",
+      "Tape"
+    ).contains(_))
 }
 
 object GracenoteAiring {

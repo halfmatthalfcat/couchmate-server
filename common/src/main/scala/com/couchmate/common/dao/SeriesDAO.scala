@@ -6,8 +6,10 @@ import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
+import com.couchmate.common.models.api.grid.GridSeries
 import com.couchmate.common.models.data.{Airing, Series}
-import com.couchmate.common.tables.{AiringTable, EpisodeTable, SeriesTable, ShowTable}
+import com.couchmate.common.tables.{AiringTable, EpisodeTable, LineupTable, SeriesTable, ShowTable}
+import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -46,12 +48,18 @@ trait SeriesDAO {
   ): Future[Option[Series]] =
     db.run(SeriesDAO.getSeriesByEpisode(episodeId))
 
-  def getUpcomingSeriesAirings(seriesId: Long)(
+  def getUpcomingSeriesAirings(
+    seriesId: Long,
+    providerChannelId: Long
+  )(
     implicit
     db: Database,
     ec: ExecutionContext
   ): Future[Seq[Airing]] =
-    db.run(SeriesDAO.getUpcomingSeriesAirings(seriesId))
+    db.run(SeriesDAO.getUpcomingSeriesAirings(seriesId, providerChannelId))
+
+  def getGridSeries(episodeId: Long)(implicit db: Database): Future[Option[GridSeries]] =
+    db.run(SeriesDAO.getGridSeries(episodeId).headOption)
 
   def upsertSeries(series: Series)(
     implicit
@@ -97,7 +105,10 @@ object SeriesDAO {
     series <- exists.fold[DBIO[Option[Series]]](DBIO.successful(Option.empty))(e => getSeries(e.seriesId.get))
   } yield series
 
-  private[common] def getUpcomingSeriesAirings(seriesId: Long)(
+  private[common] def getUpcomingSeriesAirings(
+    seriesId: Long,
+    providerChannelId: Long
+  )(
     implicit
     ec: ExecutionContext
   ): DBIO[Seq[Airing]] = (for {
@@ -106,6 +117,10 @@ object SeriesDAO {
     a <- AiringTable.table if (
       a.showId === s.showId &&
       a.startTime >= LocalDateTime.now(ZoneId.of("UTC"))
+    )
+    l <- LineupTable.table if (
+      a.airingId === l.airingId &&
+      l.providerChannelId === providerChannelId
     )
   } yield a).result
 
@@ -122,6 +137,23 @@ object SeriesDAO {
         .update(series)
       updated <- SeriesDAO.getSeries(seriesId)
     } yield updated.get}
+
+  private[common] def getGridSeries(episodeId: Long): SqlStreamingAction[Seq[GridSeries], GridSeries, Effect] =
+    sql"""SELECT
+            s.series_id, s.series_name,
+            e.season, e.episode,
+            COALESCE(seriesFollows.following, 0) as following
+          FROM episode as e
+          JOIN series as s
+          ON e.series_id = s.series_id
+          LEFT JOIN (
+            SELECT    series_id, count(*) as following
+            FROM      user_notification_series
+            GROUP BY  series_id
+          ) as seriesFollows
+          ON seriesFollows.series_id = s.series_id
+          WHERE e.episode_id = ${episodeId}
+         """.as[GridSeries]
 
   private[common] def addOrGetSeries(series: Series) =
     sql"""

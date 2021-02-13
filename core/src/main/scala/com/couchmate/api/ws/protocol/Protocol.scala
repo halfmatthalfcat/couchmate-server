@@ -8,7 +8,7 @@ import com.couchmate.common.models.api.room.Participant
 import com.couchmate.common.models.api.room.message.Message
 import com.couchmate.common.models.api.room.tenor.TenorGif
 import com.couchmate.common.models.api.user.{User, UserMute}
-import com.couchmate.common.models.data.{ApplicationPlatform, UserReportType}
+import com.couchmate.common.models.data.{ApplicationPlatform, UserNotificationSeries, UserNotificationShow, UserNotificationTeam, UserReportType}
 import com.couchmate.common.util.json.CountryCodePlayJson
 import com.neovisionaries.i18n.CountryCode
 import julienrf.json.derived
@@ -60,32 +60,102 @@ object External {
     cause: LoginErrorCause
   ) extends Protocol
 
-  case class EnableNotifications(
-    os: ApplicationPlatform,
-    token: String
-  ) extends Protocol
+  case class SetNotificationToken(token: String) extends Protocol
+  case object EnableNotifications extends Protocol
   case object DisableNotifications extends Protocol
 
   case object NotificationsEnabled extends Protocol
   case object NotificationsDisabled extends Protocol
 
-  case class AddShowNotification(airingId: String) extends Protocol
-  case class RemoveShowNotification(airingId: String) extends Protocol
+  case class AddShowNotification(
+    airingId: String,
+    channelId: Long,
+    hash: Option[String]
+  ) extends Protocol
+  case class RemoveShowNotification(
+    airingId: String,
+    channelId: Long
+  ) extends Protocol
+  case class ToggleShowNotification(
+    airingId: String,
+    channelId: Long,
+    enabled: Boolean,
+    hash: Option[String]
+  ) extends Protocol
+  case class SetNewShowNotification(
+    airingId: String,
+    channelId: Long,
+    enabled: Boolean
+  ) extends Protocol
+  case class SetHashShowNotification(
+    airingId: String,
+    channelId: Long,
+    hash: String
+  ) extends Protocol
 
-  case class AddSeriesNotification(seriesId: Long) extends Protocol
-  case class RemoveSeriesNotification(seriesId: Long) extends Protocol
+  case class AddSeriesNotification(
+    seriesId: Long,
+    channelId: Long,
+    hash: Option[String]
+  ) extends Protocol
+  case class RemoveSeriesNotification(
+    seriesId: Long,
+    channelId: Long
+  ) extends Protocol
+  case class ToggleSeriesNotification(
+    seriesId: Long,
+    channelId: Long,
+    enabled: Boolean,
+    hash: Option[String]
+  ) extends Protocol
+  case class SetNewSeriesNotification(
+    seriesId: Long,
+    channelId: Long,
+    enabled: Boolean
+  ) extends Protocol
+  case class SetHashSeriesNotification(
+    seriesId: Long,
+    channelId: Long,
+    hash: String
+  ) extends Protocol
 
-  case class AddTeamNotification(teamId: Long) extends Protocol
-  case class RemoveTeamNotification(teamId: Long) extends Protocol
+  case class AddTeamNotification(
+    teamId: Long,
+    hash: Option[String]
+  ) extends Protocol
+  case class RemoveTeamNotification(
+    teamId: Long,
+  ) extends Protocol
+  case class ToggleTeamNotification(
+    teamId: Long,
+    enabled: Boolean,
+    hash: Option[String]
+  ) extends Protocol
+  case class SetNewTeamNotification(
+    teamId: Long,
+    enabled: Boolean
+  ) extends Protocol
+  case class SetHashTeamNotification(
+    teamId: Long,
+    hash: String
+  ) extends Protocol
 
   case class UpdateNotifications(
-    show: Seq[String],
-    series: Seq[Long],
-    team: Seq[Long]
+    show: Seq[UserNotificationShow],
+    series: Seq[UserNotificationSeries],
+    team: Seq[UserNotificationTeam]
   ) extends Protocol
 
   case object NotificationAddedSuccess extends Protocol
   case object NotificationAddedFailed extends Protocol
+
+  case object NotificationToggleSuccess extends Protocol
+  case object NotificationToggleFailed extends Protocol
+
+  case object NotificationOnlyNewChanged extends Protocol
+  case object NotificationOnlyNewChangeFailed extends Protocol
+
+  case class ReadNotification(notificationId: UUID) extends Protocol
 
   case object Logout extends Protocol
 

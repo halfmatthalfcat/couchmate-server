@@ -15,7 +15,8 @@ import com.typesafe.config.ConfigFactory
 final case class Room(
   roomId: RoomId,
   participants: List[Participant] = List.empty,
-  messages: List[Message] = List.empty
+  messages: List[Message] = List.empty,
+  systemMessages: List[Message] = List.empty
 ) {
   private[this] val config = ConfigFactory.load()
   private[this] val maxSize: Int =

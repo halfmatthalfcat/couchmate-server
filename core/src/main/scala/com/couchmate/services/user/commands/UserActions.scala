@@ -5,7 +5,6 @@ import java.util.UUID
 
 import akka.actor.typed.scaladsl.ActorContext
 import com.couchmate.Server
-import com.couchmate.api.ws.SessionContext
 import com.couchmate.api.ws.protocol.External.ReportParticipant
 import com.couchmate.api.ws.protocol.RegisterAccountErrorCause.EmailExists
 import com.couchmate.api.ws.protocol._
@@ -15,7 +14,7 @@ import com.couchmate.common.models.data.{UserMute, User => InternalUser, _}
 import com.couchmate.common.models.api.user.{UserMute => ExternalUserMute}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteDefaultProvider
 import com.couchmate.services.user.PersistentUser
-import com.couchmate.services.user.PersistentUser.{EmailValidated, UserNotificationAdded, UserNotificationRemoved, UsernameValidated}
+import com.couchmate.services.user.PersistentUser.{EmailValidated, UserNotificationAdded, UserNotificationOnlyNewChanged, UserNotificationRemoved, UserNotificationToggled, UsernameValidated}
 import com.couchmate.services.user.context.{DeviceContext, GeoContext, UserContext}
 import com.couchmate.util.akka.extensions.{JwtExtension, MailExtension}
 import com.couchmate.util.jwt.Jwt.ExpiredJwtError
@@ -130,6 +129,8 @@ object UserActions
         ),
         expiry = Duration.ofDays(365L)
       ))
+      notifications <- getUserNotifications(userId)
+      notificationConfigurations <- getUserNotificationConfigurations(userId)
     } yield UserContext(
       user = user,
       userMeta = userMeta,
@@ -137,7 +138,9 @@ object UserActions
       providerName = provider.name,
       token = token,
       mutes = mutes,
-      wordMutes = wordMutes
+      wordMutes = wordMutes,
+      notifications = notifications,
+      notificationConfigurations = notificationConfigurations
     )
   }
 
@@ -208,7 +211,7 @@ object UserActions
     email = claims.claims.getStringClaim("email")
     hashedPw = claims.claims.getStringClaim("password")
     // TODO: this _could_ cause issues in the future but for now it's a safety feature
-    // This basically assumes that the (anon) user who requested to regiser is going to be
+    // This basically assumes that the (anon) user who requested to register is going to be
     // The same one who is ultimately registering.
     // This could _not_ be the case if the user registers on a different device (web)
     // Where the userId is different and would hit this mismatch
@@ -440,7 +443,7 @@ object UserActions
   }
 
   private[commands] def reportParticipant(
-    session: SessionContext,
+    userContext: UserContext,
     report: ReportParticipant
   )(
     implicit
@@ -449,7 +452,7 @@ object UserActions
   ): Future[UserReport] = addUserReport(UserReport(
     reportId = None,
     created = Some(LocalDateTime.now(ZoneId.of("UTC"))),
-    reporterId = session.user.userId.get,
+    reporterId = userContext.user.userId.get,
     reporteeId = report.userId,
     reportType = report.userReportType,
     message = report.message
@@ -531,99 +534,269 @@ object UserActions
     }
   }
 
+  private[commands] def setNotificationToken(
+    userId: UUID,
+    os: ApplicationPlatform,
+    deviceId: Option[String],
+    token: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+  ): Future[Seq[UserNotificationConfiguration]] = for {
+    _ <- updateUserNotificationToken(
+      userId, os, deviceId, token
+    )
+    notifications <- getUserNotificationConfigurations(userId)
+  } yield notifications
+
   private[commands] def enableNotifications(
     userId: UUID,
     os: ApplicationPlatform,
-    token: String,
     deviceId: Option[String]
   )(
     implicit
     ec: ExecutionContext,
     db: Database,
-  ): Future[UserNotificationConfiguration] = upsertUserNotificationConfiguration(UserNotificationConfiguration(
-    userId, active = true, os, Some(token), deviceId
-  ))
+  ): Future[Seq[UserNotificationConfiguration]] = for {
+    _ <- updateUserNotificationActive(
+      userId, os, deviceId, active = true
+    )
+    notifications <- getUserNotificationConfigurations(userId)
+  } yield notifications
 
-  private[commands] def disableNotifications(userId: UUID)(
+  private[commands] def disableNotifications(
+    userId: UUID,
+    os: ApplicationPlatform,
+    deviceId: Option[String]
+  )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Unit] = updateUserNotificationActive(userId, active = false).map(_ => ())
+  ): Future[Seq[UserNotificationConfiguration]] = for {
+    _ <- updateUserNotificationActive(
+      userId, os, deviceId, active = false
+    )
+    notifications <- getUserNotificationConfigurations(userId)
+  } yield notifications
+
+  private[commands] def notificationRead(notificationId: UUID)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Boolean] = updateNotificationRead(notificationId)
 
   private[commands] def addShowNotification(
     userId: UUID,
-    airingId: String
+    airingId: String,
+    providerChannelId: Long,
+    hash: String
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[UserNotificationAdded] = for {
-    _ <- addOrGetUserShowNotification(userId, airingId, true)
-    _ <- addUserShowNotification(userId, airingId)
+  ): Future[UserNotifications] = for {
+    notification <- addOrGetUserShowNotification(
+      userId, airingId, providerChannelId, hash
+    )
+    _ <- addUserShowNotification(
+      userId,
+      airingId,
+      providerChannelId,
+      notification.map(_.hash).getOrElse(hash)
+    )
     notifications <- getUserNotifications(userId)
-  } yield UserNotificationAdded(notifications)
+  } yield notifications
 
   private[commands] def removeShowNotification(
     userId: UUID,
-    airingId: String
+    airingId: String,
+    channelId: Long
   )(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[UserNotificationRemoved] = for {
-    _ <- removeUserShowNotification(userId, airingId)
+  ): Future[UserNotifications] = for {
+    _ <- removeUserShowNotification(userId, airingId, channelId)
+    _ <- removeUserNotificationForShow(userId, airingId)
     notifications <- getUserNotifications(userId)
-  } yield UserNotificationRemoved(notifications)
+  } yield notifications
+
+  private[commands] def toggleTeamNotification(
+    userId: UUID,
+    teamId: Long,
+    providerId: Long,
+    hash: String,
+    enabled: Boolean
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotifications] = for {
+    _ <- toggleUserTeamNotification(
+      userId, teamId, providerId, hash, enabled
+    )
+    notifications <- getUserNotifications(userId)
+  } yield notifications
+
+  private[commands] def toggleOnlyNewTeamNotification(
+    userId: UUID,
+    teamId: Long,
+    providerId: Long,
+    hash: String,
+    onlyNew: Boolean
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotifications] = for {
+    _ <- toggleOnlyNewUserTeamNotification(
+      userId, teamId, providerId, hash, onlyNew
+    )
+    notifications <- getUserNotifications(userId)
+  } yield notifications
+
+  private[commands] def updateHashTeamNotification(
+    userId: UUID,
+    teamId: Long,
+    providerId: Long,
+    hash: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotifications] = for {
+    _ <- updateHashTeamNotification(
+      userId, teamId, providerId, hash
+    )
+    notifications <- getUserNotifications(userId)
+  } yield notifications
 
   private[commands] def addTeamNotification(
     userId: UUID,
-    teamId: Long
+    teamId: Long,
+    providerId: Long,
+    hash: String,
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationAdded] = for {
-    _ <- addOrGetUserTeamNotification(userId, teamId, None, true)
-    _ <- addUserTeamNotification(userId, teamId)
+    notification <- addOrGetUserTeamNotification(
+      userId, teamId, providerId, hash
+    )
+    _ <- addUserNotificationForSportTeam(
+      userId,
+      teamId,
+      providerId,
+      notification.map(_.hash).getOrElse(hash),
+      notification.forall(_.onlyNew)
+    )
     notifications <- getUserNotifications(userId)
   } yield UserNotificationAdded(notifications)
 
   private[commands] def removeTeamNotification(
     userId: UUID,
-    teamId: Long
+    teamId: Long,
+    providerId: Long
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationRemoved] = for {
-    _ <- removeUserTeamNotification(userId, teamId)
+    _ <- removeUserTeamNotification(userId, teamId, providerId)
+    _ <- removeUserNotificationForTeam(userId, teamId, providerId)
     notifications <- getUserNotifications(userId)
   } yield UserNotificationRemoved(notifications)
 
   private[commands] def addSeriesNotification(
     userId: UUID,
-    seriesId: Long
+    seriesId: Long,
+    providerChannelId: Long,
+    hash: String,
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationAdded] = for {
-    _ <- addOrGetUserSeriesNotification(userId, seriesId, None, true)
+    notification <- addOrGetUserSeriesNotification(
+      userId, seriesId, providerChannelId, hash
+    )
     _ <- addUserNotificationForSeries(
-      seriesId, userId, None, true
+      userId,
+      seriesId,
+      providerChannelId,
+      notification.map(_.hash).getOrElse(hash),
+      notification.forall(_.onlyNew)
     )
     notifications <- getUserNotifications(userId)
   } yield UserNotificationAdded(notifications)
 
+  private[commands] def toggleSeriesNotification(
+    userId: UUID,
+    seriesId: Long,
+    providerChannelId: Long,
+    hash: String,
+    enabled: Boolean
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotifications] = for {
+    _ <- toggleUserSeriesNotification(
+      userId,
+      seriesId,
+      providerChannelId,
+      hash,
+      enabled
+    )
+    notifications <- getUserNotifications(userId)
+  } yield notifications
+
+  private[commands] def updateHashSeriesNotification(
+    userId: UUID,
+    seriesId: Long,
+    providerChannelId: Long,
+    hash: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotifications] = for {
+    _ <- updateHashUserSeriesNotification(
+      userId, seriesId, providerChannelId, hash
+    )
+    notifications <- getUserNotifications(userId)
+  } yield notifications
+
+  private[commands] def toggleOnlyNewSeriesNotification(
+    userId: UUID,
+    seriesId: Long,
+    providerChannelId: Long,
+    hash: String,
+    enabled: Boolean
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserNotifications] = for {
+    _ <- toggleOnlyNewUserSeriesNotification(
+      userId, seriesId, providerChannelId, hash, enabled
+    )
+    notifications <- getUserNotifications(userId)
+  } yield notifications
+
   private[commands] def removeSeriesNotification(
     userId: UUID,
-    seriesId: Long
+    seriesId: Long,
+    channelId: Long
   )(
     implicit
     ec: ExecutionContext,
     db: Database
   ): Future[UserNotificationRemoved] = for {
-    _ <- removeUserSeriesNotification(userId, seriesId)
+    _ <- removeUserSeriesNotification(userId, seriesId, channelId)
+    _ <- removeUserNotificationForSeries(userId, seriesId, channelId)
     notifications <- getUserNotifications(userId)
   } yield UserNotificationRemoved(notifications)
 
@@ -635,7 +808,11 @@ object UserActions
     shows <- getUserShowNotifications(userId)
     series <- getUserSeriesNotifications(userId)
     teams <- getUserTeamNotifications(userId)
-  } yield UserNotifications(shows, series, teams)
+  } yield UserNotifications(
+    shows,
+    series,
+    teams
+  )
 
   private[this] def getDefaultProvider(context: GeoContext): GracenoteDefaultProvider = context match {
     case GeoContext("EST" | "EDT", Some(CountryCode.US)) =>

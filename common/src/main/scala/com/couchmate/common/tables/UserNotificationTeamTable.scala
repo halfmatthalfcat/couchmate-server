@@ -10,15 +10,21 @@ import com.couchmate.common.util.slick.WithTableQuery
 class UserNotificationTeamTable(tag: Tag) extends Table[UserNotificationTeam](tag, "user_notification_team") {
   def userId: Rep[UUID] = column("user_id", O.SqlType("uuid"))
   def teamId: Rep[Long] = column("team_id")
-  def hash: Rep[Option[String]] = column("hash")
+  def providerId: Rep[Long] = column("provider_id")
+  def name: Rep[String] = column("name")
+  def hash: Rep[String] = column("hash")
+  def active: Rep[Boolean] = column("active")
   def onlyNew: Rep[Boolean] = column("only_new")
   def created: Rep[LocalDateTime] = column("created")
 
   def * = (
     userId,
     teamId,
+    providerId,
+    name,
     hash,
     onlyNew,
+    active,
     created
   ) <> ((UserNotificationTeam.apply _).tupled, UserNotificationTeam.unapply)
 
@@ -38,6 +44,27 @@ class UserNotificationTeamTable(tag: Tag) extends Table[UserNotificationTeam](ta
   )
 
   def teamIdFk = foreignKey(
+    "user_notification_team_team_fk",
+    teamId,
+    SportOrganizationTeamTable.table
+  )(
+    _.sportOrganizationTeamId,
+    onUpdate = ForeignKeyAction.Cascade,
+    onDelete = ForeignKeyAction.Restrict
+  )
+
+  def providerChannelFk = foreignKey(
+    "user_notification_series_provider_fk",
+    providerId,
+    ProviderTable.table
+  )(
+    _.providerId,
+    onUpdate = ForeignKeyAction.Cascade,
+    onDelete = ForeignKeyAction.Restrict
+  )
+
+  // deprecated
+  def teamIdFkOld = foreignKey(
     "user_notification_team_team_fk",
     teamId,
     SportTeamTable.table

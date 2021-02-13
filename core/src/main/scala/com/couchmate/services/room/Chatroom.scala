@@ -2,7 +2,6 @@ package com.couchmate.services.room
 
 import java.time.{Duration, LocalDateTime, ZoneId}
 import java.util.UUID
-
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
@@ -11,11 +10,13 @@ import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import com.couchmate.common.dao.{AiringDAO, RoomActivityDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.room.{Participant, HashRoom => CommonHashRoom}
-import com.couchmate.common.models.api.room.message.{Message, SystemMessage, TextMessageWithLinks}
+import com.couchmate.common.models.api.room.message.{Message, SystemMessage, SystemMessageType, TextMessageWithLinks}
 import com.couchmate.common.models.data.{AiringStatus, RoomActivity, RoomActivityType, RoomStatusType}
 import com.couchmate.services.room.LinkScanner.{ScanMessage, getLinks}
 import com.couchmate.services.user.context.UserContext
 import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, SingletonExtension, UserExtension}
+import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.sslconfig.util.ConfigLoader
 
 import scala.compat.java8.DurationConverters
 import scala.concurrent.ExecutionContext
@@ -141,15 +142,20 @@ object Chatroom
   private final case class SaveRoomManager(
     roomManager: RoomManager
   ) extends Event
+  private final case class RoomInPostGame(
+    roomManager: RoomManager
+  ) extends Event
   private final case object ClearAiring extends Event
 
   final case class State(
     airingId: String,
     status: Option[AiringStatus],
-    roomMgr: RoomManager
+    roomMgr: RoomManager,
+    firedClosing: Boolean
   )
 
   def apply(airingId: String, persistenceId: PersistenceId): Behavior[Command] = Behaviors.setup { implicit ctx =>
+    val config: Config = ConfigFactory.load()
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val db: Database =
       DatabaseExtension(ctx.system).db
@@ -168,8 +174,9 @@ object Chatroom
           None,
           RoomManager(
             airingId,
-            "general"
-          )
+            config.getString("features.room.default")
+          ),
+          firedClosing = false
         ),
         commandHandler(
           timers,
@@ -177,7 +184,7 @@ object Chatroom
         ),
         eventHandler
       ).receiveSignal {
-        case (State(airingId, None, _), RecoveryCompleted) =>
+        case (State(airingId, None, _, _), RecoveryCompleted) =>
           ctx.pipeToSelf(getAiringStatus(airingId)) {
             case Success(Some(value)) => GetAiringSuccess(value)
             case Success(None) => GetAiringFailure(new RuntimeException(s"Unable to get Airing for ${airingId}"))
@@ -198,27 +205,20 @@ object Chatroom
     db: Database
   ): (State, Command) => Effect[Event, State] =
     (prevState, command) => prevState match {
-      case State(_, None, _) => command match {
+      case State(_, None, _, firedClosing) => command match {
         case GetAiringSuccess(status) => Effect
           .persist(SetAiringStatus(status))
           .thenRun((s: State) => {
-            ctx.log.info(s"Setting timers for ${s.airingId}")
-            ctx.log.info(Duration.between(
-              LocalDateTime.now(ZoneId.of("UTC")),
-              s.status.get.endTime.minusMinutes(
-                s.status.get.duration - Math.round(s.status.get.duration * 0.9)
-              ),
-            ).toString)
-            // Fire timer at around the 90% show completion mark
-            timers.startSingleTimer(
-              ShowEnding,
-              DurationConverters.toScala(Duration.between(
-                LocalDateTime.now(ZoneId.of("UTC")),
-                s.status.get.endTime.minusMinutes(
-                  s.status.get.duration - Math.round(s.status.get.duration * 0.9)
-                ),
-              )).max(FiniteDuration(0L, SECONDS))
-            )
+            // Fire timer at show end to warn
+            if (!firedClosing) {
+              timers.startSingleTimer(
+                ShowEnding,
+                DurationConverters.toScala(Duration.between(
+                  LocalDateTime.now(ZoneId.of("UTC")),
+                  s.status.get.endTime,
+                )).max(FiniteDuration(0L, SECONDS))
+              )
+            }
             // Fire timer at show end + 15 minutes to close the room
             timers.startSingleTimer(
               RoomEnding,
@@ -235,23 +235,21 @@ object Chatroom
           Effect.stop()
         case _ => Effect.stash()
       }
-      case State(_, Some(status), _) => command match {
+      case State(_, Some(status), _, _) => command match {
         case CloseRoom =>
           Effect.persist(ClearAiring).thenStop()
         case ShowEnding =>
-          Effect.none
-          .thenRun((s: State) => {
-            ctx.log.info(s"Show ${s.airingId} is ending, firing")
-            s.roomMgr.messageAll(SystemMessage(
-              "This show is ending soon. You can still continue chatting for 15 minutes after."
-            ))
-          })
+          val message = SystemMessage(SystemMessageType.ShowEnd)
+          Effect
+            .persist(RoomInPostGame(prevState.roomMgr.addSystemMessage(message)))
+            .thenRun((s: State) => {
+              s.roomMgr.messageAll(message)
+            })
         case RoomEnding => Effect
           .persist(SetAiringStatus(status.copy(
             status = RoomStatusType.Closed
           )))
           .thenRun((s: State) => {
-            ctx.log.info(s"Room ${s.airingId} is ending, firing")
             s.roomMgr.kickAll()
           })
           .thenStop()
@@ -286,7 +284,7 @@ object Chatroom
             ))
             .thenRun((_: State) => userExtension.roomMessage(
               userContext.user.userId.get,
-              MessageReplay(pRoom.messages)
+              MessageReplay(pRoom.messages ++ pRoom.systemMessages)
             ))
             .thenRun((_: State) => pRoom.participants.tail.foreach(
               p => userExtension.roomMessage(
@@ -447,7 +445,7 @@ object Chatroom
             userId,
             shortCode
           )
-          roomMgr = prevState.roomMgr.addMessage(
+          roomMgr = prevState.roomMgr.updateMessage(
             roomId, roomMessage
           )
         } yield Effect.persist(SaveRoomManager(roomMgr))
@@ -466,7 +464,7 @@ object Chatroom
             userId,
             shortCode
           )
-          roomMgr = prevState.roomMgr.addMessage(
+          roomMgr = prevState.roomMgr.updateMessage(
             roomId, roomMessage
           )
         } yield Effect.persist(SaveRoomManager(roomMgr))
@@ -500,5 +498,10 @@ object Chatroom
         state.copy(status = Option.empty)
       case SaveRoomManager(roomManager) =>
         state.copy(roomMgr = roomManager)
+      case RoomInPostGame(roomManager) =>
+        state.copy(
+          roomMgr = roomManager,
+          firedClosing = true
+        )
     }
 }

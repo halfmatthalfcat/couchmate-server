@@ -5,7 +5,7 @@ import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.Channel
-import com.couchmate.common.tables.ChannelTable
+import com.couchmate.common.tables.{AiringTable, ChannelTable, LineupTable, ProviderChannelTable, ProviderTable}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -28,6 +28,12 @@ trait ChannelDAO {
     db: Database
   ): Future[Option[Channel]] =
     db.run(ChannelDAO.getChannelForExt(extId))
+
+  def getChannelForProviderChannel(providerChannelId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[Channel]] =
+    db.run(ChannelDAO.getChannelForProviderChannel(providerChannelId))
 
   def getChannelForExt$()(
     implicit
@@ -64,6 +70,30 @@ object ChannelDAO {
 
   private[common] def getChannelForExt(extId: Long): DBIO[Option[Channel]] =
     getChannelForExtQuery(extId).result.headOption
+
+  private[this] lazy val getChannelForProviderChannelQuery = Compiled {
+    (providerChannelId: Rep[Long]) => for {
+      pc <- ProviderChannelTable.table if pc.providerChannelId === providerChannelId
+      c <- ChannelTable.table if c.channelId === pc.channelId
+    } yield c
+  }
+
+  private[common] def getChannelForProviderChannel(providerChannelId: Long): DBIO[Option[Channel]] =
+    getChannelForProviderChannelQuery(providerChannelId).result.headOption
+
+  private[this] lazy val getChannelForProviderAndAiringQuery = Compiled {
+    (providerId: Rep[Long], airingId: Rep[String]) => for {
+      l <- LineupTable.table if l.airingId === airingId
+      pc <- ProviderChannelTable.table if (
+        pc.providerChannelId === l.providerChannelId &&
+        pc.providerId === providerId
+      )
+      c <- ChannelTable.table if c.channelId === pc.channelId
+    } yield c
+  }
+
+  private[common] def getChannelForProviderAndAiring(providerId: Long, airingId: String): DBIO[Option[Channel]] =
+    getChannelForProviderAndAiringQuery(providerId, airingId).result.headOption
 
   private[common] def upsertChannel(channel: Channel)(
     implicit

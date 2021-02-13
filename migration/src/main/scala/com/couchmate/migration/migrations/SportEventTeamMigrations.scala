@@ -10,10 +10,26 @@ object SportEventTeamMigrations {
       _.sportTeamId,
       _.isHome
     ).addPrimaryKeys(
-      _.sportEventTeamTablePk
+      _.sportEventTeamTablePkOld
     ).addForeignKeys(
       _.sportEventFk,
       _.sportTeamFk
+    )
+  )()
+
+  val swapOrganizationTeam = MigrationItem(48L, SportEventTeamTable.table)(
+    _.dropPrimaryKeys(
+      _.sportEventTeamTablePkOld
+    ).dropForeignKeys(
+      _.sportTeamFk
+    ).dropColumns(
+      _.sportTeamId
+    ).addColumns(
+      _.sportOrganizationTeamId
+    ).addPrimaryKeys(
+      _.sportEventTeamTablePk
+    ).addForeignKeys(
+      _.sportOrgTeamFk
     )
   )()
 }

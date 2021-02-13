@@ -9,7 +9,7 @@ import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.Materializer
 import akka.stream.scaladsl.{RestartSource, Source}
-import com.couchmate.common.dao.{EpisodeDAO, LineupDAO, ListingCacheDAO, ProviderChannelDAO, ProviderDAO, ShowDAO, SportEventDAO, SportEventTeamDAO, SportTeamDAO, UserNotificationQueueDAO, UserNotificationSeriesDAO, UserNotificationShowDAO, UserNotificationTeamDAO}
+import com.couchmate.common.dao.{EpisodeDAO, LineupDAO, ListingCacheDAO, ProviderChannelDAO, ProviderDAO, ShowDAO, SportEventDAO, SportEventTeamDAO, SportOrganizationTeamDAO, SportTeamDAO, UserNotificationQueueDAO, UserNotificationSeriesDAO, UserNotificationShowDAO, UserNotificationTeamDAO}
 import com.couchmate.common.models.thirdparty.gracenote
 import com.couchmate.common.models.thirdparty.gracenote.{GracenoteAiring, GracenoteAiringPlan, GracenoteChannelAiring, GracenoteProgram, GracenoteSlotAiring, GracenoteSport}
 import com.couchmate.common.util.DateUtils
@@ -118,7 +118,8 @@ object ListingStreams
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    config: Config
   ): Source[Lineup, NotUsed] = RestartSource.onFailuresWithBackoff(
     minBackoff = 1.seconds,
     maxBackoff = 1.seconds,
@@ -173,16 +174,19 @@ object ListingStreams
       if (show.sportEventId.nonEmpty) {
         addUserNotificationsForSport(
           l.airingId,
+          providerChannelId,
           show.sportEventId.get
         )
       } else if (show.episodeId.nonEmpty) {
         addUserNotificationsForEpisode(
           l.airingId,
+          providerChannelId,
           show.episodeId.get
         )
       } else {
         addUserNotificationsForShow(
-          l.airingId
+          l.airingId,
+          providerChannelId,
         )
       }
     }
@@ -271,6 +275,7 @@ object ListingStreams
         sportOrganizationId = None,
         extSportId = program.sportsId.get,
         sportName = gnSport.map(_.sportsName).getOrElse("N/A"),
+        orgName = None
       ))
 
     val teams: Seq[SportTeam] =
@@ -286,6 +291,21 @@ object ListingStreams
         .flatMap(_.find(_.isHome.getOrElse(false)))
         .map(_.teamBrandId.toLong)
 
+    val series: Option[Series] = program.seriesId.map(seriesId => Series(
+      seriesId = None,
+      extId = seriesId,
+      seriesName = program.title,
+      totalSeasons = None,
+      totalEpisodes = None
+    ))
+
+    val episode = series.map(_ => Episode(
+      episodeId = None,
+      seriesId = None,
+      season = program.seasonNum.getOrElse(0L),
+      episode = program.episodeNum.getOrElse(0L)
+    ))
+
     getOrAddSportEvent(
       Show(
         showId = None,
@@ -293,13 +313,15 @@ object ListingStreams
         `type` = ShowType.Sport,
         episodeId = None,
         sportEventId = None,
-        title = program.title,
+        title = program.eventTitle.getOrElse(program.title),
         description = program
           .shortDescription
           .orElse(program.longDescription)
           .getOrElse("N/A"),
         originalAirDate = program.origAirDate
       ),
+      series,
+      episode,
       org,
       event,
       teams,

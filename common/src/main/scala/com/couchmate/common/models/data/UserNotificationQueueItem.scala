@@ -9,14 +9,17 @@ case class UserNotificationQueueItem(
   notificationId: UUID,
   userId: UUID,
   airingId: String,
-  hash: Option[String] = None,
+  notificationType: UserNotificationQueueItemType,
+  hash: String,
   title: String,
+  callsign: Option[String],
   applicationPlatform: ApplicationPlatform,
   token: Option[String],
   deliverAt: LocalDateTime,
   deliveredAt: Option[LocalDateTime] = None,
   success: Boolean = false,
-  read: Boolean = false
+  read: Boolean = false,
+  readAt: Option[LocalDateTime] = None
 )
 
 object UserNotificationQueueItem {

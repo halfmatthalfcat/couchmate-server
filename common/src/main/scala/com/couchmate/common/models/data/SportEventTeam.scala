@@ -6,7 +6,7 @@ import slick.jdbc.GetResult
 
 case class SportEventTeam(
   sportEventId: Long,
-  sportTeamId: Long,
+  sportOrganizationTeamId: Long,
   isHome: Boolean
 )
 

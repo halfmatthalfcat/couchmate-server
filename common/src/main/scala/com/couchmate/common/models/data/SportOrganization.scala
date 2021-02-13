@@ -9,7 +9,7 @@ case class SportOrganization(
   extSportId: Long,
   extOrgId: Option[Long] = Option(0L),
   sportName: String,
-  orgName: String = "",
+  orgName: Option[String],
 )
 
 object SportOrganization extends JsonConfig {

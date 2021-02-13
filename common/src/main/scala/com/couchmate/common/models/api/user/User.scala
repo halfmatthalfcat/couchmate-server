@@ -3,7 +3,7 @@ package com.couchmate.common.models.api.user
 import java.time.LocalDateTime
 import java.util.UUID
 
-import com.couchmate.common.models.data.UserRole
+import com.couchmate.common.models.data.{UserNotifications, UserRole}
 import play.api.libs.json.{Json, OFormat}
 
 case class User(
@@ -15,7 +15,9 @@ case class User(
   email: Option[String],
   token: String,
   mutes: Seq[UserMute],
-  wordMutes: Seq[String]
+  wordMutes: Seq[String],
+  notificationsEnabled: Boolean,
+  notifications: UserNotifications
 )
 
 object User {

@@ -9,7 +9,7 @@ class SportOrganizationTable(tag: Tag) extends Table[SportOrganization](tag, "sp
   def extSportId: Rep[Long] = column[Long]("ext_sport_id")
   def extOrgId: Rep[Long] = column[Long]("ext_org_id")
   def sportName: Rep[String] = column[String]("sport_name")
-  def orgName: Rep[String] = column[String]("org_name")
+  def orgName: Rep[Option[String]] = column[Option[String]]("org_name")
   def * = (
     sportOrganizationId.?,
     extSportId,

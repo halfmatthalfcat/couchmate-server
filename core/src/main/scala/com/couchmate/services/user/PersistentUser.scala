@@ -5,23 +5,23 @@ import java.util.UUID
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
-import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
-import com.couchmate.api.ws.protocol.{External, ForgotPasswordError, LoginError, PasswordResetError, Protocol, RegisterAccountError, UpdateUsernameError}
+import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
+import com.couchmate.api.ws.protocol._
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.grid.Grid
-import com.couchmate.common.models.api.room.Participant
 import com.couchmate.common.models.api.room.tenor.TenorGif
 import com.couchmate.common.models.api.user.UserMute
-import com.couchmate.common.models.data.{UserMeta, UserNotificationSeries, UserNotificationShow, UserNotificationTeam, UserNotifications, UserReportType, UserRole}
+import com.couchmate.common.models.data.{ApplicationPlatform, UserMeta, UserNotificationConfiguration, UserNotifications, UserReportType, UserRole}
 import com.couchmate.services.GridCoordinator
 import com.couchmate.services.GridCoordinator.GridUpdate
 import com.couchmate.services.room.TenorService.{GetTenorTrending, SearchTenor}
 import com.couchmate.services.room.{Chatroom, RoomId}
-import com.couchmate.services.user.commands.{ConnectedCommands, EmptyCommands, InitialCommands, RoomCommands, UserActions}
+import com.couchmate.services.user.commands._
 import com.couchmate.services.user.context.{DeviceContext, GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
-import com.couchmate.util.akka.extensions.{DatabaseExtension, JwtExtension, MailExtension, PromExtension, RoomExtension, SingletonExtension, UserExtension}
+import com.couchmate.util.akka.extensions._
+import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -39,6 +39,14 @@ object PersistentUser {
   final case class SetUserContext(userContext: UserContext) extends Command
   final case class SetUserContextFailed(ex: Throwable) extends Command
 
+  final case class SetUpdatedUserContext(
+    userContext: UserContext,
+    geo: GeoContext,
+    device: Option[DeviceContext],
+    ws: ActorRef[WSPersistentActor.Command]
+  ) extends Command
+  final case class SetUpdatedUserContextFailed(ex: Throwable) extends Command
+
   // Connect this PersistentUser to a websocket-based actor
   final case class Connect(
     geo: GeoContext,
@@ -48,6 +56,7 @@ object PersistentUser {
   final case object Disconnect extends Command
 
   case class UpdateGrid(grid: Grid) extends Command
+  case class UpdateGridFailed(ex: Throwable) extends Command
 
   case class EmailValidated(exists: Boolean, valid: Boolean) extends Command
   case class EmailValidationFailed(ex: Throwable) extends Command
@@ -108,10 +117,13 @@ object PersistentUser {
   final case class TenorTrending(keywords: Seq[String]) extends Command
   final case class TenorSearched(gifs: Seq[TenorGif]) extends Command
 
-  final case object EnabledNotifications extends Command
+  final case class UpdatedNotificationToken(notifications: Seq[UserNotificationConfiguration]) extends Command
+  final case class UpdateNotificationTokenFailed(ex: Throwable) extends Command
+
+  final case class EnabledNotifications(notifications: Seq[UserNotificationConfiguration]) extends Command
   final case class EnableNotificationsFailed(ex: Throwable) extends Command
 
-  final case object DisabledNotifications extends Command
+  final case class DisabledNotifications(notifications: Seq[UserNotificationConfiguration]) extends Command
   final case class DisableNotificationsFailed(ex: Throwable) extends Command
 
   final case class UserNotificationAdded(
@@ -121,7 +133,22 @@ object PersistentUser {
   final case class UserNotificationRemoved(
     notifications: UserNotifications
   ) extends Command
-  final case class  UserNotificationRemoveFailed(ex: Throwable) extends Command
+  final case class UserNotificationRemoveFailed(ex: Throwable) extends Command
+  final case class UserNotificationToggled(
+    notifications: UserNotifications
+  ) extends Command
+  final case class UserNotificationToggledFailed(ex: Throwable) extends Command
+  final case class UserNotificationOnlyNewChanged(
+    notifications: UserNotifications
+  ) extends Command
+  final case class UserNotificationOnlyNewChangeFailed(ex: Throwable) extends Command
+  final case class UserNotificationHashChanged(
+    notifications: UserNotifications
+  ) extends Command
+  final case class UserNotificationHashChangeFailed(ex: Throwable) extends Command
+
+  final case object UserNotificationRead extends Command
+  final case class UserNotificationReadFailed(ex: Throwable) extends Command
 
   // -- EVENTS
 
@@ -132,6 +159,7 @@ object PersistentUser {
   ) extends Event
 
   final case class Connected(
+    userContext: UserContext,
     geo: GeoContext,
     device: Option[DeviceContext],
     ws: ActorRef[WSPersistentActor.Command]
@@ -146,6 +174,8 @@ object PersistentUser {
   final case class WordUnmuted(mutes: Seq[String]) extends Event
   final case class RoomJoined(airingId: String, roomId: RoomId) extends Event
   final case class HashRoomChanged(roomId: RoomId) extends Event
+  final case class NotificationsChanged(notifications: UserNotifications) extends Event
+  final case class NotificationConfigurationsChanged(configurations: Seq[UserNotificationConfiguration]) extends Event
   final case object RoomLeft extends Event
 
   // -- STATES
@@ -178,6 +208,7 @@ object PersistentUser {
     userId: UUID,
     persistenceId: PersistenceId
   ): Behavior[Command] = Behaviors.setup { implicit ctx =>
+    implicit val config: Config = ConfigFactory.load()
     implicit val ec: ExecutionContext = ctx.executionContext
 
     implicit val db: Database =
@@ -220,19 +251,37 @@ object PersistentUser {
          * connected to the outgoing Websocket-based actor.
          * This state encompasses a user that has completely logged out of the system
          * and is not receiving any messages, actively or passively.
+         *
+         * Every time a Connect is handled by this actor, the userContext has to be refreshed.
+         * This is due to changes that happen outside of the explicit actor (e.g. registration via web
+         * rather than in app or deactivating a user account externally)
          */
         case InitialState(
           userContext,
           roomContext,
         ) => command match {
           case Connect(geo, device, ws) =>
+            ctx.pipeToSelf(UserActions.createUserContext(userContext.user.userId.get)) {
+              case Success(newContext) => SetUpdatedUserContext(
+                newContext,
+                geo,
+                device,
+                ws
+              )
+              case Failure(exception) => SetUpdatedUserContextFailed(exception)
+            }
+            Effect.none
+          case SetUpdatedUserContext(updatedContext, geo, device, ws) =>
             InitialCommands.connect(
-              userContext,
+              updatedContext,
               geo,
               device,
               ws,
               roomContext
             )
+          case SetUpdatedUserContextFailed(ex) =>
+            ctx.log.error(s"Unable to get user ${userContext.user.userId.get} updated context", ex)
+            Effect.none
           case WSMessage(message) => message match {
             case _ => Effect.stash()
           }
@@ -260,6 +309,7 @@ object PersistentUser {
             ConnectedCommands.disconnect(userContext, geo, device)
           case UpdateGrid(grid) =>
             ConnectedCommands.updateGrid(grid, ws)
+          case UpdateGridFailed(_) => Effect.none
           case validated: EmailValidated =>
             ConnectedCommands.emailValidated(validated, ws)
           case validated: UsernameValidated =>
@@ -269,7 +319,7 @@ object PersistentUser {
           case AccountRegistrationFailed(RegisterAccountError(cause)) =>
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(External.RegisterAccountSentFailure(cause)))
           case AccountVerified(_) =>
-            ConnectedCommands.accountVerified(userContext)
+            ConnectedCommands.accountVerified(userContext, device)
           case AccountVerificationFailed(RegisterAccountError(cause)) =>
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(External.VerifyAccountFailed(cause)))
           case LoggedIn(userId) =>
@@ -303,7 +353,7 @@ object PersistentUser {
               External.ResetPasswordFailed(cause)
             ))
           case UpdateUsername(userMeta) =>
-            ConnectedCommands.usernameUpdated(userMeta)
+            ConnectedCommands.usernameUpdated(userMeta, device)
           case UpdateUsernameFailed(UpdateUsernameError(cause)) =>
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
               External.UpdateUsernameFailure(cause)
@@ -320,35 +370,92 @@ object PersistentUser {
           case UnmuteWord(mutes) =>
             ConnectedCommands.wordUnmuted(mutes)
           case UnmuteWordFailed(_) => Effect.none
-          case EnabledNotifications =>
-            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
-              External.NotificationsEnabled
-            ))
+          case EnabledNotifications(notifications) =>
+            Effect
+              .persist(NotificationConfigurationsChanged(notifications))
+              .thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.NotificationsEnabled
+              ))
           case EnableNotificationsFailed(_) => Effect.none
-          case DisabledNotifications =>
-            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
-              External.NotificationsDisabled
-            ))
+          case DisabledNotifications(notifications) =>
+            Effect
+              .persist(NotificationConfigurationsChanged(notifications))
+              .thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.NotificationsDisabled
+              ))
           case DisableNotificationsFailed(_) => Effect.none
           case UserNotificationAdded(notifications) =>
-            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
-              External.UpdateNotifications(
-                show = notifications.show.map(_.airingId),
-                series = notifications.series.map(_.seriesId),
-                team = notifications.teams.map(_.teamId)
-              )
-            ))
-          case UserNotificationAddFailed(ex) =>
-            Effect.none.thenRun(_ => ctx.log.error("Unable to add Notification", ex))
+            Effect
+              .persist(NotificationsChanged(notifications))
+              .thenRun({
+                case ConnectedState(userContext, _, _, _) => ws ! WSPersistentActor.OutgoingMessage(
+                  External.UpdateNotifications(
+                    show = userContext.notifications.show,
+                    series = userContext.notifications.series,
+                    team = userContext.notifications.teams
+                  )
+                )
+              })
+          case UserNotificationAddFailed(_) =>
+            Effect.none
           case UserNotificationRemoved(notifications) =>
-            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
-              External.UpdateNotifications(
-                show = notifications.show.map(_.airingId),
-                series = notifications.series.map(_.seriesId),
-                team = notifications.teams.map(_.teamId)
-              )
-            ))
+            Effect
+              .persist(NotificationsChanged(notifications))
+              .thenRun({
+                case ConnectedState(userContext, _, _, _) => ws ! WSPersistentActor.OutgoingMessage(
+                  External.UpdateNotifications(
+                    show = userContext.notifications.show,
+                    series = userContext.notifications.series,
+                    team = userContext.notifications.teams
+                  )
+                )
+              })
           case UserNotificationRemoveFailed(_) => Effect.none
+          case UserNotificationToggled(notifications) =>
+            Effect
+              .persist(NotificationsChanged(notifications))
+              .thenRun({
+                case ConnectedState(userContext, _, _, _) => ws ! WSPersistentActor.OutgoingMessage(
+                  External.UpdateNotifications(
+                    show = userContext.notifications.show,
+                    series = userContext.notifications.series,
+                    team = userContext.notifications.teams
+                  )
+                )
+              })
+          case UserNotificationToggledFailed(_) => Effect.none
+          case UserNotificationOnlyNewChanged(notifications) =>
+            Effect
+              .persist(NotificationsChanged(notifications))
+              .thenRun({
+                case ConnectedState(userContext, _, _, _) => ws ! WSPersistentActor.OutgoingMessage(
+                  External.UpdateNotifications(
+                    show = userContext.notifications.show,
+                    series = userContext.notifications.series,
+                    team = userContext.notifications.teams
+                  )
+                )
+              })
+          case UserNotificationOnlyNewChangeFailed(_) => Effect.none
+          case UserNotificationHashChanged(notifications) =>
+            Effect
+              .persist(NotificationsChanged(notifications))
+              .thenRun({
+                case RoomState(userContext, _, _, _, _) => ws ! WSPersistentActor.OutgoingMessage(
+                  External.UpdateNotifications(
+                    show = userContext.notifications.show,
+                    series = userContext.notifications.series,
+                    team = userContext.notifications.teams
+                  )
+                )
+              })
+          case UserNotificationHashChangeFailed(_) => Effect.none
+          case UpdatedNotificationToken(notifications) =>
+            Effect
+              .persist(NotificationConfigurationsChanged(notifications))
+              .thenNoReply()
+          case UserNotificationRead => Effect.none
+          case UserNotificationReadFailed(_) => Effect.none
           /**
            * WSMessage wraps _inbound_ messages via a Websocket
            * with the intention that a message will be relayed back
@@ -417,48 +524,110 @@ object PersistentUser {
                 userContext,
                 hash
               ))
-            case External.EnableNotifications(os, token) =>
+            case External.SetNotificationToken(token) =>
+              ConnectedCommands.updateNotificationToken(
+                userContext.user.userId.get,
+                device
+                  .flatMap(_.os.flatMap(ApplicationPlatform.withNameOption))
+                  .getOrElse(ApplicationPlatform.Unknown),
+                device.map(_.deviceId),
+                token
+              )
+            case External.EnableNotifications =>
               ConnectedCommands.enableNotifications(
                 userContext.user.userId.get,
-                os,
-                token,
+                device
+                  .flatMap(_.os.flatMap(ApplicationPlatform.withNameOption))
+                  .getOrElse(ApplicationPlatform.Unknown),
                 device.map(_.deviceId)
               )
             case External.DisableNotifications =>
               ConnectedCommands.disableNotifications(
-                userContext.user.userId.get
+                userContext.user.userId.get,
+                device
+                  .flatMap(_.os.flatMap(ApplicationPlatform.withNameOption))
+                  .getOrElse(ApplicationPlatform.Unknown),
+                device.map(_.deviceId)
               )
-            case External.AddShowNotification(airingId) =>
+            case External.ToggleShowNotification(airingId, channelId, true, hash) =>
               ConnectedCommands.addShowNotification(
                 userContext.user.userId.get,
-                airingId
+                airingId,
+                channelId,
+                hash.getOrElse(config.getString("features.room.default")),
               )
-            case External.RemoveShowNotification(airingId) =>
+            case External.ToggleShowNotification(airingId, channelId, false, _) =>
               ConnectedCommands.removeShowNotification(
                 userContext.user.userId.get,
-                airingId
+                airingId,
+                channelId,
               )
-            case External.AddSeriesNotification(seriesId) =>
-              ConnectedCommands.addSeriesNotification(
+            case External.ToggleSeriesNotification(seriesId, channelId, enabled, hash) =>
+              ConnectedCommands.toggleSeriesNotification(
                 userContext.user.userId.get,
-                seriesId
+                seriesId,
+                channelId,
+                hash.getOrElse(config.getString("features.room.default")),
+                enabled
               )
-            case External.RemoveSeriesNotification(seriesId) =>
+            case External.ToggleTeamNotification(teamId, enabled, hash) =>
+              ConnectedCommands.toggleTeamNotification(
+                userContext.user.userId.get,
+                teamId,
+                userContext.providerId,
+                hash.getOrElse(config.getString("features.room.default")),
+                enabled
+              )
+            case External.SetNewSeriesNotification(seriesId, channelId, enabled) =>
+              ConnectedCommands.toggleSeriesOnlyNewNotification(
+                userContext.user.userId.get,
+                seriesId,
+                channelId,
+                config.getString("features.room.default"),
+                enabled
+              )
+            case External.SetHashSeriesNotification(seriesId, channelId, hash) =>
+              ConnectedCommands.updateHashSeriesNotification(
+                userContext.user.userId.get,
+                seriesId,
+                channelId,
+                hash
+              )
+            case External.SetNewTeamNotification(teamId, enabled) =>
+              ConnectedCommands.toggleOnlyNewTeamNotification(
+                userContext.user.userId.get,
+                teamId,
+                userContext.providerId,
+                config.getString("features.room.default"),
+                enabled
+              )
+            case External.SetHashTeamNotification(teamId, hash) =>
+              ConnectedCommands.updateHashTeamNotification(
+                userContext.user.userId.get,
+                teamId,
+                userContext.providerId,
+                hash
+              )
+            case External.RemoveShowNotification(airingId, channelId) =>
+              ConnectedCommands.removeShowNotification(
+                userContext.user.userId.get,
+                airingId,
+                channelId
+              )
+            case External.RemoveSeriesNotification(seriesId, channelId) =>
               ConnectedCommands.removeSeriesNotification(
                 userContext.user.userId.get,
-                seriesId
-              )
-            case External.AddTeamNotification(teamId) =>
-              ConnectedCommands.addTeamNotification(
-                userContext.user.userId.get,
-                teamId
+                seriesId,
+                channelId
               )
             case External.RemoveTeamNotification(teamId) =>
               ConnectedCommands.removeTeamNotification(
                 userContext.user.userId.get,
-                teamId
+                teamId,
+                userContext.providerId
               )
-
+            case External.ReadNotification(notificationId) =>
+              ConnectedCommands.readNotification(notificationId)
             case _ => Effect.unhandled
           }
           /**
@@ -490,11 +659,63 @@ object PersistentUser {
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
               External.TenorSearchResults(gifs)
             ))
+          case UserNotificationToggled(notifications) =>
+            Effect
+              .persist(NotificationsChanged(notifications))
+              .thenRun({
+                case RoomState(userContext, _, _, _, _) => ws ! WSPersistentActor.OutgoingMessage(
+                  External.UpdateNotifications(
+                    show = userContext.notifications.show,
+                    series = userContext.notifications.series,
+                    team = userContext.notifications.teams
+                  )
+                )
+              })
+          case UserNotificationOnlyNewChanged(notifications) =>
+            Effect
+              .persist(NotificationsChanged(notifications))
+              .thenRun({
+                case RoomState(userContext, _, _, _, _) => ws ! WSPersistentActor.OutgoingMessage(
+                  External.UpdateNotifications(
+                    show = userContext.notifications.show,
+                    series = userContext.notifications.series,
+                    team = userContext.notifications.teams
+                  )
+                )
+              })
+          case UserNotificationHashChanged(notifications) =>
+            Effect
+              .persist(NotificationsChanged(notifications))
+              .thenRun({
+                case RoomState(userContext, _, _, _, _) => ws ! WSPersistentActor.OutgoingMessage(
+                  External.UpdateNotifications(
+                    show = userContext.notifications.show,
+                    series = userContext.notifications.series,
+                    team = userContext.notifications.teams
+                  )
+                )
+              })
+          case UserNotificationHashChangeFailed(_) => Effect.none
+          case UserNotificationToggledFailed(ex) =>
+            ctx.log.error(s"Failed to toggle notification", ex)
+            Effect.none
+          /**
+           * Incoming messages while in room
+           */
           case WSMessage(message) => message match {
             case External.Ping =>
               Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
                 External.Pong
               ))
+            case External.JoinRoom(airingId, hash) if hash.forall(RoomCommands.hashValid) =>
+              RoomCommands.swapRooms(
+                userContext,
+                geo,
+                roomContext.airingId,
+                roomContext.roomId,
+                airingId,
+                hash
+              )
             case External.SendMessage(message) =>
               Effect.none.thenRun(_ => lobby.message(
                 roomContext.airingId,
@@ -547,9 +768,70 @@ object PersistentUser {
                 userContext.user.userId.get,
                 name
               ))
+            case External.ToggleSeriesNotification(seriesId, channelId, enabled, hash) =>
+              ConnectedCommands.toggleSeriesNotification(
+                userContext.user.userId.get,
+                seriesId,
+                channelId,
+                hash.getOrElse(config.getString("features.room.default")),
+                enabled
+              )
+            case External.ToggleTeamNotification(teamId, enabled, hash) =>
+              ConnectedCommands.toggleTeamNotification(
+                userContext.user.userId.get,
+                teamId,
+                userContext.providerId,
+                hash.getOrElse(config.getString("features.room.default")),
+                enabled
+              )
+            case External.SetNewSeriesNotification(seriesId, channelId, enabled) =>
+              ConnectedCommands.toggleSeriesOnlyNewNotification(
+                userContext.user.userId.get,
+                seriesId,
+                channelId,
+                config.getString("features.room.default"),
+                enabled
+              )
+            case External.SetHashSeriesNotification(seriesId, channelId, hash) =>
+              ConnectedCommands.updateHashSeriesNotification(
+                userContext.user.userId.get,
+                seriesId,
+                channelId,
+                hash
+              )
+            case External.SetNewTeamNotification(teamId, enabled) =>
+              ConnectedCommands.toggleOnlyNewTeamNotification(
+                userContext.user.userId.get,
+                teamId,
+                userContext.providerId,
+                config.getString("features.room.default"),
+                enabled
+              )
+            case External.SetHashTeamNotification(teamId, hash) =>
+              ConnectedCommands.updateHashTeamNotification(
+                userContext.user.userId.get,
+                teamId,
+                userContext.providerId,
+                hash
+              )
+            case External.SetNotificationToken(token) =>
+              ConnectedCommands.updateNotificationToken(
+                userContext.user.userId.get,
+                device
+                  .flatMap(_.os.flatMap(ApplicationPlatform.withNameOption))
+                  .getOrElse(ApplicationPlatform.Unknown),
+                device.map(_.deviceId),
+                token
+              )
             case _ => Effect.unhandled
           }
           case RoomMessage(message) => message match {
+            case Chatroom.RoomEnded(_) =>
+              RoomCommands.roomEnded(
+                userContext,
+                geo,
+                ws
+              )
             case Chatroom.RoomParticipants(participants) =>
               Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
                 External.SetParticipants(participants.filterNot(userContext.mutes.contains).toSeq)
@@ -608,13 +890,13 @@ object PersistentUser {
             InitialState(userContext, Option.empty)
         }
         case InitialState(userContext, _) => event match {
-          case Connected(geo, device, ws) => ConnectedState(
-            userContext, geo, device, ws
+          case Connected(updatedContext, geo, device, ws) => ConnectedState(
+            updatedContext, geo, device, ws
           )
         }
         case state @ ConnectedState(userContext, geo, device, ws) => event match {
-          case Connected(geo, device, ws) => ConnectedState(
-            userContext, geo, device, ws
+          case Connected(updatedContext, geo, device, ws) => ConnectedState(
+            updatedContext, geo, device, ws
           )
           case Disconnected => InitialState(
             userContext,
@@ -664,6 +946,16 @@ object PersistentUser {
             device,
             ws
           )
+          case NotificationsChanged(notifications) => state.copy(
+            userContext = state.userContext.copy(
+              notifications = notifications
+            )
+          )
+          case NotificationConfigurationsChanged(configurations) => state.copy(
+            userContext = state.userContext.copy(
+              notificationConfigurations = configurations
+            )
+          )
         }
         case state @ RoomState(userContext, geo, device, ws, roomContext) => event match {
           case Disconnected => InitialState(
@@ -679,6 +971,11 @@ object PersistentUser {
           case HashRoomChanged(roomId) => state.copy(
             roomContext = roomContext.copy(
               roomId = roomId
+            )
+          )
+          case NotificationsChanged(notifications) => state.copy(
+            userContext = state.userContext.copy(
+              notifications = notifications
             )
           )
         }
