@@ -1,10 +1,10 @@
 apiVersion: cert-manager.io/v1
-kind: Issuer
+kind: ClusterIssuer
 metadata:
   name: letsencrypt-issuer
 spec:
   acme:
-    server: https://acme-{{if eq .Values.env "local"}}staging-{{end}}v02.api.letsencrypt.org/directory
+    server: https://acme-v02.api.letsencrypt.org/directory
     email: admin@couchmate.com
     privateKeySecretRef:
       name: letsencrypt-secret

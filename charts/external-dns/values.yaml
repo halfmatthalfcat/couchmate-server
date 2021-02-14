@@ -1,5 +1,6 @@
+# external-dns options
 
-doToken: {{.Values.doToken}}
+doToken:
 
 external-dns:
   provider: digitalocean

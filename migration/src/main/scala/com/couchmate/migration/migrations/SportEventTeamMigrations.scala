@@ -17,14 +17,18 @@ object SportEventTeamMigrations {
     )
   )()
 
-  val swapOrganizationTeam = MigrationItem(48L, SportEventTeamTable.table)(
+  val dropTeamId = MigrationItem(48L, SportEventTeamTable.table)(
     _.dropPrimaryKeys(
       _.sportEventTeamTablePkOld
     ).dropForeignKeys(
       _.sportTeamFk
     ).dropColumns(
       _.sportTeamId
-    ).addColumns(
+    )
+  )()
+
+  val addTeamOrgId = MigrationItem(49L, SportEventTeamTable.table)(
+    _.addColumns(
       _.sportOrganizationTeamId
     ).addPrimaryKeys(
       _.sportEventTeamTablePk

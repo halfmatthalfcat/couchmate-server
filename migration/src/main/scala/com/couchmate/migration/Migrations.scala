@@ -59,7 +59,8 @@ object Migrations extends LazyLogging {
     UserNotificationShowMigrations.addNameAndCallsign,
     UserNotificationTeamMigrations.addName,
     SportOrganizationTeamMigrations.init,
-    SportEventTeamMigrations.swapOrganizationTeam,
+    SportEventTeamMigrations.dropTeamId,
+    SportEventTeamMigrations.addTeamOrgId,
     UserNotificationTeamMigrations.addSportOrgTeamFk,
     UserNotificationQueueMigrations.addReadAt
   )

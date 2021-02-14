@@ -41,7 +41,7 @@ object UserNotificationQueueMigrations {
     )
   )()
 
-  val addReadAt = MigrationItem(50L, UserNotificationQueueTable.table)(
+  val addReadAt = MigrationItem(51L, UserNotificationQueueTable.table)(
     _.addColumns(
       _.readAt
     )

@@ -47,6 +47,8 @@ spec:
               value: {{.Values.app.mailgun.validationKey}}
             - name: TENOR_API_KEY
               value: {{.Values.app.tenor.apiKey}}
+            - name: FCM_API_KEY
+              value: {{.Values.app.notifications.android}}
             - name: HOSTNAME
               value: {{if ne .Values.env "prod"}}{{.Values.env}}.{{end}}couchmate.com
           readinessProbe:
@@ -111,6 +113,10 @@ spec:
               serviceName: server
               servicePort: 80
           - path: /v2/ws
+            backend:
+              serviceName: server
+              servicePort: 80
+          - path: /v3/ws
             backend:
               serviceName: server
               servicePort: 80

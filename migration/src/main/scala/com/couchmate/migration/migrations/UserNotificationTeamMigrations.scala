@@ -19,7 +19,7 @@ object UserNotificationTeamMigrations {
     )
   )()
 
-  val addSportOrgTeamFk = MigrationItem(49L, UserNotificationTeamTable.table)(
+  val addSportOrgTeamFk = MigrationItem(50L, UserNotificationTeamTable.table)(
     _.dropForeignKeys(
       _.teamIdFkOld
     ).addForeignKeys(

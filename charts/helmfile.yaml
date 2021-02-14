@@ -23,37 +23,42 @@ environments:
 helmDefaults:
   atomic: true
   cleanupOnFail: true
+  createNamespace: true
 
 releases:
-  - name: nginx-ingress
-    chart: stable/nginx-ingress
-    namespace: nginx-ingress
-    version: 1.40.3
-    values:
-      - nginx-ingress.yaml.gotmpl
   - name: cert-manager
-    chart: ./cert-manager
     namespace: cert-manager
+    chart: jetstack/cert-manager
+    version: v1.1.0
     values:
-      - ./cert-manager/values.yaml.gotmpl
-  - name: metrics
-    chart: ./metrics
-    namespace: metrics
+      - installCRDs: true
+  - name: cert-manager-extra
+    namespace: cert-manager
+    chart: ./cert-manager
+    needs:
+      - cert-manager/cert-manager
     values:
-      - ./metrics/values.yaml.gotmpl
+      - doToken: {{.Values.doToken}}
+  - name: external-dns
+    namespace: external-dns
+    chart: ./external-dns
+    values:
+      - doToken: {{.Values.doToken}}
+  - name: nginx-ingress
+    namespace: nginx-ingress
+    chart: ./nginx-ingress
   - name: couchmate
     namespace: couchmate
     chart: ./couchmate
     needs:
-      - cert-manager/cert-manager
+      - cert-manager/cert-manager-extra
     values:
       - ./couchmate/values.yaml.gotmpl
-  # Needs to be after couchmate to apply the DO api key secret
-  - name: external-dns
-    chart: ./external-dns
-    namespace: external-dns
-    version: 3.2.2
+  - name: metrics
+    namespace: metrics
+    chart: ./metrics
     needs:
+      - cert-manager/cert-manager-extra
       - couchmate/couchmate
     values:
-      - ./external-dns/values.yaml.gotmpl
+      - ./metrics/values.yaml.gotmpl
