@@ -16,9 +16,13 @@ environments:
   default:
     values:
       - env: qa
+        metrics:
+          enabled: false
   production:
     values:
       - env: prod
+        metrics:
+          enabled: true
 
 helmDefaults:
   atomic: true
@@ -47,6 +51,8 @@ releases:
   - name: nginx-ingress
     namespace: nginx-ingress
     chart: ./nginx-ingress
+    values:
+      - ./nginx-ingress/values.yaml.gotmpl
   - name: couchmate
     namespace: couchmate
     chart: ./couchmate
@@ -62,3 +68,4 @@ releases:
       - couchmate/couchmate
     values:
       - ./metrics/values.yaml.gotmpl
+    condition: metrics.enabled
