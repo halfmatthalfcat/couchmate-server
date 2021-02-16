@@ -76,7 +76,7 @@ object Migrations extends LazyLogging {
       Future.successful(Seq.empty)
     } else {
       val newMigrations = migrations
-        .drop(currentMigrations.size)
+        .filterNot(m => currentMigrations.exists(_.migrationId == m.migrationId))
         .toSeq
         .map(item => (for {
           _ <- item.up
