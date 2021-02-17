@@ -155,6 +155,29 @@ object SeriesDAO {
           WHERE e.episode_id = ${episodeId}
          """.as[GridSeries]
 
+  private[this] def addSeriesForId(s: Series) =
+    sql"""
+          WITH row AS (
+            INSERT INTO series
+            (ext_id, series_name, total_seasons, total_episodes)
+            VALUES
+            (${s.extId}, ${s.seriesName}, ${s.totalSeasons}, ${s.totalEpisodes})
+            ON CONFLICT (ext_id)
+            DO NOTHING
+            RETURNING series_id
+          ) SELECT series_id FROM row
+            UNION SELECT series_id FROM series
+            WHERE ext_id = ${s.extId}
+         """.as[Long]
+
+  private[common] def addAndGetSeries(s: Series)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Series] = (for {
+    seriesId <- addSeriesForId(s).head
+    series <- getSeriesQuery(seriesId).result.head
+  } yield series).transactionally
+
   private[common] def addOrGetSeries(series: Series) =
     sql"""
          WITH input_rows(ext_id, series_name, total_seasons, total_episodes) AS (

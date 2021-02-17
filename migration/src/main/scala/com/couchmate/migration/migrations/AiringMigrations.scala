@@ -26,4 +26,10 @@ object AiringMigrations {
      _.isNew
    )
  )()
+
+  val startTimeEndTimeIdx = MigrationItem(53L, AiringTable.table)(
+    _.addIndexes(
+      _.startTimeEndTimeIdx
+    )
+  )()
 }

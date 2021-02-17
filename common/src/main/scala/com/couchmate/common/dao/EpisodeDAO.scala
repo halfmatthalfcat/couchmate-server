@@ -45,35 +45,15 @@ trait EpisodeDAO {
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Show] = (for {
-    series <- db.run(SeriesDAO.addOrGetSeries(series).head) recoverWith {
-      case ex: Throwable =>
-        System.out.println(s"Get series failed: ${ex.getMessage}, ${SeriesDAO.addOrGetSeries(series).statements.mkString("\n")}")
-        for {
-          s <- db.run(SeriesDAO.addOrGetSeries(series).headOption)
-          _ = System.out.println(s"Legit no series: ${s.isEmpty}")
-          f <- Future.failed(ex)
-        } yield f
-    }
-    episode <- db.run(EpisodeDAO.addOrGetEpisode(episode.copy(
+  ): Future[Show] = for {
+    series <- db.run(SeriesDAO.addAndGetSeries(series))
+    episode <- db.run(EpisodeDAO.addAndGetEpisode(episode.copy(
       seriesId = series.seriesId
-    )).head) recoverWith {
-      case ex: Throwable =>
-        System.out.println(s"Get episode failed: ${ex.getMessage}")
-        Future.failed(ex)
-    }
-    show <- db.run(ShowDAO.addOrGetShow(show.copy(
+    )))
+    show <- db.run(ShowDAO.addAndGetShow(show.copy(
       episodeId = episode.episodeId
-    )).head) recoverWith {
-      case ex: Throwable =>
-        System.out.println(s"Get show failed: ${ex.getMessage}")
-        Future.failed(ex)
-    }
-  } yield show) recoverWith {
-    case ex: Throwable =>
-      System.out.println(s"!Episode failed ${ex.getMessage}")
-      Future.failed(ex)
-  }
+    )))
+  } yield show
 }
 
 object EpisodeDAO {
@@ -115,6 +95,31 @@ object EpisodeDAO {
         .update(episode)
       updated <- EpisodeDAO.getEpisode(episodeId)
     } yield updated.get}
+
+  private[this] def addEpisodeForId(e: Episode) =
+    sql"""
+          WITH row AS (
+            INSERT INTO episode
+            (series_id, season, episode)
+            VALUES
+            (${e.seriesId}, ${e.season}, ${e.episode})
+            ON CONFLICT (series_id, season, episode)
+            DO NOTHING
+            RETURNING episode_id
+          ) SELECT episode_id FROM row
+            UNION SELECT episode_id FROM episode
+            WHERE series_id = ${e.seriesId} AND
+                  season = ${e.season} AND
+                  episode = ${e.episode}
+         """.as[Long]
+
+  private[common] def addAndGetEpisode(e: Episode)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Episode] = (for {
+    episodeId <- addEpisodeForId(e).head
+    episode <- getEpisodeQuery(episodeId).result.head
+  } yield episode).transactionally
 
   private[common] def addOrGetEpisode(e: Episode) =
     sql"""

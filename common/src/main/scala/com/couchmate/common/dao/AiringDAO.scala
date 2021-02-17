@@ -289,6 +289,31 @@ object AiringDAO {
             TABLE  ups;
          """.as[Airing]
 
+  private[this] def addAiringForId(a: Airing) =
+    sql"""
+          WITH row as (
+            INSERT INTO airing
+            (airing_id, show_id, start_time, end_time, duration)
+            VALUES
+            (${a.airingId}, ${a.showId}, ${a.startTime}, ${a.endTime}, ${a.duration})
+            ON CONFLICT (show_id, start_time, end_time)
+            DO NOTHING
+            RETURNING airing_id
+          ) SELECT airing_id from row
+            UNION SELECT airing_id FROM airing
+            WHERE show_id = ${a.showId} AND
+                  start_time = ${a.startTime} AND
+                  end_time = ${a.endTime}
+         """.as[String]
+
+  private[common] def addAndGetAiring(airing: Airing)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Airing] = (for {
+    airingId <- addAiringForId(airing).head
+    a <- getAiringQuery(airingId).result.head
+  } yield a).transactionally
+
   private[common] def getAiringStatus(airingId: String): SqlStreamingAction[Seq[AiringStatus], AiringStatus, Effect] =
     sql"""
        SELECT  a.airing_id, a.show_id, a.start_time, a.end_time, a.duration, a.is_new, CASE

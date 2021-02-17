@@ -89,6 +89,11 @@ trait PgProfile
 
     implicit val roomStatusGetResult = getResultForEnumLowercase(RoomStatusType)
     implicit val showTypeGetResult = getResultForEnumLowercase(ShowType)
+
+    implicit val airingSeqSetParameter =
+      utils.PlainSQLUtils.mkArraySetParameter[GracenoteAiring]("jsonb",
+        v => Json.stringify(Json.toJson(v))
+      )
   }
 }
 

@@ -133,6 +133,29 @@ object SportTeamDAO {
           WHERE   sot.sport_organization_team_id = ${sportOrganizationTeamId}
        """.as[GridSportTeam]
 
+  private[this] def addSportTeamForId(st: SportTeam) =
+    sql"""
+          WITH row AS (
+            INSERT INTO sport_team
+            (ext_sport_team_id, name)
+            VALUES
+            (${st.extSportTeamId}, ${st.name})
+            ON CONFLICT (ext_sport_team_id)
+            DO NOTHING
+            RETURNING sport_team_id
+          ) SELECT sport_team_id from row
+            UNION SELECT sport_team_id from sport_team
+            WHERE ext_sport_team_id = ${st.sportTeamId}
+         """.as[Long]
+
+  private[common] def addAndGetSportTeam(st: SportTeam)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[SportTeam] = (for {
+    sportTeamId <- addSportTeamForId(st).head
+    sportTeam <- getSportTeamQuery(sportTeamId).result.head
+  } yield sportTeam).transactionally
+
   private[common] def addOrGetSportTeam(st: SportTeam) =
     sql"""
          WITH input_rows(ext_sport_team_id, name) as (

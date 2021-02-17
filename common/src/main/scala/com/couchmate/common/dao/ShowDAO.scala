@@ -51,9 +51,10 @@ trait ShowDAO {
 
   def addOrGetShow(show: Show)(
     implicit
+    ec: ExecutionContext,
     db: Database
   ): Future[Show] =
-    db.run(ShowDAO.addOrGetShow(show).head)
+    db.run(ShowDAO.addAndGetShow(show))
 }
 
 object ShowDAO {
@@ -93,6 +94,29 @@ object ShowDAO {
         .update(show)
       updated <- ShowDAO.getShow(showId)
     } yield updated.get}
+
+  private[this] def addShowForId(s: Show) =
+    sql"""
+          WITH row AS (
+            INSERT INTO show
+            (ext_id, type, episode_id, sport_event_id, title, description, original_air_date)
+            VALUES
+            (${s.extId}, ${s.`type`}, ${s.episodeId}, ${s.sportEventId}, ${s.title}, ${s.description}, ${s.originalAirDate})
+            ON CONFLICT (ext_id)
+            DO NOTHING
+            RETURNING show_id
+          ) SELECT show_id FROM row
+            UNION SELECT show_id FROM show
+            WHERE ext_id = ${s.extId}
+         """.as[Long]
+
+  private[common] def addAndGetShow(s: Show)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Show] = (for {
+    showId <- addShowForId(s).head
+    show <- getShowQuery(showId).result.head
+  } yield show)
 
   private[common] def addOrGetShow(show: Show) =
     sql"""

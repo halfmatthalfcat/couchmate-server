@@ -48,6 +48,11 @@ class AiringTable(tag: Tag) extends Table[Airing](tag, "airing") {
     "airing_end_time_idx",
     endTime
   )
+
+  def startTimeEndTimeIdx = index(
+    "airing_start_time_end_time_idx",
+    (startTime, endTime)
+  )
 }
 
 object AiringTable extends WithTableQuery[AiringTable] {

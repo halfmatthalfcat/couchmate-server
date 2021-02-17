@@ -96,6 +96,30 @@ object SportEventTeamDAO {
     } yield updated.get)
   } yield sEV
 
+  private[this] def addSportEventTeamForId(sET: SportEventTeam) =
+    sql"""
+          WITH row AS (
+            INSERT INTO sport_event_team
+            (sport_event_id, sport_organization_team_id, is_home)
+            VALUES
+            (${sET.sportEventId}, ${sET.sportOrganizationTeamId}, ${sET.isHome})
+            ON CONFLICT (sport_event_id, sport_event_id)
+            DO NOTHING
+            RETURNING sport_event_id, sport_organization_team_id
+          ) SELECT sport_event_id, sport_organization_team_id FROM row
+            UNION SELECT sport_event_id, sport_organization_team_id FROM sport_event_team
+            WHERE sport_organization_team_id = ${sET.sportOrganizationTeamId} AND
+                  sport_event_id = ${sET.sportEventId}
+         """.as[(Long, Long)]
+
+  private[common] def addAndGetSportEventTeam(sET: SportEventTeam)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[SportEventTeam] = (for {
+    (sportEventId, sportOrganizationTeamId) <- addSportEventTeamForId(sET).head
+    sportEventTeam <- getSportEventTeamQuery(sportEventId, sportOrganizationTeamId).result.head
+  } yield sportEventTeam).transactionally
+
   private[common] def getOrAddSportEventTeam(sET: SportEventTeam) =
     sql"""
          WITH input_rows(sport_event_id, sport_organization_team_id, is_home) as (

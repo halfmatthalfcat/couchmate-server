@@ -16,4 +16,10 @@ object ListingCacheMigrations {
     )
   )()
 
+  val providerStartTimeIdx = MigrationItem(52L, ListingCacheTable.table)(
+    _.addIndexes(
+      _.idx
+    )
+  )()
+
 }

@@ -28,6 +28,12 @@ class ListingCacheTable(tag: Tag) extends Table[ListingCache](tag, "listing_cach
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict,
   )
+
+  val idx = index(
+    "listing_cache_provider_startTime_idx",
+    (providerChannelId, startTime),
+    unique = true
+  )
 }
 
 object ListingCacheTable extends WithTableQuery[ListingCacheTable] {

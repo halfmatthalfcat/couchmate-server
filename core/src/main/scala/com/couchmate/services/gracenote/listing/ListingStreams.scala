@@ -104,7 +104,7 @@ object ListingStreams
         )
       ))
       .map(_.providerChannelId.get)
-      .mapAsync(1)(upsertListingCacheWithDiff(
+      .mapAsync(10)(upsertListingCacheWithDiff(
         _,
         startTime,
         channelAiring.airings

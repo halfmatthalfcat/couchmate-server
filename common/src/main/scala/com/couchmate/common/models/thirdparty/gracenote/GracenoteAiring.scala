@@ -2,10 +2,11 @@ package com.couchmate.common.models.thirdparty.gracenote
 
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-
 import com.couchmate.common.util.DateUtils
+import com.couchmate.common.util.slick.RowParser
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
+import slick.jdbc.GetResult
 
 case class GracenoteAiring(
   startTime: LocalDateTime,
@@ -33,6 +34,7 @@ case class GracenoteAiring(
 }
 
 object GracenoteAiring {
+//  implicit val result: GetResult[GracenoteAiring] = RowParser[GracenoteAiring]
   implicit val reads: Reads[GracenoteAiring] = (
     (__ \ "startTime").read[String]
                       .map(DateUtils.toLocalDateTime(

@@ -88,6 +88,35 @@ object SportOrganizationTeamDAO {
     )(DBIO.successful)
   } yield sportOrganizationTeam
 
+  private[this] def addSportOrganizationTeamForId(
+    sportTeamId: Long,
+    sportOrganizationId: Long
+  ) =
+    sql"""
+        WITH row AS (
+          INSERT INTO sport_organization_team
+          (sport_team_id, sport_organization_id)
+          VALUES
+          (${sportTeamId}, ${sportOrganizationId})
+          ON CONFLICT (sport_team_id, sport_organization_id)
+          DO NOTHING
+          RETURNING sport_organization_team_id
+        ) SELECT sport_organization_team_id FROM row
+          UNION SELECT sport_organization_team_id FROM sport_organization_team
+          WHERE sport_team_id = ${sportTeamId} AND
+                sport_organization_id = ${sportOrganizationId}
+      """.as[Long]
+
+  private[common] def addAndGetSportOrganizationTeam(
+    sportTeamId: Long,
+    sportOrganizationId: Long
+  )(implicit ec: ExecutionContext): DBIO[SportOrganizationTeam] = (for {
+    sportOrganizationTeamId <- addSportOrganizationTeamForId(
+      sportTeamId, sportOrganizationId
+    ).head
+    sportOrganizationTeam <- getSportOrganizationTeamQuery(sportOrganizationTeamId).result.head
+  } yield sportOrganizationTeam).transactionally
+
   private[common] def addOrGetSportOrganizationTeam(
     sportTeamId: Long,
     sportOrganizationId: Long

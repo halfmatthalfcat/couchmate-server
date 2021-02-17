@@ -71,33 +71,33 @@ trait SportEventDAO {
     db: Database
   ): Future[Show] = for {
     srs <- series.fold[Future[Option[Series]]](Future.successful(Option.empty))(
-      series => db.run(SeriesDAO.addOrGetSeries(series).headOption)
+      series => db.run(SeriesDAO.addAndGetSeries(series)).map(Option(_))
     )
     e <- episode.fold[Future[Option[Episode]]](Future.successful(Option.empty))(
-      ep => srs.fold[Future[Option[Episode]]](Future.successful(Option.empty))(s => db.run(EpisodeDAO.addOrGetEpisode(ep.copy(
+      ep => srs.fold[Future[Option[Episode]]](Future.successful(Option.empty))(s => db.run(EpisodeDAO.addAndGetEpisode(ep.copy(
         seriesId = s.seriesId
-      )).headOption))
+      )).map(Option(_))))
     )
-    so <- db.run(SportOrganizationDAO.addOrGetSportOrganization(sportOrganization).head)
-    se <- db.run(SportEventDAO.addOrGetSportEvent(sportEvent.copy(
+    so <- db.run(SportOrganizationDAO.addAndGetSportOrganization(sportOrganization))
+    se <- db.run(SportEventDAO.addAndGetSportEvent(sportEvent.copy(
       sportOrganizationId = so.sportOrganizationId
-    )).head)
+    )))
     _ <- Future.sequence(teams.map(team => for {
-      st <- db.run(SportTeamDAO.addOrGetSportTeam(team).head)
-      sot <- db.run(SportOrganizationTeamDAO.addOrGetSportOrganizationTeam(
+      st <- db.run(SportTeamDAO.addAndGetSportTeam(team))
+      sot <- db.run(SportOrganizationTeamDAO.addAndGetSportOrganizationTeam(
         st.sportTeamId.get,
         so.sportOrganizationId.get
-      ).head)
-      set <- db.run(SportEventTeamDAO.getOrAddSportEventTeam(SportEventTeam(
+      ))
+      set <- db.run(SportEventTeamDAO.addAndGetSportEventTeam(SportEventTeam(
         sportEventId = se.sportEventId.get,
         sportOrganizationTeamId = sot.sportOrganizationTeamId.get,
         isHome = homeId.contains(st.extSportTeamId)
       )))
     } yield set))
-    s <- db.run(ShowDAO.addOrGetShow(show.copy(
+    s <- db.run(ShowDAO.addAndGetShow(show.copy(
       sportEventId = se.sportEventId,
       episodeId = e.flatMap(_.episodeId)
-    )).head)
+    )))
   } yield s
 }
 
@@ -138,6 +138,30 @@ object SportEventDAO {
         .update(sportEvent)
       updated <- SportEventDAO.getSportEvent(sportEventId)
     } yield updated.get}
+
+  private[this] def addSportEventForId(se: SportEvent) =
+    sql"""
+          WITH row AS (
+            INSERT INTO sport_event
+            (sport_organization_id, sport_event_title)
+            VALUES
+            (${se.sportOrganizationId}, ${se.sportEventTitle})
+            ON CONFLICT (sport_organization_id, sport_event_title)
+            DO NOTHING
+            RETURNING sport_event_id
+          ) SELECT sport_event_id FROM row
+            UNION SELECT sport_event_id FROM sport_event
+            WHERE sport_organization_id = ${se.sportOrganizationId} AND
+                  sport_event_title = ${se.sportEventTitle}
+         """.as[Long]
+
+  private[common] def addAndGetSportEvent(se: SportEvent)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[SportEvent] = (for {
+    sportEventId <- addSportEventForId(se).head
+    sportEvent <- getSportEventQuery(sportEventId).result.head
+  } yield sportEvent).transactionally
 
   private[common] def addOrGetSportEvent(se: SportEvent) =
     sql"""

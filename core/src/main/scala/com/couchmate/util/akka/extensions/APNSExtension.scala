@@ -22,7 +22,7 @@ class APNSExtension(system: ActorSystem[_]) extends Extension {
 
   private[this] val client = APNSTokenClient(
     apns,
-    isSandbox = config.getString("environment") != "production"
+    isSandbox = config.getString("environment") == "local"
   )
 
   private[this] val topic = APNSTopic(
