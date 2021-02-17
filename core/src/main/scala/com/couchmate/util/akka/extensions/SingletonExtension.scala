@@ -80,15 +80,15 @@ class SingletonExtension(system: ActorSystem[_]) extends Extension {
       )
     )
 
-//  val notificationCoordinator: ActorRef[NotificationCoordinator.Command] =
-//    singletonManager.init(
-//      SingletonActor(
-//        Behaviors.supervise(
-//          NotificationCoordinator()
-//        ).onFailure[Exception](SupervisorStrategy.restart),
-//        "NotificationCoordinator"
-//      )
-//    )
+  val notificationCoordinator: ActorRef[NotificationCoordinator.Command] =
+    singletonManager.init(
+      SingletonActor(
+        Behaviors.supervise(
+          NotificationCoordinator()
+        ).onFailure[Exception](SupervisorStrategy.restart),
+        "NotificationCoordinator"
+      )
+    )
 }
 
 object SingletonExtension extends ExtensionId[SingletonExtension] {
