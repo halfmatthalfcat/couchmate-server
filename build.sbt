@@ -114,6 +114,7 @@ lazy val core = (project in file("core"))
       "com.github.halfmatthalfcat"  %%  "mobile-push"                   % "1.24.4"
     ),
     mainClass in Compile := Some("com.couchmate.Server"),
+    sources in (Compile, doc) := Seq.empty,
     discoveredMainClasses in Compile := Seq(),
     mainClass in (Compile, run) := Some("com.couchmate.Server"),
     scalacOptions ++= Seq(
