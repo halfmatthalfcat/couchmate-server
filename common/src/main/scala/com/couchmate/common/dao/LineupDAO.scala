@@ -93,7 +93,7 @@ trait LineupDAO {
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Lineup] =
+  ): Future[Option[Lineup]] =
     db.run(LineupDAO.disableLineup(providerChannelId, gracenoteAiring))
 }
 
@@ -212,25 +212,27 @@ object LineupDAO {
   )(
     implicit
     ec: ExecutionContext
-  ): DBIO[Lineup] =
+  ): DBIO[Option[Lineup]] =
     (for {
-      showExists <- ShowDAO
-        .getShowByExt(gracenoteAiring.program.rootId)
-      show = showExists.get
-      airingExists <- AiringDAO
-        .getAiringByShowStartAndEnd(
-          show.showId.get,
-          gracenoteAiring.startTime,
-          gracenoteAiring.endTime
-        )
-      airing = airingExists.get
-      lineupExists <- getLineupForProviderChannelAndAiring(
-        providerChannelId,
-        airing.airingId.get
+      s <- ShowDAO.getShowByExt(gracenoteAiring.program.rootId)
+      a <- s.fold[DBIO[Option[Airing]]](DBIO.successful(Option.empty))(show =>
+        AiringDAO
+          .getAiringByShowStartAndEnd(
+            show.showId.get,
+            gracenoteAiring.startTime,
+            gracenoteAiring.endTime
+          )
       )
-      lineup = lineupExists.get
-      updated <- upsertLineup(lineup.copy(
-        active = false
-      ))
+      l <- a.fold[DBIO[Option[Lineup]]](DBIO.successful(Option.empty))(airing =>
+        getLineupForProviderChannelAndAiring(
+          providerChannelId,
+          airing.airingId.get
+        )
+      )
+      updated <- l.fold[DBIO[Option[Lineup]]](DBIO.successful(Option.empty))(lineup =>
+        upsertLineup(lineup.copy(
+          active = false
+        )).map(Option(_))
+      )
     } yield updated).transactionally
 }

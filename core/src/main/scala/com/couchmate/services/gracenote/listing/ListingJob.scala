@@ -213,7 +213,7 @@ object ListingJob
                  plan.providerChannelId,
                  airing,
                  state.sports
-               )
+               ).map(Option(_))
              ) ++ plan.remove.map(airing =>
                disable(
                  plan.providerChannelId,
@@ -225,8 +225,8 @@ object ListingJob
                plan.startTime,
                0, 0, plan.skip.size
              )) {
-               case (acc, lineup: Lineup) if lineup.active => acc.copy(added = acc.added + 1)
-               case (acc, lineup: Lineup) if !lineup.active => acc.copy(removed = acc.removed + 1)
+               case (acc, Some(lineup)) if lineup.active => acc.copy(added = acc.added + 1)
+               case (acc, Some(lineup)) if !lineup.active => acc.copy(removed = acc.removed + 1)
                case (acc, _) => acc
              }
            })

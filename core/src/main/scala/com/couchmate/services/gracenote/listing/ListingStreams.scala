@@ -200,7 +200,7 @@ object ListingStreams
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Source[Lineup, NotUsed] =
+  ): Source[Option[Lineup], NotUsed] =
     Source.future(disableLineup(providerChannelId, gracenoteAiring))
 
   private[this] def episode(program: GracenoteProgram)(
