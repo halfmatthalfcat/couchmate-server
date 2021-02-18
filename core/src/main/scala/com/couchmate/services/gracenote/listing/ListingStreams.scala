@@ -1,7 +1,6 @@
 package com.couchmate.services.gracenote.listing
 
-import java.time.{LocalDateTime, ZoneId}
-import java.util.UUID
+import java.time.LocalDateTime
 import akka.NotUsed
 import akka.actor.typed.scaladsl.ActorContext
 import akka.http.scaladsl.HttpExt
@@ -14,14 +13,13 @@ import com.couchmate.common.models.thirdparty.gracenote
 import com.couchmate.common.models.thirdparty.gracenote.{GracenoteAiring, GracenoteAiringPlan, GracenoteChannelAiring, GracenoteProgram, GracenoteSlotAiring, GracenoteSport}
 import com.couchmate.common.util.DateUtils
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.{Airing, Channel, ChannelOwner, Episode, Lineup, Series, Show, ShowType, SportEvent, SportEventTeam, SportOrganization, SportTeam}
+import com.couchmate.common.models.data.{Airing, Channel, ChannelOwner, Episode, Lineup, Series, Show, ShowType, SportEvent, SportOrganization, SportTeam}
 import com.couchmate.services.gracenote._
 import com.typesafe.config.Config
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
-import scala.util.Random
 
 object ListingStreams
   extends PlayJsonSupport
@@ -130,7 +128,7 @@ object ListingStreams
     case GracenoteAiring(_, _, _, _, program) if program.sportsId.nonEmpty =>
       sport(program, sports).recoverWith {
         case ex: Throwable =>
-          System.out.println(s"Sport failed")
+          System.out.println(s"Sport failed: ${ex.getMessage}")
           Future.failed(ex)
       }
     case GracenoteAiring(_, _, _, _, program) if (
@@ -139,7 +137,7 @@ object ListingStreams
     ) =>
       episode(program).recoverWith {
         case ex: Throwable =>
-          System.out.println(s"Episode failed")
+          System.out.println(s"Episode failed: ${ex.getMessage}")
           Future.failed(ex)
       }
     case GracenoteAiring(_, _, _, _, program) => addOrGetShow(Show(
@@ -156,7 +154,7 @@ object ListingStreams
       originalAirDate = program.origAirDate,
     )).recoverWith {
       case ex: Throwable =>
-        System.out.println(s"Show failed")
+        System.out.println(s"Show failed: ${ex.getMessage}")
         Future.failed(ex)
     }
   })).mapAsync(1)(show => for {

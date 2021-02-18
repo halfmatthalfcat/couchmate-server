@@ -92,20 +92,7 @@ object SportOrganizationTeamDAO {
     sportTeamId: Long,
     sportOrganizationId: Long
   ) =
-    sql"""
-        WITH row AS (
-          INSERT INTO sport_organization_team
-          (sport_team_id, sport_organization_id)
-          VALUES
-          (${sportTeamId}, ${sportOrganizationId})
-          ON CONFLICT (sport_team_id, sport_organization_id)
-          DO NOTHING
-          RETURNING sport_organization_team_id
-        ) SELECT sport_organization_team_id FROM row
-          UNION SELECT sport_organization_team_id FROM sport_organization_team
-          WHERE sport_team_id = ${sportTeamId} AND
-                sport_organization_id = ${sportOrganizationId}
-      """.as[Long]
+    sql"""SELECT insert_or_get_sport_organization_team_id(${sportTeamId}, ${sportOrganizationId})""".as[Long]
 
   // I honestly have no idea why I need this but using getSportOrganizationTeamQuery
   // was returning sport_organization_id as both sport_organization_team_id _and_

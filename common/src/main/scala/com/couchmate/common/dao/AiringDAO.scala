@@ -314,21 +314,7 @@ object AiringDAO {
          """.as[Airing]
 
   private[this] def addAiringForId(a: Airing) =
-    sql"""
-          WITH row as (
-            INSERT INTO airing
-            (airing_id, show_id, start_time, end_time, duration)
-            VALUES
-            (${a.airingId}, ${a.showId}, ${a.startTime}, ${a.endTime}, ${a.duration})
-            ON CONFLICT (show_id, start_time, end_time)
-            DO NOTHING
-            RETURNING airing_id
-          ) SELECT airing_id from row
-            UNION SELECT airing_id FROM airing
-            WHERE show_id = ${a.showId} AND
-                  start_time = ${a.startTime} AND
-                  end_time = ${a.endTime}
-         """.as[String]
+    sql"""SELECT insert_or_get_airing_id(${a.airingId}, ${a.showId}, ${a.startTime}, ${a.endTime}, ${a.duration})""".as[String]
 
   private[common] def addAndGetAiring(airing: Airing)(
     implicit

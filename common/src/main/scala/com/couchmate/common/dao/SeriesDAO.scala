@@ -155,28 +155,19 @@ object SeriesDAO {
           WHERE e.episode_id = ${episodeId}
          """.as[GridSeries]
 
-  private[this] def addSeriesForId(s: Series) =
-    sql"""
-          WITH row AS (
-            INSERT INTO series
-            (ext_id, series_name, total_seasons, total_episodes)
-            VALUES
-            (${s.extId}, ${s.seriesName}, ${s.totalSeasons}, ${s.totalEpisodes})
-            ON CONFLICT (ext_id)
-            DO NOTHING
-            RETURNING series_id
-          ) SELECT series_id FROM row
-            UNION SELECT series_id FROM series
-            WHERE ext_id = ${s.extId}
-         """.as[Long]
+  private[this] def addSeriesForId(s: Series): SqlStreamingAction[Vector[Long], Long, Effect] =
+    sql"""SELECT insert_or_get_series_id(${s.extId}, ${s.seriesName}, ${s.totalSeasons}, ${s.totalEpisodes})""".as[Long]
 
   private[common] def addAndGetSeries(s: Series)(
     implicit
     ec: ExecutionContext
-  ): DBIO[Series] = (for {
-    seriesId <- addSeriesForId(s).head
-    series <- getSeriesQuery(seriesId).result.head
-  } yield series).transactionally
+  ): DBIO[Series] = for {
+    seriesId <- addSeriesForId(s)
+    series <- getSeriesQuery(seriesId.head).result.headOption.collect {
+      case Some(s) => s
+      case None => throw new RuntimeException("Unable to get series")
+    }
+  } yield series
 
   private[common] def addOrGetSeries(series: Series) =
     sql"""

@@ -6,6 +6,7 @@ import com.couchmate.common.models.data.SportEventTeam
 import com.couchmate.common.tables.{SportEventTeamTable, SportTeamTable}
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 trait SportEventTeamDAO {
 
@@ -97,20 +98,7 @@ object SportEventTeamDAO {
   } yield sEV
 
   private[this] def addSportEventTeamForId(sET: SportEventTeam) =
-    sql"""
-          WITH row AS (
-            INSERT INTO sport_event_team
-            (sport_event_id, sport_organization_team_id, is_home)
-            VALUES
-            (${sET.sportEventId}, ${sET.sportOrganizationTeamId}, ${sET.isHome})
-            ON CONFLICT (sport_event_id, sport_organization_team_id)
-            DO NOTHING
-            RETURNING sport_event_id, sport_organization_team_id
-          ) SELECT sport_event_id, sport_organization_team_id FROM row
-            UNION SELECT sport_event_id, sport_organization_team_id FROM sport_event_team
-            WHERE sport_organization_team_id = ${sET.sportOrganizationTeamId} AND
-                  sport_event_id = ${sET.sportEventId}
-         """.as[(Long, Long)]
+    sql"""SELECT (insert_or_get_sport_event_team_id(${sET.sportEventId}, ${sET.sportOrganizationTeamId}, ${sET.isHome})).*""".as[(Long, Long)]
 
   private[common] def addAndGetSportEventTeam(sET: SportEventTeam)(
     implicit

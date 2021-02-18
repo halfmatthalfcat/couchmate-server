@@ -96,19 +96,7 @@ object ShowDAO {
     } yield updated.get}
 
   private[this] def addShowForId(s: Show) =
-    sql"""
-          WITH row AS (
-            INSERT INTO show
-            (ext_id, type, episode_id, sport_event_id, title, description, original_air_date)
-            VALUES
-            (${s.extId}, ${s.`type`}, ${s.episodeId}, ${s.sportEventId}, ${s.title}, ${s.description}, ${s.originalAirDate})
-            ON CONFLICT (ext_id)
-            DO NOTHING
-            RETURNING show_id
-          ) SELECT show_id FROM row
-            UNION SELECT show_id FROM show
-            WHERE ext_id = ${s.extId}
-         """.as[Long]
+    sql"""SELECT insert_or_get_show_id(${s.extId}, ${s.`type`}, ${s.episodeId}, ${s.sportEventId}, ${s.title}, ${s.description}, ${s.originalAirDate})""".as[Long]
 
   private[common] def addAndGetShow(s: Show)(
     implicit

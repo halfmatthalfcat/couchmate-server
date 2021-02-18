@@ -1,8 +1,6 @@
 package com.couchmate.common.tables
 
-import java.util.UUID
-
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.Lineup
 import com.couchmate.common.util.slick.WithTableQuery
 
@@ -47,4 +45,38 @@ class LineupTable(tag: Tag) extends Table[Lineup](tag, "lineup") {
 
 object LineupTable extends WithTableQuery[LineupTable] {
   private[couchmate] val table = TableQuery[LineupTable]
+
+  private[couchmate] val insertOrGetLineupIdFunction: DBIO[Int] =
+    sqlu"""
+            CREATE OR REPLACE FUNCTION insert_or_get_lineup_id(
+              _provider_channel_id BIGINT,
+              _airing_id VARCHAR,
+              _active BOOL,
+              OUT _lineup_id BIGINT
+            ) AS
+            $$func$$
+              BEGIN
+                LOOP
+                  SELECT  lineup_id
+                  FROM    lineup
+                  WHERE   provider_channel_id = _provider_channel_id AND
+                          airing_id = _airing_id
+                  FOR     SHARE
+                  INTO    _lineup_id;
+
+                  EXIT WHEN FOUND;
+
+                  INSERT INTO lineup
+                  (provider_channel_id, airing_id, active)
+                  VALUES
+                  (_provider_channel_id, _airing_id, _active)
+                  ON CONFLICT (provider_channel_id, airing_id) DO NOTHING
+                  RETURNING lineup_id
+                  INTO _lineup_id;
+
+                  EXIT WHEN FOUND;
+                END LOOP;
+              END;
+            $$func$$ LANGUAGE plpgsql;
+          """
 }

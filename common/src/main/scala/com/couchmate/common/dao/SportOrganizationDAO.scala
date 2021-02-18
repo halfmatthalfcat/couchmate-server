@@ -95,20 +95,7 @@ object SportOrganizationDAO {
     } yield updated.get}
 
   private[this] def addSportOrganizationForId(so: SportOrganization) =
-    sql"""
-          WITH row AS (
-            INSERT INTO sport_organization
-            (ext_sport_id, ext_org_id, sport_name, org_name)
-            VALUES
-            (${so.extSportId}, ${so.extOrgId}, ${so.sportName}, ${so.orgName})
-            ON CONFLICT (ext_sport_id, ext_org_id)
-            DO NOTHING
-            RETURNING sport_organization_id
-          ) SELECT sport_organization_id FROM row
-            UNION SELECT sport_organization_id FROM sport_organization
-            WHERE ext_sport_id = ${so.extSportId} AND
-                  ext_org_id = ${so.extOrgId}
-         """.as[Long]
+    sql"""SELECT insert_or_get_sport_organization_id(${so.extSportId}, ${so.extOrgId}, ${so.sportName}, ${so.orgName})""".as[Long]
 
   private[common] def addAndGetSportOrganization(so: SportOrganization)(
     implicit

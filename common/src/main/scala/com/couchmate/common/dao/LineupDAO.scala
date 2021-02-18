@@ -152,20 +152,7 @@ object LineupDAO {
     }}.transactionally
 
   private[this] def addLineupForId(l: Lineup) =
-    sql"""
-          WITH row AS (
-            INSERT INTO lineup
-            (provider_channel_id, airing_id, active)
-            VALUES
-            (${l.providerChannelId}, ${l.airingId}, ${l.active})
-            ON CONFLICT (provider_channel_id, airing_id)
-            DO NOTHING
-            RETURNING lineup_id
-          ) SELECT lineup_id FROM row
-            UNION SELECT lineup_id FROM lineup
-            WHERE provider_channel_id = ${l.providerChannelId} AND
-                  airing_id = ${l.airingId}
-         """.as[Long]
+    sql"""SELECT insert_or_get_lineup_id(${l.providerChannelId}, ${l.airingId}, ${l.active})""".as[Long]
 
   private[common] def addAndGetLineup(l: Lineup)(
     implicit

@@ -1,6 +1,7 @@
 package com.couchmate.migration
 
 import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.tables.{AiringTable, EpisodeTable, LineupTable, ListingCacheTable, SeriesTable, ShowTable, SportEventTable, SportEventTeamTable, SportOrganizationTable, SportOrganizationTeamTable, SportTeamTable}
 import com.couchmate.migration.db.{Migration, MigrationDAO, MigrationItem, MigrationTable}
 import com.couchmate.migration.migrations._
 import com.typesafe.scalalogging.LazyLogging
@@ -67,15 +68,29 @@ object Migrations extends LazyLogging {
     AiringMigrations.startTimeEndTimeIdx
   )
 
+  val functions: Seq[DBIO[Int]] = Seq(
+    SeriesTable.insertOrGetSeriesIdFunction,
+    AiringTable.insertOrGetAiringIdFunction,
+    EpisodeTable.insertOrGetEpisodeIdFunction,
+    LineupTable.insertOrGetLineupIdFunction,
+    ListingCacheTable.insertOrGetListingCacheIdFunction,
+    ShowTable.insertOrGetShowIdFunction,
+    SportEventTable.insertOrGetSportEventIdFunction,
+    SportEventTeamTable.insertOrGetSportEventTeamIdFunction,
+    SportOrganizationTable.insertOrGetSportOrganizationIdFunction,
+    SportOrganizationTeamTable.insertOrGetSportOrganizationTeamIdFunction,
+    SportTeamTable.insertOrGetSportTeamIdFunction
+  )
+
   private[this] def applyMigrations()(
     implicit
     db: Database,
-  ): Future[Seq[Migration]] = ensureTableAndGet flatMap { currentMigrations =>
+  ): Future[Unit] = ensureTableAndGet flatMap { currentMigrations =>
     System.out.println(s"Found ${currentMigrations.size} migrations already applied.")
 
     if (currentMigrations.size == migrations.size) {
-      System.out.println("All migrations have already been applied, exiting.")
-      Future.successful(Seq.empty)
+      System.out.println("All migrations have already been applied, adding/updating functions.")
+      db.run(DBIO.sequence(functions)).map(_ => ())
     } else {
       val newMigrations = migrations
         .filterNot(m => currentMigrations.exists(_.migrationId == m.migrationId))
@@ -88,9 +103,12 @@ object Migrations extends LazyLogging {
         } yield migrated).transactionally)
 
 
-      System.out.println(s"Applying ${newMigrations.size} migrations.")
+      System.out.println(s"Applying ${newMigrations.size} migrations and ${functions.size} functions.")
 
-      db.run(DBIO.sequence(newMigrations))
+      for {
+        _ <- db.run(DBIO.sequence(newMigrations))
+        _ <- db.run(DBIO.sequence(functions))
+      } yield ()
     }
   }
 

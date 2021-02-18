@@ -134,19 +134,7 @@ object SportTeamDAO {
        """.as[GridSportTeam]
 
   private[this] def addSportTeamForId(st: SportTeam) =
-    sql"""
-          WITH row AS (
-            INSERT INTO sport_team
-            (ext_sport_team_id, name)
-            VALUES
-            (${st.extSportTeamId}, ${st.name})
-            ON CONFLICT (ext_sport_team_id)
-            DO NOTHING
-            RETURNING sport_team_id
-          ) SELECT sport_team_id from row
-            UNION SELECT sport_team_id from sport_team
-            WHERE ext_sport_team_id = ${st.extSportTeamId}
-         """.as[Long]
+    sql"""SELECT insert_or_get_sport_team_id(${st.extSportTeamId}, ${st.name})""".as[Long]
 
   private[common] def addAndGetSportTeam(st: SportTeam)(
     implicit

@@ -46,13 +46,25 @@ trait EpisodeDAO {
     ec: ExecutionContext,
     db: Database
   ): Future[Show] = for {
-    series <- db.run(SeriesDAO.addAndGetSeries(series))
+    series <- db.run(SeriesDAO.addAndGetSeries(series)) recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Series Error: ${ex.getMessage}")
+        Future.failed(ex)
+    }
     episode <- db.run(EpisodeDAO.addAndGetEpisode(episode.copy(
       seriesId = series.seriesId
-    )))
+    ))) recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Episode Error: ${ex.getMessage}")
+        Future.failed(ex)
+    }
     show <- db.run(ShowDAO.addAndGetShow(show.copy(
       episodeId = episode.episodeId
-    )))
+    ))) recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Show Error: ${ex.getMessage}")
+        Future.failed(ex)
+    }
   } yield show
 }
 
@@ -97,21 +109,7 @@ object EpisodeDAO {
     } yield updated.get}
 
   private[this] def addEpisodeForId(e: Episode) =
-    sql"""
-          WITH row AS (
-            INSERT INTO episode
-            (series_id, season, episode)
-            VALUES
-            (${e.seriesId}, ${e.season}, ${e.episode})
-            ON CONFLICT (series_id, season, episode)
-            DO NOTHING
-            RETURNING episode_id
-          ) SELECT episode_id FROM row
-            UNION SELECT episode_id FROM episode
-            WHERE series_id = ${e.seriesId} AND
-                  season = ${e.season} AND
-                  episode = ${e.episode}
-         """.as[Long]
+    sql"""SELECT insert_or_get_episode_id(${e.seriesId}, ${e.season}, ${e.episode})""".as[Long]
 
   private[common] def addAndGetEpisode(e: Episode)(
     implicit

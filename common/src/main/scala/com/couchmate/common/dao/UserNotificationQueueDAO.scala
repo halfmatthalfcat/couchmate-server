@@ -453,7 +453,6 @@ object UserNotificationQueueDAO {
         deliverAt = airing._1.startTime.minusMinutes(15)
       )
     ))
-    _ = System.out.println(s"$n")
     notifications <- DBIO.sequence(n.map(addOrGetUserNotificationQueueItem))
   } yield notifications.size
 

@@ -73,20 +73,7 @@ object ListingCacheDAO {
     startTime: LocalDateTime,
     airings: Seq[GracenoteAiring]
   ) = {
-    sql"""
-      WITH row AS (
-        INSERT INTO listing_cache
-        ("provider_channel_id", "start_time", "airings")
-        VALUES
-        ($providerChannelId, $startTime, $airings)
-        ON CONFLICT ("provider_channel_id", "start_time")
-        DO NOTHING
-        RETURNING listing_cache_id
-      ) SELECT listing_cache_id FROM row
-        UNION SELECT listing_cache_id FROM listing_cache
-        WHERE provider_channel_id = $providerChannelId AND
-              start_time = $startTime
-      """.as[Long]
+    sql"""SELECT insert_or_get_listing_cache_id($providerChannelId, $startTime, $airings)""".as[Long]
   }
 
   private[common] def addAndGetListingCache(

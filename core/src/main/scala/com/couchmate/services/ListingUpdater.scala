@@ -89,6 +89,12 @@ object ListingUpdater
 
     ctx.self ! ColdStart
 
+    ctx.self ! StartJob(Job(
+      UUID.randomUUID(),
+      1,
+      ListingPullType.Day
+    ))
+
     def commandHandler: (State, Command) => Effect[Event, State] = {
       (_, command) => command match {
         case ColdStart => Effect.none

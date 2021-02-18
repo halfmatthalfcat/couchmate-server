@@ -2,7 +2,7 @@ package com.couchmate.common.tables
 
 import java.time.LocalDateTime
 
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.{Show, ShowType}
 import com.couchmate.common.util.slick.WithTableQuery
 
@@ -55,4 +55,41 @@ class ShowTable(tag: Tag) extends Table[Show](tag, "show") {
 
 object ShowTable extends WithTableQuery[ShowTable] {
   private[couchmate] val table = TableQuery[ShowTable]
+
+  private[couchmate] val insertOrGetShowIdFunction: DBIO[Int] =
+    sqlu"""
+            CREATE OR REPLACE FUNCTION insert_or_get_show_id(
+              _ext_id BIGINT,
+              _type VARCHAR,
+              _episode_id BIGINT,
+              _sport_event_id BIGINT,
+              _title VARCHAR,
+              _description VARCHAR,
+              _original_air_date TIMESTAMP,
+              OUT _show_id BIGINT
+            ) AS
+            $$func$$
+              BEGIN
+                LOOP
+                  SELECT  show_id
+                  FROM    show
+                  WHERE   ext_id = _ext_id
+                  FOR     SHARE
+                  INTO    _show_id;
+
+                  EXIT WHEN FOUND;
+
+                  INSERT INTO show
+                  (ext_id, type, episode_id, sport_event_id, title, description, original_air_date)
+                  VALUES
+                  (_ext_id, _type, _episode_id, _sport_event_id, _title, _description, _original_air_date)
+                  ON CONFLICT (ext_id) DO NOTHING
+                  RETURNING show_id
+                  INTO _show_id;
+
+                  EXIT WHEN FOUND;
+                END LOOP;
+              END;
+            $$func$$ LANGUAGE plpgsql;
+          """
 }
