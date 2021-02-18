@@ -118,7 +118,8 @@ object ListingStreams
     implicit
     ec: ExecutionContext,
     db: Database,
-    config: Config
+    config: Config,
+    ctx: ActorContext[_]
   ): Source[Lineup, NotUsed] = RestartSource.onFailuresWithBackoff(
     minBackoff = 1.seconds,
     maxBackoff = 1.seconds,
@@ -157,7 +158,7 @@ object ListingStreams
         System.out.println(s"Show failed: ${ex.getMessage}")
         Future.failed(ex)
     }
-  })).mapAsync(1)(show => for {
+  })).mapAsync(10)(show => for {
     l <- getOrAddLineup(
       providerChannelId,
       Airing(
@@ -169,7 +170,7 @@ object ListingStreams
         isNew = gracenoteAiring.isNew
       )
     )
-    _ <- {
+    n <- {
       if (show.sportEventId.nonEmpty) {
         addUserNotificationsForSport(
           l.airingId,
@@ -179,8 +180,8 @@ object ListingStreams
       } else if (show.episodeId.nonEmpty) {
         addUserNotificationsForEpisode(
           l.airingId,
+          show.episodeId.get,
           providerChannelId,
-          show.episodeId.get
         )
       } else {
         addUserNotificationsForShow(

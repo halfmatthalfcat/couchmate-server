@@ -109,7 +109,7 @@ object ListingCacheDAO {
       .filterNot(airing => remove.exists(_.equals(airing)))
       .filter(airing => airings.exists(_.equals(airing)))
     _ = ctx.log.debug(s"Cached [$providerChannelId | ${startTime.toString}]: A ${add.size}, R ${remove.size}, S ${skip.size}")
-    _ <- if (add.nonEmpty || remove.nonEmpty) {
+    _ <- if (exists && (add.nonEmpty || remove.nonEmpty)) {
       (for {
         c <- ListingCacheTable.table.filter { lc =>
           lc.providerChannelId === providerChannelId &&
