@@ -107,6 +107,15 @@ object SportOrganizationTeamDAO {
                 sport_organization_id = ${sportOrganizationId}
       """.as[Long]
 
+  // I honestly have no idea why I need this but using getSportOrganizationTeamQuery
+  // was returning sport_organization_id as both sport_organization_team_id _and_
+  // sport_organization_id...no fucking clue
+  private[this] def getSportOrganizationTeamRaw(sportOrganizationTeamId: Long) =
+    sql"""
+          SELECT sport_organization_team_id, sport_team_id, sport_organization_id FROM sport_organization_team
+          WHERE sport_organization_team_id = ${sportOrganizationTeamId}
+         """.as[SportOrganizationTeam]
+
   private[common] def addAndGetSportOrganizationTeam(
     sportTeamId: Long,
     sportOrganizationId: Long
@@ -114,7 +123,7 @@ object SportOrganizationTeamDAO {
     sportOrganizationTeamId <- addSportOrganizationTeamForId(
       sportTeamId, sportOrganizationId
     ).head
-    sportOrganizationTeam <- getSportOrganizationTeamQuery(sportOrganizationTeamId).result.head
+    sportOrganizationTeam <- getSportOrganizationTeamRaw(sportOrganizationTeamId).head
   } yield sportOrganizationTeam).transactionally
 
   private[common] def addOrGetSportOrganizationTeam(

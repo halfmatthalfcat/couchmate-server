@@ -145,7 +145,7 @@ object SportTeamDAO {
             RETURNING sport_team_id
           ) SELECT sport_team_id from row
             UNION SELECT sport_team_id from sport_team
-            WHERE ext_sport_team_id = ${st.sportTeamId}
+            WHERE ext_sport_team_id = ${st.extSportTeamId}
          """.as[Long]
 
   private[common] def addAndGetSportTeam(st: SportTeam)(

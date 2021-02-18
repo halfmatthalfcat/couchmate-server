@@ -1,14 +1,13 @@
 package com.couchmate.common.dao
 
 import java.time.LocalDateTime
-
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.api.grid.AiringConversion
 import com.couchmate.common.models.data.{Airing, AiringStatus, RoomStatusType, Series, Show, ShowDetailed, SportEvent}
-import com.couchmate.common.tables.{AiringTable, EpisodeTable, SeriesTable, ShowTable, SportEventTable}
+import com.couchmate.common.tables.{AiringTable, EpisodeTable, LineupTable, SeriesTable, ShowTable, SportEventTable}
 import slick.dbio.Effect
 import slick.sql.{SqlAction, SqlStreamingAction}
 
@@ -140,6 +139,14 @@ trait AiringDAO {
         db.run(AiringDAO.getAiringFromGracenote(c).headOption)
       )
     ).map(_.filter(_.isDefined).map(_.get))
+
+  def getExtShowIdsByProviderChannelAndStartTime(
+    providerChannelId: Long,
+    startTime: LocalDateTime
+  )(implicit db: Database): Future[Seq[Long]] =
+    db.run(AiringDAO.getExtShowIdsByProviderChannelAndStartTime(
+      providerChannelId, startTime
+    ))
 }
 
 object AiringDAO {
@@ -197,6 +204,23 @@ object AiringDAO {
     endTime: LocalDateTime
   ): DBIO[Seq[Airing]] =
     getAiringsBetweenStartAndEndQuery(startTime, endTime).result
+
+  private[this] lazy val getExtShowIdsByProviderChannelAndStartTimeQuery = Compiled {
+    (providerChannelId: Rep[Long], startTime: Rep[LocalDateTime]) => for {
+      l <- LineupTable.table if l.providerChannelId === providerChannelId
+      a <- AiringTable.table if (
+        a.airingId === l.airingId &&
+        a.startTime === startTime
+      )
+      s <- ShowTable.table if s.showId === a.showId
+    } yield s.extId
+  }
+
+  private[common] def getExtShowIdsByProviderChannelAndStartTime(
+    providerChannelId: Long,
+    startTime: LocalDateTime
+  ): DBIO[Seq[Long]] =
+    getExtShowIdsByProviderChannelAndStartTimeQuery(providerChannelId, startTime).result
 
   private[common] def upsertAiring(airing: Airing)(
     implicit

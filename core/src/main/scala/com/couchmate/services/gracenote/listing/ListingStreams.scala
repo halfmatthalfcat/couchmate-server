@@ -2,8 +2,8 @@ package com.couchmate.services.gracenote.listing
 
 import java.time.{LocalDateTime, ZoneId}
 import java.util.UUID
-
 import akka.NotUsed
+import akka.actor.typed.scaladsl.ActorContext
 import akka.http.scaladsl.HttpExt
 import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.unmarshalling.Unmarshal
@@ -81,7 +81,8 @@ object ListingStreams
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    ctx: ActorContext[_]
   ): Source[GracenoteAiringPlan, NotUsed] = {
     val channelOwner: Option[ChannelOwner] = channelAiring
       .affiliateId

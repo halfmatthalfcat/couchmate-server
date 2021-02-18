@@ -77,13 +77,13 @@ trait LineupDAO {
     ec: ExecutionContext,
     db: Database
   ): Future[Lineup] = for {
-    a <- db.run(AiringDAO.addOrGetAiring(airing).head)
-    l <- db.run(LineupDAO.addOrGetLineup(Lineup(
+    a <- db.run(AiringDAO.addAndGetAiring(airing))
+    l <- db.run(LineupDAO.addAndGetLineup(Lineup(
       lineupId = None,
       providerChannelId = providerChannelId,
       airingId = a.airingId.get,
       active = true
-    )).head)
+    )))
   } yield l
 
   def disableLineup(
@@ -150,6 +150,30 @@ object LineupDAO {
         updated <- LineupDAO.getLineup(lineupId)
       } yield updated.get
     }}.transactionally
+
+  private[this] def addLineupForId(l: Lineup) =
+    sql"""
+          WITH row AS (
+            INSERT INTO lineup
+            (provider_channel_id, airing_id, active)
+            VALUES
+            (${l.providerChannelId}, ${l.airingId}, ${l.active})
+            ON CONFLICT (provider_channel_id, airing_id)
+            DO NOTHING
+            RETURNING lineup_id
+          ) SELECT lineup_id FROM row
+            UNION SELECT lineup_id FROM lineup
+            WHERE provider_channel_id = ${l.providerChannelId} AND
+                  airing_id = ${l.airingId}
+         """.as[Long]
+
+  private[common] def addAndGetLineup(l: Lineup)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Lineup] = (for {
+    lineupId <- addLineupForId(l).head
+    lineup <- getLineupQuery(lineupId).result.head
+  } yield lineup).transactionally
 
   private[common] def addOrGetLineup(l: Lineup) =
     sql"""

@@ -1,5 +1,7 @@
 package com.couchmate.common.dao
 
+import akka.actor.typed.scaladsl.ActorContext
+
 import java.time.LocalDateTime
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.ListingCache
@@ -33,7 +35,8 @@ trait ListingCacheDAO {
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    ctx: ActorContext[_]
   ): Future[GracenoteAiringPlan] =
     db.run(ListingCacheDAO.upsertListingCacheWithDiff(
       providerChannelId,
@@ -90,12 +93,15 @@ object ListingCacheDAO {
     providerChannelId: Long,
     startTime: LocalDateTime,
     airings: Seq[GracenoteAiring]
-  )(implicit ec: ExecutionContext): DBIO[ListingCache] = (for {
+  )(implicit ec: ExecutionContext): DBIO[(Boolean, ListingCache)] = (for {
+    exists <- getListingCacheForProviderAndStartQuery(
+      providerChannelId, startTime
+    ).result.headOption.map(_.nonEmpty)
     listingCacheId <- addListingCacheForId(
       providerChannelId, startTime, airings
     ).head
     listingCache <- getListingCache(listingCacheId)
-  } yield listingCache).transactionally
+  } yield (exists, listingCache)).transactionally
 
   private[common] def upsertListingCacheWithDiff(
     providerChannelId: Long,
@@ -103,16 +109,19 @@ object ListingCacheDAO {
     airings: Seq[GracenoteAiring]
   )(
     implicit
-    ec: ExecutionContext
+    ec: ExecutionContext,
+    ctx: ActorContext[_]
   ): DBIO[GracenoteAiringPlan] = for {
-    cache <- addAndGetListingCache(
+    (exists, listingCache) <- addAndGetListingCache(
       providerChannelId, startTime, airings
-    ).map(_.airings)
+    )
+    cache = if (!exists) Seq.empty else listingCache.airings
     add = airings.filterNot(airing => cache.exists(_.equals(airing)))
     remove = cache.filterNot(airing => airings.exists(_.equals(airing)))
     skip = cache
       .filterNot(airing => remove.exists(_.equals(airing)))
       .filter(airing => airings.exists(_.equals(airing)))
+    _ = ctx.log.debug(s"Cached [$providerChannelId | ${startTime.toString}]: A ${add.size}, R ${remove.size}, S ${skip.size}")
     _ <- if (add.nonEmpty || remove.nonEmpty) {
       (for {
         c <- ListingCacheTable.table.filter { lc =>

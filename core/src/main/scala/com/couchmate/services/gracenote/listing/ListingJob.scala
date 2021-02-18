@@ -175,7 +175,7 @@ object ListingJob
         Behaviors.stopped
     }
 
-    def run(state: JobState): Behavior[Command] = Behaviors.setup { ctx =>
+    def run(state: JobState): Behavior[Command] = Behaviors.setup { implicit ctx =>
       import ListingStreams._
       // TODO tweak this, we were seeing ask timeouts to GNCoordinator
       // May be a product of weak nodes and just not enough time for it to respond

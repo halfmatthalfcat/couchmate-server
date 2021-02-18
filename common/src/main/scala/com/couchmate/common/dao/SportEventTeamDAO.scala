@@ -103,7 +103,7 @@ object SportEventTeamDAO {
             (sport_event_id, sport_organization_team_id, is_home)
             VALUES
             (${sET.sportEventId}, ${sET.sportOrganizationTeamId}, ${sET.isHome})
-            ON CONFLICT (sport_event_id, sport_event_id)
+            ON CONFLICT (sport_event_id, sport_organization_team_id)
             DO NOTHING
             RETURNING sport_event_id, sport_organization_team_id
           ) SELECT sport_event_id, sport_organization_team_id FROM row
