@@ -73,7 +73,7 @@ object NotificationCoordinator
                 case UserNotificationQueueItem(notificationId, _, airingId, _, hash, title, callsign, ApplicationPlatform.iOS, Some(token), _, _, _, _, _) => apns.sendNotification(
                   notificationId,
                   token,
-                  "is starting soon! Click to join the conversation on Couchmate.",
+                  "This show's room is now open! Click to join the conversation on Couchmate.",
                   Some(s"$title${callsign.map(cs => s" on $cs").getOrElse("")}"),
                   Map(
                     "notificationId" -> JsString(notificationId.toString),
@@ -84,8 +84,8 @@ object NotificationCoordinator
                 case UserNotificationQueueItem(notificationId, _, airingId, _, hash, title, callsign, ApplicationPlatform.Android, Some(token), _, _, _, _, _) => google.sendNotification(
                   notificationId,
                   token,
-                  "is starting soon! Click to join the conversation on Couchmate.",
-                  Some(s"$title${callsign.map(cs => s" on $cs").getOrElse("")}"),
+                  s"$title${callsign.map(cs => s" on $cs").getOrElse("")}",
+                  Some("This show's room is now open! Click to join the conversation on Couchmate."),
                   Map(
                     "notificationId" -> notificationId.toString,
                     "airingId" -> airingId,

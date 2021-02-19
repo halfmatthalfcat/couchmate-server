@@ -1,8 +1,9 @@
 package com.couchmate.common.models.data
 
+import enumeratum.EnumEntry.Lowercase
 import enumeratum._
 
-sealed trait ApplicationPlatform extends EnumEntry
+sealed trait ApplicationPlatform extends EnumEntry with Lowercase
 
 object ApplicationPlatform
   extends Enum[ApplicationPlatform]
