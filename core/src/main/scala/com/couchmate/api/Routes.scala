@@ -104,10 +104,14 @@ trait Routes
           }
         }
       },
-      UserRoutes(),
       pathPrefix("api") {
-        withApiKey(
-          pathPrefix("listing")(ListingRoutes())
+        concat(
+          withApiKey(
+            pathPrefix("listing")(ListingRoutes())
+          ),
+          withApiKey(
+            pathPrefix("user")(UserRoutes())
+          )
         )
       }
     )
