@@ -35,7 +35,7 @@ releases:
     chart: jetstack/cert-manager
     version: v1.1.0
     values:
-      - installCRDs: true
+      - installCRDs: false
   - name: cert-manager-extra
     namespace: cert-manager
     chart: ./cert-manager
