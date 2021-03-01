@@ -1,16 +1,16 @@
 package com.couchmate.common.dao
 
-import java.time.LocalDateTime
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.api.grid.AiringConversion
-import com.couchmate.common.models.data.{Airing, AiringStatus, RoomStatusType, Series, Show, ShowDetailed, SportEvent}
-import com.couchmate.common.tables.{AiringTable, EpisodeTable, LineupTable, SeriesTable, ShowTable, SportEventTable}
+import com.couchmate.common.models.data._
+import com.couchmate.common.tables._
 import slick.dbio.Effect
-import slick.sql.{SqlAction, SqlStreamingAction}
+import slick.sql.SqlStreamingAction
 
+import java.time.LocalDateTime
 import scala.concurrent.{ExecutionContext, Future}
 
 trait AiringDAO {

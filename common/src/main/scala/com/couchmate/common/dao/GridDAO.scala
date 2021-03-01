@@ -1,15 +1,12 @@
 package com.couchmate.common.dao
 
 import com.couchmate.common.db.PgProfile.plainAPI._
-import java.time.{LocalDateTime, ZoneId}
-
-import com.couchmate.common.dao.RoomActivityDAO.getUserLatestQuery
-import com.couchmate.common.models.api.grid.{Grid, GridAiring, GridAiringExtended, GridChannel, GridPage, GridSeries, GridSport, GridSportTeam}
+import com.couchmate.common.models.api.grid._
 import com.couchmate.common.models.data.{RoomActivityType, RoomStatusType}
-import com.couchmate.common.tables.{AiringTable, ChannelTable, LineupTable, ProviderChannelTable, ProviderTable, RoomActivityTable, ShowTable}
 import com.couchmate.common.util.DateUtils
 import slick.sql.SqlStreamingAction
 
+import java.time.{LocalDateTime, ZoneId}
 import scala.concurrent.{ExecutionContext, Future}
 
 trait GridDAO {

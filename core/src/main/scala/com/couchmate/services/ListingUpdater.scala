@@ -34,6 +34,9 @@ object ListingUpdater
   private final case class JobDead(jobId: UUID) extends Command
   private final case class JobFinished(jobId: UUID) extends Command
 
+  final case class StartJobRemote(jobType: ListingPullType, ref: ActorRef[Command]) extends Command
+  final case class StartJobRemoteResult(queue: Seq[(Long, Int)]) extends Command
+
   private sealed trait Event
 
   private final case class JobsAdded(jobs: Seq[Job]) extends Event
@@ -95,6 +98,20 @@ object ListingUpdater
             .thenRun((s: State) => s.jobs.headOption.fold(()) { job =>
               ctx.self ! StartJob(job)
             })
+        case StartJobRemote(jobType, ref) =>
+          Effect.none
+                .thenRun((_: State) => ctx.pipeToSelf(getProviders) {
+                  case Success(value) => AddJobs(value.map(providerId => Job(
+                    UUID.randomUUID(),
+                    providerId,
+                    jobType
+                  )))
+                  case Failure(exception) => FailedProviders(exception)
+                }).thenReply(ref)({
+            case State(jobs, _) => StartJobRemoteResult(
+              jobs.map(job => job.providerId -> job.jobType.value)
+            )
+          })
         case StartUpdate =>
           ctx.log.info(s"Starting update job (pulling for week)")
           Effect.none

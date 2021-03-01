@@ -1,12 +1,10 @@
 package com.couchmate.common.dao
 
-import java.util.UUID
-
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
-import com.couchmate.common.models.data.{Airing, Lineup, Show}
+import com.couchmate.common.models.data.{Airing, Lineup}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteAiring
 import com.couchmate.common.tables.{LineupTable, ProviderChannelTable}
 

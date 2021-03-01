@@ -1,11 +1,11 @@
 package com.couchmate.api
 
-import java.util.UUID
-
+import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.ActorContext
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.util.Timeout
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.couchmate.Server
 import com.couchmate.api.http.{ListingRoutes, UserRoutes}
@@ -13,7 +13,7 @@ import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.services.user.commands.UserActions
 import com.couchmate.services.user.context.{DeviceContext, GeoContext}
 import com.couchmate.util.akka.WSPersistentActor
-import com.couchmate.util.akka.extensions.{JwtExtension, UserExtension}
+import com.couchmate.util.akka.extensions.{JwtExtension, SingletonExtension, UserExtension}
 import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
@@ -35,8 +35,11 @@ trait Routes
     db: Database,
     jwt: JwtExtension,
     user: UserExtension,
+    singleton: SingletonExtension,
     config: Config,
-    ctx: ActorContext[Server.Command]
+    timeout: Timeout,
+    ctx: ActorContext[Server.Command],
+    system: ActorSystem[Nothing],
   ): Route = cors() {
     concat(
       path("metrics") {

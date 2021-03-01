@@ -1,14 +1,13 @@
 package com.couchmate.common.dao
 
-import java.util.UUID
-
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.{User, UserExtType, UserMeta, UserPrivate, UserRole}
+import com.couchmate.common.models.data.{User, UserExtType}
 import com.couchmate.common.tables.{UserExtTable, UserMetaTable, UserTable}
 
+import java.util.UUID
 import scala.concurrent.{ExecutionContext, Future}
 
 trait UserDAO {

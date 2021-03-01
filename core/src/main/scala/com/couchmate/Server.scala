@@ -84,7 +84,8 @@ object Server {
 
     RoomExtension(ctx.system)
 
-    SingletonExtension(ctx.system)
+    implicit val singletons: SingletonExtension =
+      SingletonExtension(ctx.system)
 
     val metrics: PromExtension =
       PromExtension(ctx.system)
