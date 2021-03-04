@@ -47,31 +47,8 @@ trait Routes
           metrics(registry)
         }
       },
-      path("ws") {
-        complete(StatusCodes.Gone -> "v1 WS endpoint deprecated, use /v2/ws")
-      },
-      pathPrefix("v2") {
-        path("ws") {
-          parameters(
-            Symbol("token").as[Option[String]],
-            Symbol("tz").as[String],
-            Symbol("locale").as[String],
-            Symbol("region").as[String],
-          ) { case (token, tz, locale, region) =>
-            onComplete(UserActions.getOrCreateUser(token, GeoContext(
-              locale, tz, region,
-            ))) {
-              case Success(userId) => handleWebSocketMessages(
-                WSPersistentActor(userId, GeoContext(
-                  locale, tz, region,
-                ), Option.empty, user, ctx)
-              )
-              case Failure(ex) =>
-                ctx.log.error(s"Failed to getOrCreate user: $token", ex)
-                complete(StatusCodes.InternalServerError)
-            }
-          }
-        }
+      path("healthcheck") {
+        complete(StatusCodes.OK)
       },
       pathPrefix("v3") {
         path("ws") {
