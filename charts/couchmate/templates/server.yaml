@@ -108,11 +108,7 @@ spec:
     - host: {{if eq .Values.env "prod"}}api{{else}}{{.Values.env}}-api{{end}}.couchmate.com
       http:
         paths:
-          - path: /(ws|register|reset)
-            backend:
-              serviceName: server
-              servicePort: 80
-          - path: /v2/ws
+          - path: /healthcheck
             backend:
               serviceName: server
               servicePort: 80
