@@ -5,9 +5,11 @@ import akka.actor.typed.{ActorRef, ActorSystem, Extension, ExtensionId, Supervis
 import akka.cluster.typed.{ClusterSingleton, SingletonActor}
 import com.couchmate.services.notification.NotificationCoordinator
 import com.couchmate.services.room.{LinkScanner, TenorService}
-import com.couchmate.services.{GracenoteCoordinator, GridCoordinator, ListingCoordinator, ListingUpdater, ProviderCoordinator}
+import com.couchmate.services.{GracenoteCoordinator, GridCoordinator, ListingCoordinator, ListingUpdater, ProviderCoordinator, ReportCoordinator}
+import com.typesafe.config.{Config, ConfigFactory}
 
 class SingletonExtension(system: ActorSystem[_]) extends Extension {
+  private[this] val config: Config = ConfigFactory.load()
   private[this] val singletonManager: ClusterSingleton = ClusterSingleton(system)
 
   val listingCoordinator: ActorRef[ListingCoordinator.Command] =
@@ -89,6 +91,18 @@ class SingletonExtension(system: ActorSystem[_]) extends Extension {
         "NotificationCoordinator"
       )
     )
+
+  if (config.getString("environment") == "prod") {
+    singletonManager.init(
+      SingletonActor(
+        Behaviors.supervise(
+          ReportCoordinator()
+        ).onFailure[Exception](SupervisorStrategy.restart),
+        "ReportCoordinator"
+      )
+    )
+  }
+
 }
 
 object SingletonExtension extends ExtensionId[SingletonExtension] {

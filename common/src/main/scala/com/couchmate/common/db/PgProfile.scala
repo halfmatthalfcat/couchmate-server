@@ -75,6 +75,13 @@ trait PgProfile
             .orNull,
         (v) => utils.SimpleArrayUtils.mkString[GracenoteAiring](b => Json.stringify(Json.toJson(b)))(v)
       ).to(_.toSeq)
+
+    implicit val doubleTupleMapper: DriverJdbcType[(Double, Double)] =
+      new AdvancedArrayJdbcType[Double]("decimal",
+        s => utils.SimpleArrayUtils
+          .fromString[Double](_.toDouble)(s).orNull,
+        v => utils.SimpleArrayUtils.mkString[Double](_.toString)(v)
+      ).to(arr => (arr.head, arr(1)), tuple => Seq(tuple._1, tuple._2))
   }
 
   val plainAPI = new API

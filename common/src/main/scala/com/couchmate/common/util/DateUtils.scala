@@ -5,6 +5,9 @@ import java.time.format.DateTimeFormatter
 
 object DateUtils {
 
+  def roundNearestDay(dateTime: LocalDateTime): LocalDateTime =
+    roundNearestHour(dateTime).withHour(0);
+
   def roundNearestHour(dateTime: LocalDateTime): LocalDateTime =
     roundNearestMinute(dateTime).withMinute(0)
 

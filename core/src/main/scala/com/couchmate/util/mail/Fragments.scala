@@ -10,14 +10,36 @@ object Fragments {
     height := "100%"
   )(content)
 
-  def banner(title: String): Modifier = tr(td(
-    height := "40px",
-    padding := "10px 20px",
-    backgroundColor := "#00414D",
-    fontSize := "28px",
-    fontWeight.bold,
-    color.white
-  )(title))
+  def banner(title: String, subtitle: Option[String] = None): Seq[Modifier] = {
+    if (subtitle.nonEmpty) {
+      Seq(
+        tr(td(
+          height := "40px",
+          padding := "10px 20px",
+          backgroundColor := "#00414D",
+          fontSize := "28px",
+          fontWeight.bold,
+          color.white
+        )(title)),
+        tr(td(
+          height := "20px",
+          padding := "10px 20px",
+          backgroundColor := "#00414D",
+          fontSize := "20px",
+          color.white
+        )(subtitle.get))
+      )
+    } else {
+      Seq(tr(td(
+        height := "40px",
+        padding := "10px 20px",
+        backgroundColor := "#00414D",
+        fontSize := "28px",
+        fontWeight.bold,
+        color.white
+      )(title)))
+    }
+  }
 
   def row(content: Modifier*): Modifier = tr(td(
     padding := "10px 20px"

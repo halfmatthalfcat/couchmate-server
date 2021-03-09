@@ -65,7 +65,8 @@ object Migrations extends LazyLogging {
     UserNotificationTeamMigrations.addSportOrgTeamFk,
     UserNotificationQueueMigrations.addReadAt,
     ListingCacheMigrations.providerStartTimeIdx,
-    AiringMigrations.startTimeEndTimeIdx
+    AiringMigrations.startTimeEndTimeIdx,
+    UserActivityAnalyticsMigrations.init,
   )
 
   val functions: Seq[DBIO[Int]] = Seq(

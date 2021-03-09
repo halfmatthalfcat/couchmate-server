@@ -1,11 +1,14 @@
 package com.couchmate.util.akka.extensions
 
 import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
+import com.couchmate.common.models.data.UserActivityAnalytics
 import com.couchmate.util.mail.Fragments._
-import com.couchmate.util.mail.MailgunCallback
+import com.couchmate.util.mail.{AnalyticsReport, MailgunCallback}
 import com.typesafe.config.{Config, ConfigFactory}
 import net.sargue.mailgun.{Configuration, Mail}
+import scalatags.Text.all._
 
+import java.time.format.{DateTimeFormatter, FormatStyle}
 import scala.concurrent.{Future, Promise}
 
 class MailExtension(system: ActorSystem[_]) extends Extension {
@@ -22,15 +25,16 @@ class MailExtension(system: ActorSystem[_]) extends Extension {
   def accountRegistration(emailAddress: String, token: String): Future[Boolean] = {
     val p: Promise[Boolean] = Promise[Boolean]()
     Mail.using(mailgunConfiguration).to(emailAddress).subject("Couchmate Account Registration").html(email(
-      banner("Couchmate Account Registration"),
-      row(
-        emailText("You're almost there!")
+      banner("Couchmate Account Registration") ++ Seq(
+        row(
+          emailText("You're almost there!")
+        ),
+        row(
+          emailText("Click the following "),
+          emailLink("link", s"https://${hostname}/register?token=$token"),
+          emailText(" to successfully register your account.")
+        )
       ),
-      row(
-        emailText("Click the following "),
-        emailLink("link", s"https://${hostname}/register?token=$token"),
-        emailText(" to successfully register your account.")
-      )
     ).toString).build().sendAsync(MailgunCallback(p))
     p.future
   }
@@ -38,15 +42,37 @@ class MailExtension(system: ActorSystem[_]) extends Extension {
   def forgotPassword(emailAddress: String, token: String): Future[Boolean] = {
     val p: Promise[Boolean] = Promise[Boolean]()
     Mail.using(mailgunConfiguration).to(emailAddress).subject("Couchmate Forgot Password").html(email(
-      banner("Couchmate Forgot Password"),
-      row(
-        emailText("Ruh Roh! Let's get you back to chatting."),
+      banner("Couchmate Forgot Password") ++ Seq(
+        row(
+          emailText("Ruh Roh! Let's get you back to chatting."),
+        ),
+        row(
+          emailText("Click this "),
+          emailLink("link", s"https://${hostname}/reset?token=$token"),
+          emailText(" to reset your password.")
+        )
       ),
-      row(
-        emailText("Click this "),
-        emailLink("link", s"https://${hostname}/reset?token=$token"),
-        emailText(" to reset your password.")
-      )
+    ).toString).build().sendAsync(MailgunCallback(p))
+    p.future
+  }
+
+  def analyticsReport(
+    emailAddress: String,
+    userAnalyticsReport: UserActivityAnalytics
+  ): Future[Boolean] = {
+    val p: Promise[Boolean] = Promise[Boolean]()
+    Mail.using(mailgunConfiguration).to(emailAddress).subject(
+      s"Couchmate Analytics Report - ${userAnalyticsReport.reportDate.toLocalDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT))}"
+    ).html(email(
+      banner(
+        "Couchmate Analytics Report",
+        Some(userAnalyticsReport.reportDate.toLocalDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)))
+      ) ++ Seq(
+        row(h2("User Count")),
+        row(AnalyticsReport.userCountTable(userAnalyticsReport)),
+        row(h2("User Session")),
+        row(AnalyticsReport.userSessionTable(userAnalyticsReport))
+      ),
     ).toString).build().sendAsync(MailgunCallback(p))
     p.future
   }

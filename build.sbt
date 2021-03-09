@@ -39,6 +39,7 @@ lazy val common = (project in file("common"))
       slickPg(),
       slickPg("play-json"),
       "org.julienrf"                %%  "play-json-derived-codecs"  % "7.0.0",
+      "ai.x"                        %%  "play-json-extensions"      % "0.42.0",
       "io.underscore"               %%  "slickless"                 % "0.3.6",
       "com.typesafe.play"           %%  "play-json"                 % "2.8.1",
       "com.beachape"                %%  "enumeratum"                % "1.5.15",
@@ -150,7 +151,8 @@ lazy val core = (project in file("core"))
           </developer>
         </developers>,
     publishMavenStyle := true,
-    addCommandAlias("jwt", "runMain com.couchmate.util.jwt.Jwt")
+    addCommandAlias("jwt", "runMain com.couchmate.util.jwt.Jwt"),
+    addCommandAlias("runDbQuery", "runMain com.couchmate.util.DbQueryTester")
   )
 
 lazy val tsSettings = Seq(
