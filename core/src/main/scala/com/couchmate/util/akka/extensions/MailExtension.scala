@@ -1,7 +1,7 @@
 package com.couchmate.util.akka.extensions
 
 import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
-import com.couchmate.common.models.data.UserActivityAnalytics
+import com.couchmate.common.models.data.{RoomActivityAnalytics, UserActivityAnalytics}
 import com.couchmate.util.mail.Fragments._
 import com.couchmate.util.mail.{AnalyticsReport, MailgunCallback}
 import com.typesafe.config.{Config, ConfigFactory}
@@ -58,7 +58,8 @@ class MailExtension(system: ActorSystem[_]) extends Extension {
 
   def analyticsReport(
     emailAddress: String,
-    userAnalyticsReport: UserActivityAnalytics
+    userAnalyticsReport: UserActivityAnalytics,
+    roomAnalyticsReport: RoomActivityAnalytics
   ): Future[Boolean] = {
     val p: Promise[Boolean] = Promise[Boolean]()
     Mail.using(mailgunConfiguration).to(emailAddress).subject(
@@ -71,7 +72,13 @@ class MailExtension(system: ActorSystem[_]) extends Extension {
         row(h2("User Count")),
         row(AnalyticsReport.userCountTable(userAnalyticsReport)),
         row(h2("User Session")),
-        row(AnalyticsReport.userSessionTable(userAnalyticsReport))
+        row(AnalyticsReport.userSessionTable(userAnalyticsReport)),
+        row(h2("Room Stats (24h)")),
+        row(AnalyticsReport.roomActivityTable(roomAnalyticsReport.last24)),
+        row(h2("Room Stats (7d)")),
+        row(AnalyticsReport.roomActivityTable(roomAnalyticsReport.lastWeek)),
+        row(h2("Room Stats (30d)")),
+        row(AnalyticsReport.roomActivityTable(roomAnalyticsReport.lastMonth))
       ),
     ).toString).build().sendAsync(MailgunCallback(p))
     p.future

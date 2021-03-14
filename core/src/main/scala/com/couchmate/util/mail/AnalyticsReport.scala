@@ -1,7 +1,11 @@
 package com.couchmate.util.mail
 
-import com.couchmate.common.models.data.UserActivityAnalytics
+import com.couchmate.common.dao.RoomActivityAnalyticsDAO.RoomActivityAnalyticContent
+import com.couchmate.common.models.data.{RoomActivityAnalytics, UserActivityAnalytics}
 import scalatags.Text.all._
+
+import java.time.{ZoneId, ZonedDateTime}
+import java.time.format.{DateTimeFormatter, FormatStyle}
 
 object AnalyticsReport {
   private[this] def aTable(mods: Modifier*): Modifier = table(
@@ -456,5 +460,97 @@ object AnalyticsReport {
       outerCell(),
       outerCell()
     ),
+  )
+
+  def roomActivityTable(content: RoomActivityAnalyticContent): Modifier = aTable(
+    tr(
+      border := "1px solid black"
+    )(
+      header(),
+      header("Name"),
+      header("Secondary"),
+      header("Users"),
+      header("Average Minutes"),
+      header("Total Minutes"),
+      header("Aired (EST)")
+    ),
+    if (content.shows.nonEmpty) {
+      Seq[Modifier](
+        tr(
+          td(
+            colspan := "6"
+          )("Shows")
+        ),
+        content.shows.map[Modifier](show => tr(
+          outerCell(),
+          outerCell(show.airing.show.title),
+          outerCell(),
+          outerCell(show.sessions.size),
+          outerCell(s"${roundTo(show.sessions.map(_.duration).sum / 60d / show.sessions.size, 2)}m"),
+          outerCell(s"${roundTo(show.sessions.map(_.duration).sum / 60d, 2)}m"),
+          outerCell(
+            show
+              .airing
+              .airing
+              .startTime
+              .atZone(ZoneId.of("UTC"))
+              .withZoneSameInstant(ZoneId.of("America/New_York"))
+              .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT))
+          )
+        ))
+      )
+    } else { Seq.empty[Modifier] },
+    if (content.series.nonEmpty) {
+      Seq[Modifier](
+        tr(
+          td(
+            colspan := "6"
+          )("Series")
+        ),
+        content.series.map[Modifier](episode => tr(
+          outerCell(),
+          outerCell(episode.airing.series.map(_.seriesTitle).getOrElse[String]("N/A")),
+          outerCell(episode.airing.show.title),
+          outerCell(episode.sessions.size),
+          outerCell(s"${roundTo(episode.sessions.map(_.duration).sum / 60d / episode.sessions.size, 2)}m"),
+          outerCell(s"${roundTo(episode.sessions.map(_.duration).sum / 60d, 2)}m"),
+          outerCell(
+            episode
+              .airing
+              .airing
+              .startTime
+              .atZone(ZoneId.of("UTC"))
+              .withZoneSameInstant(ZoneId.of("America/New_York"))
+              .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT))
+          )
+        )),
+      )
+    } else { Seq.empty[Modifier] },
+    if (content.sports.nonEmpty) {
+      Seq[Modifier](
+        tr(
+          td(
+            colspan := "6"
+          )("Sports")
+        ),
+        content.sports.map[Modifier](sport => tr(
+          outerCell(),
+          outerCell(sport.airing.sport.map(_.sportName).getOrElse[String]("N/A")),
+          outerCell(sport.airing.show.title),
+          outerCell(sport.sessions.size),
+          outerCell(s"${roundTo(sport.sessions.map(_.duration).sum / 60d / sport.sessions.size, 2)}m"),
+          outerCell(s"${roundTo(sport.sessions.map(_.duration).sum / 60d, 2)}m"),
+          outerCell(
+            sport
+              .airing
+              .airing
+              .startTime
+              .atZone(ZoneId.of("UTC"))
+              .withZoneSameInstant(ZoneId.of("America/New_York"))
+              .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT))
+          )
+        ))
+      )
+    } else { Seq.empty[Modifier] }
   )
 }

@@ -4,25 +4,26 @@ import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
 import akka.util.Timeout
-import com.couchmate.common.dao.UserActivityAnalyticsDAO
+import com.couchmate.common.dao.{RoomActivityAnalyticsDAO, UserActivityAnalyticsDAO}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.UserActivityAnalytics
+import com.couchmate.common.models.data.{RoomActivityAnalytics, UserActivityAnalytics}
 import com.couchmate.util.akka.extensions.{DatabaseExtension, MailExtension}
 import com.typesafe.akka.extension.quartz.QuartzSchedulerExtension
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.jdk.javaapi.CollectionConverters
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-object ReportCoordinator extends UserActivityAnalyticsDAO {
+object ReportCoordinator
+  extends UserActivityAnalyticsDAO
+  with RoomActivityAnalyticsDAO {
   sealed trait Command
 
   private final case object RunUserActivityAnalyticsReport extends Command
 
-  private final case class UserActivityAnalyticsReportSuccess(report: UserActivityAnalytics) extends Command
+  private final case class UserActivityAnalyticsReportSuccess(report: (UserActivityAnalytics, RoomActivityAnalytics)) extends Command
   private final case class UserActivityAnalyticsReportFailed(ex: Throwable) extends Command
 
   private final case class UserActivityAnalyticsReportsSent(results: Seq[Boolean]) extends Command
@@ -48,14 +49,17 @@ object ReportCoordinator extends UserActivityAnalyticsDAO {
     )
 
     Behaviors.receiveMessage {
-      case RunUserActivityAnalyticsReport => ctx.pipeToSelf(getAndAddUserAnalytics) {
+      case RunUserActivityAnalyticsReport => ctx.pipeToSelf(for {
+        userAnalytics <- getAndAddUserAnalytics
+        roomAnalytics <- getRoomAnalytics
+      } yield (userAnalytics, roomAnalytics)) {
         case Success(report) => UserActivityAnalyticsReportSuccess(report)
         case Failure(exception) => UserActivityAnalyticsReportFailed(exception)
       }
         Behaviors.same
-      case UserActivityAnalyticsReportSuccess(report) => ctx.pipeToSelf(Future.sequence(
+      case UserActivityAnalyticsReportSuccess((userReport, roomReport)) => ctx.pipeToSelf(Future.sequence(
         CollectionConverters.asScala(config.getStringList("reports.userAnalytics.recipients")).map(
-          email => mailer.analyticsReport(email, report)
+          email => mailer.analyticsReport(email, userReport, roomReport)
         )
       )) {
         case Success(value) => UserActivityAnalyticsReportsSent(value.toSeq)

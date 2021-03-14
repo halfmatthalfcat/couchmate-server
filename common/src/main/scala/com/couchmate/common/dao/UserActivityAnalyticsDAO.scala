@@ -42,119 +42,84 @@ object UserActivityAnalyticsDAO {
     sessions: Seq[UserAnalyticSession]
   )
 
-  private[this] lazy val getLast24HoursQuery = Compiled {
-    UserActivityTable.table.filter(uA =>
-      uA.created between(
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC")).minusDays(1)
-        ),
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC"))
-        )
-      )
-    ).sortBy(_.created.asc)
-  }
+  private[this] lazy val getActivityRange = Compiled {
+    (from: Rep[LocalDateTime], to: Rep[LocalDateTime]) =>
+      UserActivityTable.table.filter(uA =>
+        uA.created between(from, to)
+      ).sortBy(_.created.asc)
+    }
 
   private[couchmate] def getLast24Hours: DBIO[Seq[UserActivity]] =
-    getLast24HoursQuery.result
-
-  private[this] lazy val getPrev24HoursQuery = Compiled {
-    UserActivityTable.table.filter(uA =>
-      uA.created between(
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC")).minusDays(2)
-        ),
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC")).minusDays(1)
-        )
+    getActivityRange(
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC")).minusDays(1)
+      ),
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC"))
       )
-    ).sortBy(_.created.asc)
-  }
+    ).result
 
   private[couchmate] def getPrev24Hours: DBIO[Seq[UserActivity]] =
-    getPrev24HoursQuery.result
-
-  private[this] lazy val getLast24HoursLastWeekQuery = Compiled {
-    UserActivityTable.table.filter(uA =>
-      uA.created between(
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC"))
-                       .minusWeeks(1)
-                       .minusDays(1)
-        ),
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(1)
-        )
+    getActivityRange(
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC")).minusDays(2)
+      ),
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC")).minusDays(1)
       )
-    ).sortBy(_.created.asc)
-  }
+    ).result
 
   private[couchmate] def getLast24HoursLastWeek: DBIO[Seq[UserActivity]] =
-    getLast24HoursLastWeekQuery.result
-
-  private[this] lazy val getLastWeekQuery = Compiled {
-    UserActivityTable.table.filter(uA =>
-      uA.created between(
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(1)
-        ),
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC"))
-        )
+    getActivityRange(
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC"))
+                     .minusWeeks(1)
+                     .minusDays(1)
+      ),
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(1)
       )
-    ).sortBy(_.created.asc)
-  }
+    ).result
 
   private[couchmate] def getLastWeek: DBIO[Seq[UserActivity]] =
-    getLastWeekQuery.result
-
-  private[this] lazy val getPrevWeekQuery = Compiled {
-    UserActivityTable.table.filter(uA =>
-      uA.created between(
-        DateUtils.roundNearestHour(
-          LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(2)
-        ),
-        DateUtils.roundNearestHour(
-          LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(1)
-        )
+    getActivityRange(
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(1)
+      ),
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC"))
       )
-    ).sortBy(_.created.asc)
-  }
+    ).result
 
   private[couchmate] def getPrevWeek: DBIO[Seq[UserActivity]] =
-    getPrevWeekQuery.result
-
-  private[this] lazy val getLastMonthQuery = Compiled {
-    UserActivityTable.table.filter(uA =>
-      uA.created between(
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC")).minusMonths(1)
-        ),
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC"))
-        )
+    getActivityRange(
+      DateUtils.roundNearestHour(
+        LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(2)
+      ),
+      DateUtils.roundNearestHour(
+        LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(1)
       )
-    ).sortBy(_.created.asc)
-  }
+    ).result
 
   private[couchmate] def getLastMonth: DBIO[Seq[UserActivity]] =
-    getLastMonthQuery.result
-
-  private[this] lazy val getPrevMonthQuery = Compiled {
-    UserActivityTable.table.filter(uA =>
-      uA.created between(
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC")).minusMonths(2)
-        ),
-        DateUtils.roundNearestDay(
-          LocalDateTime.now(ZoneId.of("UTC")).minusMonths(1)
-        )
+    getActivityRange(
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC")).minusMonths(1)
+      ),
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC"))
       )
-    ).sortBy(_.created.asc)
-  }
+    ).result
 
   private[couchmate] def getPrevMonth: DBIO[Seq[UserActivity]] =
-    getPrevMonthQuery.result
+    getActivityRange(
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC")).minusMonths(2)
+      ),
+      DateUtils.roundNearestDay(
+        LocalDateTime.now(ZoneId.of("UTC")).minusMonths(1)
+      )
+    ).result
 
   private[couchmate] def getUserAnalytics(implicit ec: ExecutionContext): DBIO[UserActivityAnalytics] = for {
     last24 <- getLast24Hours.map(getUserSessionsFromActivities)
@@ -182,7 +147,7 @@ object UserActivityAnalyticsDAO {
     UserActivityAnalytics(
       reportDate = DateUtils.roundNearestDay(
         LocalDateTime.now(ZoneId.of("UTC"))
-      ),
+      ).minusDays(1),
       dau = last24.size,
       prevDau = prev24.size,
       prevWeekDau = last24LastWeek.size,
