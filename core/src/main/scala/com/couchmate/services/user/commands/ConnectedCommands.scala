@@ -1,28 +1,29 @@
 package com.couchmate.services.user.commands
 
 import java.util.UUID
-
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.ActorContext
 import akka.persistence.typed.scaladsl.{Effect, EffectBuilder}
 import com.couchmate.api.ws.protocol.{External, ForgotPasswordError, ForgotPasswordErrorCause, LoginError, LoginErrorCause, PasswordResetError, PasswordResetErrorCause, Protocol, RegisterAccountError, RegisterAccountErrorCause, UpdateUsernameError, UpdateUsernameErrorCause}
-import com.couchmate.common.dao.UserActivityDAO
+import com.couchmate.common.dao.{UserActivityDAO, ZipProviderDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.user.UserMute
 import com.couchmate.common.models.data.{ApplicationPlatform, User, UserActivity, UserActivityType, UserMeta, UserNotificationSeries, UserNotificationShow, UserNotificationTeam}
-import com.couchmate.services.GridCoordinator
+import com.couchmate.services.{GridCoordinator, ListingUpdater}
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser._
 import com.couchmate.services.user.context.{DeviceContext, GeoContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{JwtExtension, MailExtension, PromExtension, SingletonExtension, UserExtension}
+import com.neovisionaries.i18n.CountryCode
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 object ConnectedCommands
-  extends UserActivityDAO {
+  extends UserActivityDAO
+  with ZipProviderDAO {
 
   private[user] def disconnect(
     userContext: UserContext,
@@ -717,4 +718,57 @@ object ConnectedCommands
       case Success(notifications) => notifications
       case Failure(exception) => UserNotificationRemoveFailed(exception)
     })
+
+  private[user] def updateProvider(
+    userId: UUID,
+    providerId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.updateProvider(
+      userId, providerId
+    )) {
+      case Success(provider) => ProviderUpdated(
+        provider.providerId.get,
+        provider.name
+      )
+      case Failure(exception) => ProviderUpdateFailed(exception)
+    })
+
+  private[user] def providerUpdated(
+    providerId: Long,
+    name: String,
+    userContext: UserContext,
+    gridAdapter: ActorRef[GridCoordinator.Command],
+    ws: ActorRef[WSPersistentActor.Command]
+  )(
+    implicit
+    ctx: ActorContext[PersistentUser.Command],
+    singletons: SingletonExtension
+  ): EffectBuilder[UserContextSet, State] = Effect
+    .persist(UserContextSet(userContext.copy(
+      providerId = providerId,
+      providerName = name
+    ))).thenRun((_: State) => singletons.listingUpdater ! ListingUpdater.EnsureListing(
+      providerId
+    )).thenRun((_: State) => singletons.gridCoordinator ! GridCoordinator.SwapListener(
+      userContext.providerId,
+      providerId,
+      gridAdapter
+    )).thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(
+      External.ProviderUpdated
+    )).thenRun {
+      case state: ConnectedState =>
+        ws ! WSPersistentActor.OutgoingMessage(
+          External.SetSession(
+            state.userContext.getClientUser(state.device.map(_.deviceId)),
+            name,
+            state.userContext.token
+          )
+        )
+    }
 }

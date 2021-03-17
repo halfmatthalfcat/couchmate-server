@@ -4,10 +4,10 @@ import play.api.libs.json.{Format, Json}
 
 case class Provider(
   providerId: Option[Long] = None,
-  providerOwnerId: Option[Long],
+  providerOwnerId: Long,
   extId: String,
   name: String,
-  `type`: String,
+  `type`: ProviderType,
   location: Option[String],
 )
 

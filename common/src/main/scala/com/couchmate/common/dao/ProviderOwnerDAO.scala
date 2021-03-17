@@ -3,7 +3,7 @@ package com.couchmate.common.dao
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.ProviderOwner
 import com.couchmate.common.tables.ProviderOwnerTable
 
@@ -74,6 +74,18 @@ trait ProviderOwnerDAO {
     session: SlickSession
   ): Flow[ProviderOwner, ProviderOwner, NotUsed] =
     Slick.flowWithPassThrough(ProviderOwnerDAO.getOrAddProviderOwner)
+
+  def addAndGetProviderOwner(
+    extProviderOwnerId: String,
+    name: String
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[ProviderOwner] =
+    db.run(ProviderOwnerDAO.addAndGetProviderOwner(
+      extProviderOwnerId, name
+    ))
 }
 
 object ProviderOwnerDAO {
@@ -98,6 +110,25 @@ object ProviderOwnerDAO {
   private[common] def getProviderOwnerForExt(extProviderOwnerId: String): DBIO[Option[ProviderOwner]] =
     getProviderOwnerForExtQuery(extProviderOwnerId).result.headOption
 
+  private[this] def addProviderOwnerForId(
+    extProviderOwnerId: String,
+    name: String
+  ) = sql"SELECT insert_or_get_provider_owner_id($extProviderOwnerId, $name)".as[Long]
+
+  private[common] def addAndGetProviderOwner(
+    extProviderOwnerId: String,
+    name: String
+  )(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[ProviderOwner] = for {
+    providerOwnerId <- addProviderOwnerForId(
+      extProviderOwnerId,
+      name
+    ).head
+    providerOwner <- getProviderOwnerQuery(providerOwnerId).result.head
+  } yield providerOwner
+
   def upsertProviderOwner(providerOwner: ProviderOwner)(
     implicit
     ec: ExecutionContext
@@ -118,7 +149,7 @@ object ProviderOwnerDAO {
   ): DBIO[ProviderOwner] = (providerOwner match {
     case ProviderOwner(Some(providerOwnerId), _, _) =>
       getProviderOwnerQuery(providerOwnerId).result.head
-    case ProviderOwner(None, Some(extProviderOwnerId), _) => for {
+    case ProviderOwner(None, extProviderOwnerId, _) => for {
       exists <- getProviderOwnerForExt(extProviderOwnerId)
       po <- exists.fold(upsertProviderOwner(providerOwner))(DBIO.successful)
     } yield po

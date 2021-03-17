@@ -238,14 +238,8 @@ object External {
     providers: Seq[Provider]
   ) extends Protocol
 
-  case class UpdateProvider(
-    zipCode: String,
-    providerId: Long
-  ) extends Protocol
-  case class UpdateProviderResponse(
-    success: Boolean,
-    pulling: Boolean
-  ) extends Protocol
+  case class UpdateProvider(providerId: Long) extends Protocol
+  case object ProviderUpdated extends Protocol
 
   case class UpdateGrid(
     grid: Grid

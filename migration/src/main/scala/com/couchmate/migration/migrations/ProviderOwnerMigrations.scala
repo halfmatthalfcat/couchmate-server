@@ -18,9 +18,13 @@ object ProviderOwnerMigrations {
   )(
     ProviderOwnerDAO.upsertProviderOwner(ProviderOwner(
       providerOwnerId = None,
-      extProviderOwnerId = None,
+      extProviderOwnerId = "x",
       name = "Default"
     ))
   )
+
+  def addIdx = MigrationItem(55L, ProviderOwnerTable.table)(
+    _.addIndexes(_.idx)
+  )()
 
 }

@@ -1,0 +1,1172 @@
+[
+  {
+    "iso": "AF",
+    "name": "Afghanistan",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "AL",
+    "name": "Albania",
+    "regex": "(120|122)[0-9]{2}"
+  },
+  {
+    "iso": "DZ",
+    "name": "Algeria",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "AS",
+    "name": "American Samoa",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "AD",
+    "name": "Andorra",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "AO",
+    "name": "Angola"
+  },
+  {
+    "iso": "AI",
+    "name": "Anguilla",
+    "regex": "AI-2640"
+  },
+  {
+    "iso": "AG",
+    "name": "Antigua and Barbuda"
+  },
+  {
+    "iso": "AR",
+    "name": "Argentina",
+    "regex": "[A-Z]{1}[0-9]{4}[A-Z]{3}"
+  },
+  {
+    "iso": "AM",
+    "name": "Armenia",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "AW",
+    "name": "Aruba"
+  },
+  {
+    "iso": "AU",
+    "name": "Australia",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "AT",
+    "name": "Austria",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "AZ",
+    "name": "Azerbaijan",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "BS",
+    "name": "Bahamas"
+  },
+  {
+    "iso": "BH",
+    "name": "Bahrain"
+  },
+  {
+    "iso": "BD",
+    "name": "Bangladesh",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "BB",
+    "name": "Barbados",
+    "regex": "BB[0-9]{5}"
+  },
+  {
+    "iso": "BY",
+    "name": "Belarus",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "BE",
+    "name": "Belgium",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "BZ",
+    "name": "Belize"
+  },
+  {
+    "iso": "BJ",
+    "name": "Benin"
+  },
+  {
+    "iso": "BM",
+    "name": "Bermuda",
+    "regex": "[A-Z]{2}[0-9]{2}"
+  },
+  {
+    "iso": "BT",
+    "name": "Bhutan",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "BO",
+    "name": "Bolivia"
+  },
+  {
+    "iso": "BQ",
+    "name": "Bonaire"
+  },
+  {
+    "iso": "BA",
+    "name": "Bosnia and Herzegovina",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "BW",
+    "name": "Botswana"
+  },
+  {
+    "iso": "BR",
+    "name": "Brazil",
+    "regex": "[0-9]{5}-[0-9]{3}"
+  },
+  {
+    "iso": "BN",
+    "name": "Brunei",
+    "regex": "[A-Z]{2}[0-9]{4}"
+  },
+  {
+    "iso": "BG",
+    "name": "Bulgaria",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "BF",
+    "name": "Burkina Faso"
+  },
+  {
+    "iso": "BI",
+    "name": "Burundi"
+  },
+  {
+    "iso": "KH",
+    "name": "Cambodia",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "CM",
+    "name": "Cameroon"
+  },
+  {
+    "iso": "CA",
+    "name": "Canada",
+    "regex": "[A-Z][0-9][A-Z] ?[0-9][A-Z][0-9]"
+  },
+  {
+    "iso": "CI",
+    "name": "Canary Islands",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "CV",
+    "name": "Cape Verde",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "KY",
+    "name": "Cayman Islands",
+    "regex": "[A-Z]{2}[0-9]-[0-9]{4}"
+  },
+  {
+    "iso": "CF",
+    "name": "Central African Republic"
+  },
+  {
+    "iso": "TD",
+    "name": "Chad"
+  },
+  {
+    "iso": "CI",
+    "name": "Channel Islands",
+    "regex": "[A-Z]{2}[0-9]{2}"
+  },
+  {
+    "iso": "CL",
+    "name": "Chile",
+    "regex": "[0-9]{7}"
+  },
+  {
+    "iso": "CN",
+    "name": "China, People's Republic",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "CO",
+    "name": "Colombia",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "KM",
+    "name": "Comoros"
+  },
+  {
+    "iso": "CG",
+    "name": "Congo"
+  },
+  {
+    "iso": "CD",
+    "name": "Congo, The Democratic Republic of"
+  },
+  {
+    "iso": "CK",
+    "name": "Cook Islands"
+  },
+  {
+    "iso": "CR",
+    "name": "Costa Rica",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "CI",
+    "name": "Côte d'Ivoire"
+  },
+  {
+    "iso": "HR",
+    "name": "Croatia",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "CU",
+    "name": "Cuba",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "CW",
+    "name": "Curacao"
+  },
+  {
+    "iso": "CY",
+    "name": "Cyprus",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "CZ",
+    "name": "Czech Republic",
+    "regex": "[0-9]{3} [0-9]{2}"
+  },
+  {
+    "iso": "DK",
+    "name": "Denmark",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "DJ",
+    "name": "Djibouti"
+  },
+  {
+    "iso": "DM",
+    "name": "Dominica"
+  },
+  {
+    "iso": "DO",
+    "name": "Dominican Republic",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "TL",
+    "name": "East Timor"
+  },
+  {
+    "iso": "EC",
+    "name": "Ecuador",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "EG",
+    "name": "Egypt",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "SV",
+    "name": "El Salvador",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "ER",
+    "name": "Eritrea"
+  },
+  {
+    "iso": "EE",
+    "name": "Estonia",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "ET",
+    "name": "Ethiopia",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "FK",
+    "name": "Falkland Islands",
+    "regex": "FIQQ 1ZZ"
+  },
+  {
+    "iso": "FO",
+    "name": "Faroe Islands",
+    "regex": "[0-9]{3}"
+  },
+  {
+    "iso": "FJ",
+    "name": "Fiji"
+  },
+  {
+    "iso": "FI",
+    "name": "Finland",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "FR",
+    "name": "France",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "PF",
+    "name": "French Polynesia",
+    "regex": "987[0-9]{2}",
+    "range": [
+      "98700",
+      "98790"
+    ]
+  },
+  {
+    "iso": "GA",
+    "name": "Gabon"
+  },
+  {
+    "iso": "GM",
+    "name": "Gambia"
+  },
+  {
+    "iso": "GE",
+    "name": "Georgia"
+  },
+  {
+    "iso": "DE",
+    "name": "Germany",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "GH",
+    "name": "Ghana"
+  },
+  {
+    "iso": "GI",
+    "name": "Gibraltar",
+    "regex": "GX11 1AA"
+  },
+  {
+    "iso": "GR",
+    "name": "Greece",
+    "regex": "[0-9]{3} [0-9]{2}"
+  },
+  {
+    "iso": "GL",
+    "name": "Greenland",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "GD",
+    "name": "Grenada"
+  },
+  {
+    "iso": "GP",
+    "name": "Guadeloupe",
+    "regex": "971[0-9]{2}",
+    "range": [
+      "97100",
+      "97190"
+    ]
+  },
+  {
+    "iso": "GU",
+    "name": "Guam",
+    "regex": "\\d{5}(?:[-\\s]\\d{4})?",
+    "range": [
+      "96910",
+      "96932"
+    ]
+  },
+  {
+    "iso": "GT",
+    "name": "Guatemala",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "GG",
+    "name": "Guernsey",
+    "regex": "([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9][A-Za-z]?))))\\s?[0-9][A-Za-z]{2})"
+  },
+  {
+    "iso": "GW",
+    "name": "Guinea-Bissau",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "GQ",
+    "name": "Guinea-Equatorial"
+  },
+  {
+    "iso": "GN",
+    "name": "Guinea Republic",
+    "regex": "[0-9]{3}"
+  },
+  {
+    "iso": "GY",
+    "name": "Guyana (British)"
+  },
+  {
+    "iso": "GF",
+    "name": "Guyana (French)",
+    "regex": "973[0-9]{2}",
+    "range": [
+      "97300",
+      "97390"
+    ]
+  },
+  {
+    "iso": "HT",
+    "name": "Haiti",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "HN",
+    "name": "Honduras",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "HK",
+    "name": "Hong Kong"
+  },
+  {
+    "iso": "HU",
+    "name": "Hungary",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "IS",
+    "name": "Iceland",
+    "regex": "[0-9]{3}"
+  },
+  {
+    "iso": "IN",
+    "name": "India",
+    "regex": "[1-9][0-9]{5}"
+  },
+  {
+    "iso": "ID",
+    "name": "Indonesia",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "IR",
+    "name": "Iran",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "IQ",
+    "name": "Iraq",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "IE",
+    "name": "Ireland, Republic of",
+    "regex": "(?:^[AC-FHKNPRTV-Y][0-9]{2}|D6W)[ -]?[0-9AC-FHKNPRTV-Y]{4}$"
+  },
+  {
+    "iso": "FK",
+    "name": "Islas Malvinas",
+    "regex": "FIQQ 1ZZ"
+  },
+  {
+    "iso": "IL",
+    "name": "Israel",
+    "regex": "[0-9]{5}|[0-9]{7}"
+  },
+  {
+    "iso": "IT",
+    "name": "Italy",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "CI",
+    "name": "Ivory Coast"
+  },
+  {
+    "iso": "JM",
+    "name": "Jamaica"
+  },
+  {
+    "iso": "JP",
+    "name": "Japan",
+    "regex": "[0-9]{3}-[0-9]{4}"
+  },
+  {
+    "iso": "JE",
+    "name": "Jersey",
+    "regex": "([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9][A-Za-z]?))))\\s?[0-9][A-Za-z]{2})"
+  },
+  {
+    "iso": "JO",
+    "name": "Jordan",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "KZ",
+    "name": "Kazakhstan",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "KE",
+    "name": "Kenya",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "KI",
+    "name": "Kiribati"
+  },
+  {
+    "iso": "KR",
+    "name": "Korea, Republic of",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "KP",
+    "name": "Korea, The D.P.R of"
+  },
+  {
+    "iso": "XK",
+    "name": "Kosovo",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "KW",
+    "name": "Kuwait",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "KG",
+    "name": "Kyrgyzstan",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "LA",
+    "name": "Laos",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "LV",
+    "name": "Latvia",
+    "regex": "LV-[0-9]{4}"
+  },
+  {
+    "iso": "LB",
+    "name": "Lebanon",
+    "regex": "[0-9]{4} [0-9]{4}"
+  },
+  {
+    "iso": "LS",
+    "name": "Lesotho",
+    "regex": "[0-9]{3}"
+  },
+  {
+    "iso": "LR",
+    "name": "Liberia",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "LY",
+    "name": "Libya"
+  },
+  {
+    "iso": "LI",
+    "name": "Liechtenstein",
+    "regex": "[0-9]{4}",
+    "range": [
+      "9485",
+      "9498"
+    ]
+  },
+  {
+    "iso": "LT",
+    "name": "Lithuania",
+    "regex": "LT-[0-9]{5}"
+  },
+  {
+    "iso": "LU",
+    "name": "Luxembourg",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "MO",
+    "name": "Macau"
+  },
+  {
+    "iso": "MK",
+    "name": "Macedonia, Republic of",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "MG",
+    "name": "Madagascar",
+    "regex": "[0-9]{3}"
+  },
+  {
+    "iso": "MW",
+    "name": "Malawi"
+  },
+  {
+    "iso": "MY",
+    "name": "Malaysia",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "MV",
+    "name": "Maldives",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "ML",
+    "name": "Mali"
+  },
+  {
+    "iso": "MT",
+    "name": "Malta",
+    "regex": "[A-Z]{3} [0-9]{4}"
+  },
+  {
+    "iso": "MH",
+    "name": "Marshall Islands",
+    "regex": "\\d{5}(?:[-\\s]\\d{4})?",
+    "range": [
+      "96960",
+      "96970"
+    ]
+  },
+  {
+    "iso": "MQ",
+    "name": "Martinique",
+    "regex": "972[0-9]{2}",
+    "range": [
+      "97200",
+      "97290"
+    ]
+  },
+  {
+    "iso": "MR",
+    "name": "Mauritania"
+  },
+  {
+    "iso": "MU",
+    "name": "Mauritius",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "YT",
+    "name": "Mayotte",
+    "regex": "976[0-9]{2}",
+    "range": [
+      "97600",
+      "97690"
+    ]
+  },
+  {
+    "iso": "MX",
+    "name": "Mexico",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "MD",
+    "name": "Moldova, Republic of",
+    "regex": "MD-?[0-9]{4}"
+  },
+  {
+    "iso": "MC",
+    "name": "Monaco",
+    "regex": "980[0-9]{2}"
+  },
+  {
+    "iso": "MN",
+    "name": "Mongolia",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "ME",
+    "name": "Montenegro",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "MS",
+    "name": "Montserrat",
+    "regex": "MSR [0-9]{4}",
+    "range": [
+      "MSR 1110",
+      "MSR 1350"
+    ]
+  },
+  {
+    "iso": "MA",
+    "name": "Morocco",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "MZ",
+    "name": "Mozambique",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "MM",
+    "name": "Myanmar",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "NA",
+    "name": "Namibia"
+  },
+  {
+    "iso": "NR",
+    "name": "Nauru"
+  },
+  {
+    "iso": "NP",
+    "name": "Nepal",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "NL",
+    "name": "Netherlands",
+    "regex": "(?:NL-)?(\\d{4})\\s*([A-Z]{2})"
+  },
+  {
+    "iso": "NC",
+    "name": "New Caledonia",
+    "regex": "988[0-9]{2}",
+    "range": [
+      "96950",
+      "96952"
+    ]
+  },
+  {
+    "iso": "NZ",
+    "name": "New Zealand",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "NI",
+    "name": "Nicaragua"
+  },
+  {
+    "iso": "NE",
+    "name": "Niger",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "NG",
+    "name": "Nigeria",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "NU",
+    "name": "Niue"
+  },
+  {
+    "iso": "MP",
+    "name": "Northern Mariana Islands",
+    "regex": "^\\d{5}(?:[-\\s]\\d{4})?$"
+  },
+  {
+    "iso": "NO",
+    "name": "Norway",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "OM",
+    "name": "Oman",
+    "regex": "[0-9]{3}"
+  },
+  {
+    "iso": "PK",
+    "name": "Pakistan",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "PW",
+    "name": "Palau",
+    "regex": "\\d{5}(?:[-\\s]\\d{4})?"
+  },
+  {
+    "iso": "PA",
+    "name": "Panama",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "PG",
+    "name": "Papua New Guinea",
+    "regex": "[0-9]{3}"
+  },
+  {
+    "iso": "PY",
+    "name": "Paraguay",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "PE",
+    "name": "Peru",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "PH",
+    "name": "Philippines",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "PL",
+    "name": "Poland",
+    "regex": "[0-9]{2}-[0-9]{3}"
+  },
+  {
+    "iso": "PT",
+    "name": "Portugal",
+    "regex": "[0-9]{4}-[0-9]{3}"
+  },
+  {
+    "iso": "PR",
+    "name": "Puerto Rico",
+    "regex": "\\d{5}(?:[-\\s]\\d{4})?"
+  },
+  {
+    "iso": "QA",
+    "name": "Qatar"
+  },
+  {
+    "iso": "RE",
+    "name": "Réunion",
+    "regex": "974[0-9]{2}",
+    "range": [
+      "97400",
+      "97490"
+    ]
+  },
+  {
+    "iso": "RO",
+    "name": "Romania",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "RU",
+    "name": "Russian Federation",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "RW",
+    "name": "Rwanda"
+  },
+  {
+    "iso": "MP",
+    "name": "Saipan",
+    "regex": "96950"
+  },
+  {
+    "iso": "WS",
+    "name": "Samoa",
+    "regex": "WS[0-9]{4}"
+  },
+  {
+    "iso": "ST",
+    "name": "Sao Tome and Principe"
+  },
+  {
+    "iso": "SA",
+    "name": "Saudi Arabia",
+    "regex": "[0-9]{5}(-[0-9]{4})?"
+  },
+  {
+    "iso": "SN",
+    "name": "Senegal",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "RS",
+    "name": "Serbia",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "SC",
+    "name": "Seychelles"
+  },
+  {
+    "iso": "SL",
+    "name": "Sierra Leone"
+  },
+  {
+    "iso": "SG",
+    "name": "Singapore",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "SK",
+    "name": "Slovakia",
+    "regex": "[0-9]{3} [0-9]{2}"
+  },
+  {
+    "iso": "SI",
+    "name": "Slovenia",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "SB",
+    "name": "Solomon Islands"
+  },
+  {
+    "iso": "SO",
+    "name": "Somalia",
+    "regex": "[A-Z]{2} [0-9]{5}"
+  },
+  {
+    "iso": "ZA",
+    "name": "South Africa",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "SS",
+    "name": "South Sudan"
+  },
+  {
+    "iso": "ES",
+    "name": "Spain",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "LK",
+    "name": "Sri Lanka",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "BL",
+    "name": "St. Barthélemy",
+    "regex": "[0-9]{5}",
+    "range": [
+      "97100",
+      "97190"
+    ]
+  },
+  {
+    "iso": "VI",
+    "name": "St. Croix",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "SE",
+    "name": "St. Eustatius"
+  },
+  {
+    "iso": "SH",
+    "name": "St. Helena",
+    "regex": "STHL 1ZZ"
+  },
+  {
+    "iso": "AG",
+    "name": "St. John",
+    "regex": "\\d{5}(?:[-\\s]\\d{4})?"
+  },
+  {
+    "iso": "KN",
+    "name": "St. Kitts and Nevis",
+    "regex": "[A-Z]{2}[0-9]{4}"
+  },
+  {
+    "iso": "LC",
+    "name": "St. Lucia",
+    "regex": "[A-Z]{2}[0-9]{2} [0-9]{3}"
+  },
+  {
+    "iso": "SX",
+    "name": "St. Maarten"
+  },
+  {
+    "iso": "VI",
+    "name": "St. Thomas"
+  },
+  {
+    "iso": "VC",
+    "name": "St. Vincent and the Grenadines",
+    "regex": "VC[0-9]{4}"
+  },
+  {
+    "iso": "SD",
+    "name": "Sudan",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "SR",
+    "name": "Suriname"
+  },
+  {
+    "iso": "SZ",
+    "name": "Swaziland",
+    "regex": "[A-Z]{1}[0-9]{3}"
+  },
+  {
+    "iso": "SE",
+    "name": "Sweden",
+    "regex": "[0-9]{3} [0-9]{2}"
+  },
+  {
+    "iso": "CH",
+    "name": "Switzerland",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "SY",
+    "name": "Syria"
+  },
+  {
+    "iso": "PF",
+    "name": "Tahiti",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "TW",
+    "name": "Taiwan",
+    "regex": "[0-9]{3}(-[0-9]{2})?"
+  },
+  {
+    "iso": "TZ",
+    "name": "Tanzania",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "TH",
+    "name": "Thailand",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "TG",
+    "name": "Togo"
+  },
+  {
+    "iso": "TO",
+    "name": "Tonga"
+  },
+  {
+    "iso": "VG",
+    "name": "Tortola",
+    "regex": "VG[0-9]{4}"
+  },
+  {
+    "iso": "TT",
+    "name": "Trinidad and Tobago",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "TN",
+    "name": "Tunisia",
+    "regex": "[0-9]{4}"
+  },
+  {
+    "iso": "TR",
+    "name": "Turkey",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "TM",
+    "name": "Turkmenistan",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "TC",
+    "name": "Turks and Caicos Islands",
+    "regex": "TKCA 1ZZ"
+  },
+  {
+    "iso": "TV",
+    "name": "Tuvalu"
+  },
+  {
+    "iso": "UG",
+    "name": "Uganda"
+  },
+  {
+    "iso": "UA",
+    "name": "Ukraine",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "AE",
+    "name": "United Arab Emirates"
+  },
+  {
+    "iso": "GB",
+    "name": "United Kingdom",
+    "regex": "([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9][A-Za-z]?))))\\s?[0-9][A-Za-z]{2})"
+  },
+  {
+    "iso": "US",
+    "name": "United States of America",
+    "regex": "\\d{5}(?:[-\\s]\\d{4})?"
+  },
+  {
+    "iso": "UY",
+    "name": "Uruguay",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "UZ",
+    "name": "Uzbekistan",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "VU",
+    "name": "Vanuatu"
+  },
+  {
+    "iso": "VE",
+    "name": "Venezuela",
+    "regex": "[0-9]{4}(-[A-Z]{1})?"
+  },
+  {
+    "iso": "VN",
+    "name": "Vietnam",
+    "regex": "[0-9]{6}"
+  },
+  {
+    "iso": "VG",
+    "name": "Virgin Islands (British)",
+    "regex": "VG[0-9]{4}"
+  },
+  {
+    "iso": "VI",
+    "name": "Virgin Islands (US)",
+    "range": [
+      "00801",
+      "00851"
+    ],
+    "regex": "\\d{5}(?:[-\\s]\\d{4})?"
+  },
+  {
+    "iso": "YE",
+    "name": "Yemen"
+  },
+  {
+    "iso": "ZM",
+    "name": "Zambia",
+    "regex": "[0-9]{5}"
+  },
+  {
+    "iso": "ZW",
+    "name": "Zimbabwe"
+  }
+]

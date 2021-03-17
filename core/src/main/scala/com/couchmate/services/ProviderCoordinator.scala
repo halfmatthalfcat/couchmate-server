@@ -1,12 +1,12 @@
 package com.couchmate.services
 
 import java.util.UUID
-
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import com.couchmate.common.dao.ZipProviderDAO
 import com.couchmate.common.models.api.Provider
 import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.models.data.ZipProviderDetailed
 import com.couchmate.services.gracenote.provider.ProviderJob
 import com.couchmate.util.akka.extensions.DatabaseExtension
 import com.neovisionaries.i18n.CountryCode
@@ -19,13 +19,11 @@ object ProviderCoordinator
   sealed trait Command
 
   final case class RequestProviders(
-    jobId: UUID,
     zipCode: String,
     country: CountryCode,
     senderRef: ActorRef[ProviderJob.Command]
   ) extends Command
   final case class RemoveProvider(
-    jobId: UUID,
     zipCode: String,
     country: CountryCode,
     providers: Seq[Provider]
@@ -44,22 +42,18 @@ object ProviderCoordinator
     implicit val db: Database = DatabaseExtension(ctx.system).db
 
     val jobMapper: ActorRef[ProviderJob.Command] = ctx.messageAdapter[ProviderJob.Command] {
-      case ProviderJob.JobEnded(jobId, zipCode, country, providers) => RemoveProvider(jobId, zipCode, country, providers)
-      case ProviderJob.JobFailure(jobId, zipCode, country, _) => RemoveProvider(jobId, zipCode, country, Seq())
+      case ProviderJob.JobEnded(zipCode, country, providers) => RemoveProvider(zipCode, country, providers)
+      case ProviderJob.JobFailure(zipCode, country, _) => RemoveProvider(zipCode, country, Seq())
     }
 
     ctx.pipeToSelf(getZipMap) {
       case Success(value) => ZipProvidersSuccess(
         value
           .groupBy(dzp => (dzp.zipCode, dzp.countryCode))
-          .view
-          .mapValues(_.map(zpd => Provider(
-            zpd.providerId,
-            zpd.name,
-            zpd.`type`,
-            zpd.location
-          )))
-          .toMap
+          .collect {
+            case (key @ (_, countryCode), providers) =>
+              key -> groupAndSortProviders(countryCode, providers)
+          }
       )
       case Failure(exception) => ZipProvidersFailure(exception)
     }
@@ -71,12 +65,11 @@ object ProviderCoordinator
         ))
       case ZipProvidersFailure(_) =>
         Behaviors.same
-      case RequestProviders(jobId, zipCode, country, actorRef) =>
+      case RequestProviders(zipCode, country, actorRef) =>
         val cached: Boolean =
           state.zipProviders.contains((zipCode, country))
         if (cached) {
           actorRef ! ProviderJob.JobEnded(
-            jobId,
             zipCode,
             country,
             state.zipProviders((zipCode, country))
@@ -86,8 +79,8 @@ object ProviderCoordinator
           state.jobs.get((zipCode, country)).fold {
             val job: ActorRef[ProviderJob.Command] =
               ctx.spawn(
-                ProviderJob(jobId, zipCode, country, actorRef, jobMapper),
-                s"$zipCode-${country.getAlpha3}"
+                ProviderJob(UUID.randomUUID(), zipCode, country, actorRef, jobMapper),
+                s"${zipCode.replaceAll(" ", "-")}-${country.getAlpha3}",
               )
 
             run(state.copy(
@@ -98,7 +91,7 @@ object ProviderCoordinator
             Behaviors.same
           }
         }
-      case RemoveProvider(_, zipCode, country, providers) =>
+      case RemoveProvider(zipCode, country, providers) =>
         run(state.copy(
           zipProviders = state.zipProviders + ((zipCode, country) -> providers),
           jobs = state.jobs.removed((zipCode, country))
@@ -106,6 +99,32 @@ object ProviderCoordinator
     }
 
     run(State())
+  }
+
+  private[this] def groupAndSortProviders(countryCode: CountryCode, providers: Seq[ZipProviderDetailed]): Seq[Provider] = {
+    providers
+      .groupBy(_.providerOwnerId)
+      .flatMap { case (_, providersByOwner) =>
+        val hasVariants = {
+          providersByOwner.size > 1 &&
+          providersByOwner.map(_.extId.split("-").length).forall(_ > 2)
+        }
+        val digitalVariants =
+          providersByOwner.filter(
+            _.extId.split("-").lastOption.flatMap(o => if (o == "X" || o == "L") Some(o) else Option.empty).nonEmpty
+          )
+        val locationVariants =
+          providersByOwner.filter(p => p.location.flatMap(l =>
+            if (l == countryCode.getAlpha3 || l == "None") Option.empty else Some(l)
+          ).nonEmpty)
+        val totalVariants = (digitalVariants ++ locationVariants).distinct
+        if (hasVariants) { totalVariants } else { providersByOwner }
+      }.toSeq.map(zPD => Provider(
+      zPD.providerId,
+      zPD.name,
+      zPD.`type`,
+      zPD.location
+    ))
   }
 
 }

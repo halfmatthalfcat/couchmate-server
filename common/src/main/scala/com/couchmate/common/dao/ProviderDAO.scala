@@ -3,8 +3,8 @@ package com.couchmate.common.dao
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
-import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.Provider
+import com.couchmate.common.db.PgProfile.plainAPI._
+import com.couchmate.common.models.data.{Provider, ProviderType}
 import com.couchmate.common.tables.ProviderTable
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -23,7 +23,7 @@ trait ProviderDAO {
   ): Flow[Long, Option[Provider], NotUsed] =
     Slick.flowWithPassThrough(ProviderDAO.getProvider)
 
-  def getProvidersForType(`type`: String)(
+  def getProvidersForType(`type`: ProviderType)(
     implicit
     db: Database
   ): Future[Seq[Provider]] =
@@ -56,6 +56,13 @@ trait ProviderDAO {
     session: SlickSession
   ): Flow[Provider, Provider, NotUsed] =
     Slick.flowWithPassThrough(ProviderDAO.upsertProvider)
+
+  def addAndGetProvider(provider: Provider)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Provider] =
+    db.run(ProviderDAO.addAndGetProvider(provider))
 }
 
 object ProviderDAO {
@@ -66,11 +73,11 @@ object ProviderDAO {
   private[common] def getProvider(providerId: Long): DBIO[Option[Provider]] =
     getProviderQuery(providerId).result.headOption
 
-  private[this] lazy val getProvidersForTypeQuery = Compiled { (`type`: Rep[String]) =>
+  private[this] lazy val getProvidersForTypeQuery = Compiled { (`type`: Rep[ProviderType]) =>
     ProviderTable.table.filter(_.`type` === `type`)
   }
 
-  private[common] def getProvidersForType(`type`: String): DBIO[Seq[Provider]] =
+  private[common] def getProvidersForType(`type`: ProviderType): DBIO[Seq[Provider]] =
     getProvidersForTypeQuery(`type`).result
 
   private[this] lazy val getProviderForExtAndOwnerQuery = Compiled {
@@ -86,6 +93,17 @@ object ProviderDAO {
     providerOwnerId: Option[Long]
   ): DBIO[Option[Provider]] =
     getProviderForExtAndOwnerQuery(extId, providerOwnerId).result.headOption
+
+  private[this] def addProviderForId(p: Provider) =
+    sql"SELECT insert_or_get_provider_id(${p.providerOwnerId}, ${p.extId}, ${p.name}, ${p.`type`}, ${p.location})".as[Long]
+
+  private[common] def addAndGetProvider(provider: Provider)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[Provider] = for {
+    providerId <- addProviderForId(provider).head
+    p <- getProviderQuery(providerId).result.head
+  } yield p
 
   def upsertProvider(provider: Provider)(
     implicit

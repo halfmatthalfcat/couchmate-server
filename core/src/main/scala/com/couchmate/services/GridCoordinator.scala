@@ -17,6 +17,7 @@ object GridCoordinator
 
   final case class AddListener(providerId: Long, listener: ActorRef[Command]) extends Command
   final case class RemoveListener(providerId: Long, listener: ActorRef[Command]) extends Command
+  final case class SwapListener(fromId: Long, toId: Long, listener: ActorRef[Command]) extends Command
 
   final case class GridUpdate(grid: Grid) extends Command
 
@@ -61,6 +62,28 @@ object GridCoordinator
 
           run(state + (providerId -> nextState.copy(
             listeners = nextState.listeners - listener
+          )))
+        case SwapListener(fromId, toId, listener) =>
+          ctx.unwatch(listener)
+          ctx.watchWith(listener, RemoveListener(toId, listener))
+
+          val fromState: GridCoordinatorState = state.getOrElse(fromId, GridCoordinatorState(
+            None,
+            Set.empty
+          ))
+          val toState: GridCoordinatorState = state.getOrElse(toId, GridCoordinatorState(
+            None,
+            Set.empty
+          ))
+
+          if (toState.currentGrid.nonEmpty) {
+            listener ! GridUpdate(toState.currentGrid.get)
+          }
+
+          run(state + (fromId -> fromState.copy(
+            listeners = fromState.listeners - listener
+          )) + (toId -> toState.copy(
+            listeners = toState.listeners + listener
           )))
         case StartUpdate => state.keys.foreach { providerId: Long =>
           ctx.pipeToSelf(getGrid(providerId)) {

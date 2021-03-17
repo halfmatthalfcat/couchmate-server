@@ -1,7 +1,7 @@
 package com.couchmate.migration
 
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.tables.{AiringTable, EpisodeTable, LineupTable, ListingCacheTable, SeriesTable, ShowTable, SportEventTable, SportEventTeamTable, SportOrganizationTable, SportOrganizationTeamTable, SportTeamTable}
+import com.couchmate.common.tables.{AiringTable, EpisodeTable, LineupTable, ListingCacheTable, ProviderOwnerTable, ProviderTable, SeriesTable, ShowTable, SportEventTable, SportEventTeamTable, SportOrganizationTable, SportOrganizationTeamTable, SportTeamTable}
 import com.couchmate.migration.db.{Migration, MigrationDAO, MigrationItem, MigrationTable}
 import com.couchmate.migration.migrations._
 import com.typesafe.scalalogging.LazyLogging
@@ -67,6 +67,7 @@ object Migrations extends LazyLogging {
     ListingCacheMigrations.providerStartTimeIdx,
     AiringMigrations.startTimeEndTimeIdx,
     UserActivityAnalyticsMigrations.init,
+    ProviderOwnerMigrations.addIdx,
   )
 
   val functions: Seq[DBIO[Int]] = Seq(
@@ -80,7 +81,9 @@ object Migrations extends LazyLogging {
     SportEventTeamTable.insertOrGetSportEventTeamIdFunction,
     SportOrganizationTable.insertOrGetSportOrganizationIdFunction,
     SportOrganizationTeamTable.insertOrGetSportOrganizationTeamIdFunction,
-    SportTeamTable.insertOrGetSportTeamIdFunction
+    SportTeamTable.insertOrGetSportTeamIdFunction,
+    ProviderOwnerTable.insertOrGetProviderOwnerIdFunction,
+    ProviderTable.insertOrGetProviderIdFunction
   )
 
   private[this] def applyMigrations()(

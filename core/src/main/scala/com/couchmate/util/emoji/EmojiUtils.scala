@@ -7,9 +7,16 @@ import scala.io.Source
 object EmojiUtils {
 
   private[this] lazy val emojis: Seq[Emoji] =
-    Json.parse(
-      Source.fromResource("emoji.json").mkString
-    ).as[Seq[Emoji]]
+    Json.parse({
+      val file = Source.fromResource("emoji.json")
+      try {
+        file.mkString
+      } catch {
+        case _: Throwable => "[]"
+      } finally {
+        file.close
+      }
+    }).as[Seq[Emoji]]
 
   def getEmoji(unifiedOrShort: String): Option[EmojiContext] =
     emojis.find { emoji =>

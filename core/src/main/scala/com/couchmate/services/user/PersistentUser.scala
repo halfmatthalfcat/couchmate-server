@@ -1,7 +1,6 @@
 package com.couchmate.services.user
 
 import java.util.UUID
-
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
@@ -9,18 +8,22 @@ import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionC
 import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import com.couchmate.api.ws.protocol._
 import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.models.api.Provider
 import com.couchmate.common.models.api.grid.Grid
 import com.couchmate.common.models.api.room.tenor.TenorGif
 import com.couchmate.common.models.api.user.UserMute
 import com.couchmate.common.models.data.{ApplicationPlatform, UserMeta, UserNotificationConfiguration, UserNotifications, UserReportType, UserRole}
-import com.couchmate.services.GridCoordinator
+import com.couchmate.services.{GracenoteCoordinator, GridCoordinator, ProviderCoordinator}
 import com.couchmate.services.GridCoordinator.GridUpdate
+import com.couchmate.services.gracenote.provider.ProviderJob
 import com.couchmate.services.room.TenorService.{GetTenorTrending, SearchTenor}
 import com.couchmate.services.room.{Chatroom, RoomId}
 import com.couchmate.services.user.commands._
 import com.couchmate.services.user.context.{DeviceContext, GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions._
+import com.couchmate.util.zip.ZipUtils
+import com.neovisionaries.i18n.CountryCode
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
@@ -99,6 +102,16 @@ object PersistentUser {
 
   case class UnmuteWord(mutes: Seq[String]) extends Command
   case class UnmuteWordFailed(ex: Throwable) extends Command
+
+  case class GetProvidersSuccess(
+    zipCode: String,
+    countryCode: CountryCode,
+    providers: Seq[Provider]
+  ) extends Command
+  case class GetProvidersFailed(ex: Throwable) extends Command
+
+  case class ProviderUpdated(providerId: Long, name: String) extends Command
+  case class ProviderUpdateFailed(ex: Throwable) extends Command
 
   case class ReportParticipant(
     userId: UUID,
@@ -230,6 +243,12 @@ object PersistentUser {
       case GridUpdate(grid) => UpdateGrid(grid)
     }
 
+    val providerAdapter: ActorRef[ProviderJob.Command] = ctx.messageAdapter {
+      case ProviderJob.JobEnded(zipCode, countryCode, providers) =>
+        GetProvidersSuccess(zipCode, countryCode, providers)
+      case ProviderJob.JobFailure(_, _, err) => GetProvidersFailed(err)
+    }
+
     def commandHandler: (State, Command) => Effect[Event, State] =
       (state, command) => state match {
         /**
@@ -358,6 +377,17 @@ object PersistentUser {
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
               External.UpdateUsernameFailure(cause)
             ))
+          case GetProvidersSuccess(_, _, providers) =>
+            Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+              External.GetProvidersResponse(providers)
+            ))
+          case GetProvidersFailed(ex) =>
+            ctx.log.error(s"Failed to get providers", ex)
+            Effect.none
+          case ProviderUpdated(providerId, name) =>
+            ConnectedCommands.providerUpdated(
+              providerId, name, userContext, gridAdapter, ws
+            )
           case MuteParticipant(mutes) =>
             ConnectedCommands.participantMuted(mutes)
           case MuteParticipantFailed(_) => Effect.none
@@ -493,10 +523,22 @@ object PersistentUser {
                 currentPassword,
                 newPassword
               )
-            case External.UpdateUsername(username) =>
+            case External.UpdateUsername(username) if userContext.user.verified =>
               ConnectedCommands.updateUsername(
                 userContext,
                 username
+              )
+            case External.GetProviders(zipCode, country) if (
+              userContext.user.verified &&
+              ZipUtils.isValid(zipCode, country)
+            ) =>
+              Effect.none.thenRun(_ => singletons.providerCoordinator ! ProviderCoordinator.RequestProviders(
+                zipCode, country, providerAdapter
+              ))
+            case External.UpdateProvider(providerId) if userContext.user.verified =>
+              ConnectedCommands.updateProvider(
+                userContext.user.userId.get,
+                providerId
               )
             case External.MuteParticipant(userId) =>
               ConnectedCommands.muteParticipant(

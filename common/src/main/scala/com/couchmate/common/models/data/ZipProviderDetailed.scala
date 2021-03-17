@@ -7,8 +7,10 @@ case class ZipProviderDetailed(
   zipCode: String,
   countryCode: CountryCode,
   providerId: Long,
+  providerOwnerId: Long,
+  extId: String,
   name: String,
-  `type`: String,
+  `type`: ProviderType,
   location: Option[String]
 )
 

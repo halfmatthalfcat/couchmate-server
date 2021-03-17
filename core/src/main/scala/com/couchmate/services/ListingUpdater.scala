@@ -1,15 +1,15 @@
 package com.couchmate.services
 
 import java.util.UUID
-
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.adapter._
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, RetentionCriteria}
 import akka.persistence.typed.PersistenceId
 import akka.util.Timeout
-import com.couchmate.common.dao.{ProviderDAO, UserProviderDAO}
+import com.couchmate.common.dao.{ListingJobDAO, ProviderDAO, UserProviderDAO}
 import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.models.data.{ListingJob => ListingJobModel, ProviderType}
 import com.couchmate.services.gracenote.listing.{ListingJob, ListingPullType}
 import com.couchmate.util.akka.extensions.DatabaseExtension
 import com.typesafe.akka.extension.quartz.QuartzSchedulerExtension
@@ -20,7 +20,8 @@ import scala.util.{Failure, Success}
 
 object ListingUpdater
   extends ProviderDAO
-  with UserProviderDAO {
+  with UserProviderDAO
+  with ListingJobDAO {
   sealed trait Command
 
   private final case class AddJobs(providers: Seq[Job]) extends Command
@@ -34,8 +35,13 @@ object ListingUpdater
   private final case class JobDead(jobId: UUID) extends Command
   private final case class JobFinished(jobId: UUID) extends Command
 
+  private final case class PreviousProviderJobSuccess(providerId: Long, job: Option[ListingJobModel]) extends Command
+  private final case class PreviousProviderJobFailed(ex: Throwable) extends Command
+
   final case class StartJobRemote(jobType: ListingPullType, ref: ActorRef[Command]) extends Command
   final case class StartJobRemoteResult(queue: Seq[(Long, Int)]) extends Command
+
+  final case class EnsureListing(providerId: Long) extends Command
 
   private sealed trait Event
 
@@ -98,6 +104,27 @@ object ListingUpdater
             .thenRun((s: State) => s.jobs.headOption.fold(()) { job =>
               ctx.self ! StartJob(job)
             })
+        case EnsureListing(providerId) =>
+          Effect.none.thenRun(_ => ctx.pipeToSelf(getLastListingJobForProvider(providerId)) {
+            case Success(job) => PreviousProviderJobSuccess(providerId, job)
+            case Failure(ex) => PreviousProviderJobFailed(ex)
+          })
+        case PreviousProviderJobSuccess(providerId, job) =>
+          Effect.none.thenRun(_ => {
+            if (job.isEmpty) {
+              ctx.spawnAnonymous(ListingJob(
+                jobId = UUID.randomUUID(),
+                providerId = providerId,
+                pullType = ListingPullType.Day,
+                ctx.system.ignoreRef,
+                ctx.system.ignoreRef
+              ))
+            }
+          })
+        case PreviousProviderJobFailed(ex) =>
+          Effect.none.thenRun(_ => {
+            ctx.log.error(s"Failed to get last job", ex)
+          })
         case StartJobRemote(jobType, ref) =>
           Effect.none
                 .thenRun((_: State) => ctx.pipeToSelf(getProviders) {
@@ -230,7 +257,7 @@ object ListingUpdater
     ec: ExecutionContext,
     db: Database
   ): Future[Seq[Long]] = for {
-    defaults <- getProvidersForType("Default")
+    defaults <- getProvidersForType(ProviderType.Default)
     users <- getUniqueProviders()
   } yield (defaults ++ users).map(_.providerId.get).distinct
 }

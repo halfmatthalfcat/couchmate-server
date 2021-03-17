@@ -4,7 +4,7 @@ import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.{Flow, Source}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.{Provider, ZipProvider, ZipProviderDetailed}
+import com.couchmate.common.models.data.{Provider, ProviderType, ZipProvider, ZipProviderDetailed}
 import com.couchmate.common.tables.{ProviderTable, ZipProviderTable}
 import com.neovisionaries.i18n.CountryCode
 
@@ -171,13 +171,15 @@ object ZipProviderDAO {
       zp.zipCode,
       zp.countryCode,
       zp.providerId,
+      p.providerOwnerId,
+      p.extId,
       p.name,
       p.`type`,
       p.location
     )
   }
 
-  private[common] def getZipMap: DBIO[Seq[(String, CountryCode, Long, String, String, Option[String])]] =
+  private[common] def getZipMap: DBIO[Seq[(String, CountryCode, Long, Long, String, String, ProviderType, Option[String])]] =
     getZipMapQuery.result
 
   private[common] def addZipProvider(zipProvider: ZipProvider): DBIO[ZipProvider] =

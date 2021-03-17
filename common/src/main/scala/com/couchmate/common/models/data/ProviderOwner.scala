@@ -4,7 +4,7 @@ import play.api.libs.json.{Format, Json}
 
 case class ProviderOwner(
   providerOwnerId: Option[Long] = None,
-  extProviderOwnerId: Option[String] = None,
+  extProviderOwnerId: String,
   name: String,
 )
 

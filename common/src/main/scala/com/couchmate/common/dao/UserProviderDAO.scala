@@ -1,7 +1,6 @@
 package com.couchmate.common.dao
 
 import java.util.UUID
-
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.{Flow, Source}
@@ -9,7 +8,7 @@ import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{Provider, UserProvider}
 import com.couchmate.common.tables.{ProviderTable, UserProviderTable}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 trait UserProviderDAO {
 
@@ -84,6 +83,13 @@ trait UserProviderDAO {
     session: SlickSession
   ): Flow[UserProvider, UserProvider, NotUsed] =
     Slick.flowWithPassThrough(UserProviderDAO.addUserProvider)
+
+  def updateUserProvider(userProvider: UserProvider)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserProvider] =
+    db.run(UserProviderDAO.updateUserProvider(userProvider))
 }
 
 object UserProviderDAO {
@@ -133,4 +139,14 @@ object UserProviderDAO {
 
   private[common] def addUserProvider(userProvider: UserProvider): DBIO[UserProvider] =
     (UserProviderTable.table returning UserProviderTable.table) += userProvider
+
+  private[common] def updateUserProvider(userProvider: UserProvider)(
+    implicit
+    ec: ExecutionContext
+  ): DBIO[UserProvider] = for {
+    _ <- UserProviderTable.table.filter(_.userId === userProvider.userId).update(userProvider)
+    provider <- getUserProviderQuery(
+      userProvider.userId
+    ).result.head
+  } yield provider
 }

@@ -106,7 +106,7 @@ object UserActions
     db: Database,
     ctx: ActorContext[PersistentUser.Command],
     jwt: JwtExtension,
-  ): Future[UserContext] = getUser(userId) flatMap {
+  ): Future[UserContext] = (getUser(userId) flatMap {
     case None =>
       ctx.log.warn(s"Couldn't find user $userId")
       Future.failed(new RuntimeException(s"Couldn't find user $userId"))
@@ -142,6 +142,10 @@ object UserActions
       notifications = notifications,
       notificationConfigurations = notificationConfigurations
     )
+  }) recoverWith {
+    case ex: Throwable =>
+      ctx.log.error(s"Error creating user context", ex)
+      Future.failed(ex)
   }
 
   private[commands] def registerAccount(
@@ -813,6 +817,21 @@ object UserActions
     series,
     teams
   )
+
+  private[commands] def updateProvider(
+    userId: UUID,
+    providerId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Provider] = for {
+    _ <- updateUserProvider(UserProvider(
+      userId = userId,
+      providerId = providerId
+    ))
+    provider <- getProvider(providerId)
+  } yield provider.get
 
   private[this] def getDefaultProvider(context: GeoContext): GracenoteDefaultProvider = context match {
     case GeoContext("EST" | "EDT", Some(CountryCode.US)) =>

@@ -52,6 +52,7 @@ trait PgProfile
     implicit val userReportMapper = enumMappedColumn(UserReportType)
     implicit val applicationPlatformMapper = enumMappedColumn(ApplicationPlatform)
     implicit val notificationTypeMapper = enumMappedColumn(UserNotificationQueueItemType)
+    implicit val providerTypeMapper = enumMappedColumn(ProviderType)
 
     implicit val countryCodeMappedColumn: BaseColumnType[CountryCode] =
       MappedColumnType.base[CountryCode, String](
@@ -93,9 +94,11 @@ trait PgProfile
     implicit val roomStatusSetParameter = setParameterForEnumLowercase(RoomStatusType)
     implicit val roomActivitySetParameter = setParameterForEnumLowercase(RoomActivityType)
     implicit val showTypeSetParameter = setParameterForEnumLowercase(ShowType)
+    implicit val providerTypeSetParameter = setParameterForEnumLowercase(ProviderType)
 
     implicit val roomStatusGetResult = getResultForEnumLowercase(RoomStatusType)
     implicit val showTypeGetResult = getResultForEnumLowercase(ShowType)
+    implicit val providerTypeGetResult = getResultForEnumLowercase(ProviderType)
 
     implicit val airingSeqSetParameter =
       utils.PlainSQLUtils.mkArraySetParameter[GracenoteAiring]("jsonb",

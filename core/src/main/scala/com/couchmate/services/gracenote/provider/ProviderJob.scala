@@ -1,25 +1,27 @@
 package com.couchmate.services.gracenote.provider
 
 import java.util.UUID
-
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.http.scaladsl.coding.Gzip
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{Http, HttpExt}
 import akka.stream.Materializer
+import akka.util.Timeout
 import com.couchmate.common.dao.{ProviderChannelDAO, ProviderDAO, ProviderOwnerDAO, ZipProviderDAO}
 import com.couchmate.common.models.api.Provider
 import com.couchmate.common.models.data
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteProvider
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{ProviderOwner, ZipProvider, Provider => InternalProvider}
+import com.couchmate.services.GracenoteCoordinator
 import com.couchmate.services.gracenote._
-import com.couchmate.util.akka.extensions.DatabaseExtension
+import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
 import com.neovisionaries.i18n.CountryCode
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
@@ -32,13 +34,11 @@ object ProviderJob
 
   sealed trait Command
   case class JobEnded(
-    jobId: UUID,
     zipCode: String,
     country: CountryCode,
     providers: Seq[Provider]
   ) extends Command
   case class JobFailure(
-    jobId: UUID,
     zipCode: String,
     country: CountryCode,
     err: Throwable
@@ -58,13 +58,14 @@ object ProviderJob
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val mat: Materializer = Materializer(ctx)
     implicit val db: Database = DatabaseExtension(ctx.system).db
-    val http: HttpExt = Http(ctx.system)
-    val config: Config = ConfigFactory.load()
-    val gnApiKey: String = config.getString("gracenote.apiKey")
-    val gnHost: String = config.getString("gracenote.host")
+    implicit val timeout: Timeout = 30 seconds
 
-    ctx.pipeToSelf(getProviders(zipCode, countryCode)) {
-      case Success(value) => ProvidersSuccess(value)
+    val gracenoteCoordinator: ActorRef[GracenoteCoordinator.Command] =
+      SingletonExtension(ctx.system).gracenoteCoordinator
+
+    ctx.ask(gracenoteCoordinator, GracenoteCoordinator.GetProviders(zipCode, countryCode, _)) {
+      case Success(GracenoteCoordinator.GetProvidersSuccess(providers)) => ProvidersSuccess(providers)
+      case Success(GracenoteCoordinator.GetProvidersFailed(err)) => ProvidersFailure(err)
       case Failure(exception) => ProvidersFailure(exception)
     }
 
@@ -77,17 +78,16 @@ object ProviderJob
           providers.map(ingestProvider)
         )) {
           case Success(providers) => JobEnded(
-            jobId,
             zipCode,
             countryCode,
-            providers.map(p => Provider(
+            groupAndSortProviders(providers).map(p => Provider(
               providerId = p.providerId.get,
               name = p.name,
               `type` = p.`type`,
               location = p.location
             ))
           )
-          case Failure(exception) => JobFailure(jobId, zipCode, countryCode, exception)
+          case Failure(exception) => JobFailure(zipCode, countryCode, exception)
         }
         Behaviors.same
 
@@ -101,53 +101,22 @@ object ProviderJob
         Behaviors.stopped
     }
 
-    def getProviders(
-      zipCode: String,
-      countryCode: CountryCode
-    ): Future[Seq[GracenoteProvider]] =
-      for {
-        response <- http.singleRequest(makeGracenoteRequest(
-          gnHost,
-          gnApiKey,
-          Seq("lineups"),
-          Map(
-            "postalCode" -> Some(zipCode),
-            "country" -> Some(countryCode.getAlpha3),
-          )
-        ))
-        decoded = Gzip.decodeMessage(response)
-        providers <- Unmarshal(decoded.entity).to[Seq[GracenoteProvider]]
-      } yield providers
-
-    def ingestProvider(provider: GracenoteProvider): Future[data.Provider] = for {
-      owner <- provider.mso.fold(getOrAddProviderOwner(ProviderOwner(
-        providerOwnerId = None,
-        extProviderOwnerId = None,
-        name = provider.getName(countryCode)
-      )))(po => getOrAddProviderOwner(ProviderOwner(
-        providerOwnerId = None,
-        extProviderOwnerId = Some(po.id),
-        name = po.name
-      )))
-      provider <- getOrAddProvider(provider, owner)
+    def ingestProvider(gProvider: GracenoteProvider): Future[data.Provider] = for {
+      owner <- gProvider.mso.fold(addAndGetProviderOwner(
+        "unknown",
+        "Unknown"
+      ))(mso => addAndGetProviderOwner(
+        mso.id,
+        mso.name
+      ))
+      provider <- addAndGetProvider(data.Provider(
+        providerOwnerId = owner.providerOwnerId.get,
+        extId = gProvider.lineupId,
+        name = gProvider.getName(countryCode),
+        `type` = gProvider.`type`,
+        location = gProvider.location
+      ))
       _ <- getOrAddZipProvider(zipCode, countryCode, provider.providerId.get)
-    } yield provider
-
-    def getOrAddProvider(provider: GracenoteProvider, owner: ProviderOwner): Future[data.Provider] = for {
-      exists <- getProviderForExtAndOwner(
-        provider.lineupId,
-        owner.providerOwnerId
-      )
-      provider <- exists.fold(
-        upsertProvider(InternalProvider(
-          providerId = None,
-          providerOwnerId = owner.providerOwnerId,
-          name = provider.name,
-          extId = provider.lineupId,
-          `type` = provider.`type`,
-          location = provider.location
-        ))
-      )(Future.successful)
     } yield provider
 
     def getOrAddZipProvider(
@@ -168,6 +137,27 @@ object ProviderJob
         ))
       )(Future.successful)
     } yield zipProvider
+
+    def groupAndSortProviders(providers: Seq[data.Provider]): Seq[data.Provider] = {
+      providers
+        .groupBy(_.providerOwnerId)
+        .flatMap { case (_, providersByOwner) =>
+          val hasVariants = {
+            providersByOwner.size > 1 &&
+              providersByOwner.map(_.extId.split("-").length).forall(_ > 2)
+          }
+          val digitalVariants =
+            providersByOwner.filter(
+              _.extId.split("-").lastOption.flatMap(o => if (o == "X") Some(o) else Option.empty).nonEmpty
+            )
+          val locationVariants =
+            providersByOwner.filter(p => p.location.flatMap(l =>
+              if (l == countryCode.getAlpha3 || l == "None") Option.empty else Some(l)
+            ).nonEmpty)
+          val totalVariants = (digitalVariants ++ locationVariants).distinct
+          if (hasVariants) { totalVariants } else { providersByOwner }
+        }.toSeq
+    }
 
     run(Seq(initiate))
   }
