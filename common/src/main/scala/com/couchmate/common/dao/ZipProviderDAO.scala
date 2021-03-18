@@ -174,12 +174,13 @@ object ZipProviderDAO {
       p.providerOwnerId,
       p.extId,
       p.name,
+      p.device,
       p.`type`,
       p.location
     )
   }
 
-  private[common] def getZipMap: DBIO[Seq[(String, CountryCode, Long, Long, String, String, ProviderType, Option[String])]] =
+  private[common] def getZipMap: DBIO[Seq[(String, CountryCode, Long, Long, String, String, Option[String], ProviderType, Option[String])]] =
     getZipMapQuery.result
 
   private[common] def addZipProvider(zipProvider: ZipProvider): DBIO[ZipProvider] =

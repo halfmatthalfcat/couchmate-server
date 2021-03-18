@@ -68,7 +68,8 @@ object Migrations extends LazyLogging {
     AiringMigrations.startTimeEndTimeIdx,
     UserActivityAnalyticsMigrations.init,
     ProviderOwnerMigrations.addIdx,
-    ProviderMigrations.makeIdxUnique
+    ProviderMigrations.makeIdxUnique,
+    ProviderMigrations.addDevice
   )
 
   val functions: Seq[DBIO[Int]] = Seq(
@@ -111,8 +112,8 @@ object Migrations extends LazyLogging {
       System.out.println(s"Applying ${newMigrations.size} migrations and ${functions.size} functions.")
 
       for {
-        _ <- db.run(DBIO.sequence(newMigrations))
         _ <- db.run(DBIO.sequence(functions))
+        _ <- db.run(DBIO.sequence(newMigrations))
       } yield ()
     }
   }

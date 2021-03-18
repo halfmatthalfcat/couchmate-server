@@ -10,6 +10,7 @@ case class ZipProviderDetailed(
   providerOwnerId: Long,
   extId: String,
   name: String,
+  device: Option[String],
   `type`: ProviderType,
   location: Option[String]
 )

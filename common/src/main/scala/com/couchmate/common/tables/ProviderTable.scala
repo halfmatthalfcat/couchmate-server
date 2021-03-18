@@ -11,6 +11,7 @@ class ProviderTable(tag: Tag) extends Table[Provider](tag, "provider") {
   def name: Rep[String] = column[String]("name")
   def `type`: Rep[ProviderType] = column[ProviderType]("type")
   def location: Rep[Option[String]] = column[Option[String]]("location")
+  def device: Rep[Option[String]] = column("device")
   def * = (
     providerId.?,
     providerOwnerId,
@@ -18,6 +19,7 @@ class ProviderTable(tag: Tag) extends Table[Provider](tag, "provider") {
     name,
     `type`,
     location,
+    device
   ) <> ((Provider.apply _).tupled, Provider.unapply)
 
   def sourceFK = foreignKey(
@@ -53,6 +55,7 @@ object ProviderTable extends WithTableQuery[ProviderTable] {
               _name VARCHAR,
               _type VARCHAR,
               _location VARCHAR,
+              _device VARCHAR,
               OUT _provider_id BIGINT
             ) AS
             $$func$$
@@ -68,9 +71,9 @@ object ProviderTable extends WithTableQuery[ProviderTable] {
                   EXIT WHEN FOUND;
 
                   INSERT INTO provider
-                  (provider_owner_id, ext_id, name, type, location)
+                  (provider_owner_id, ext_id, name, type, location, device)
                   VALUES
-                  (_provider_owner_id, _ext_id, _name, _type, _location)
+                  (_provider_owner_id, _ext_id, _name, _type, _location, _device)
                   ON CONFLICT (provider_owner_id, ext_id) DO NOTHING
                   RETURNING provider_id
                   INTO _provider_id;

@@ -50,10 +50,14 @@ object ProviderCoordinator
       case Success(value) => ZipProvidersSuccess(
         value
           .groupBy(dzp => (dzp.zipCode, dzp.countryCode))
-          .collect {
-            case (key @ (_, countryCode), providers) =>
-              key -> groupAndSortProviders(countryCode, providers)
-          }
+          .view
+          .mapValues(_.map(zpd => Provider(
+            zpd.providerId,
+            zpd.name,
+            zpd.`type`,
+            zpd.location
+          )))
+          .toMap
       )
       case Failure(exception) => ZipProvidersFailure(exception)
     }
@@ -99,32 +103,6 @@ object ProviderCoordinator
     }
 
     run(State())
-  }
-
-  private[this] def groupAndSortProviders(countryCode: CountryCode, providers: Seq[ZipProviderDetailed]): Seq[Provider] = {
-    providers
-      .groupBy(_.providerOwnerId)
-      .flatMap { case (_, providersByOwner) =>
-        val hasVariants = {
-          providersByOwner.size > 1 &&
-          providersByOwner.map(_.extId.split("-").length).forall(_ > 2)
-        }
-        val digitalVariants =
-          providersByOwner.filter(
-            _.extId.split("-").lastOption.flatMap(o => if (o == "X" || o == "L") Some(o) else Option.empty).nonEmpty
-          )
-        val locationVariants =
-          providersByOwner.filter(p => p.location.flatMap(l =>
-            if (l == countryCode.getAlpha3 || l == "None") Option.empty else Some(l)
-          ).nonEmpty)
-        val totalVariants = (digitalVariants ++ locationVariants).distinct
-        if (hasVariants) { totalVariants } else { providersByOwner }
-      }.toSeq.map(zPD => Provider(
-      zPD.providerId,
-      zPD.name,
-      zPD.`type`,
-      zPD.location
-    ))
   }
 
 }

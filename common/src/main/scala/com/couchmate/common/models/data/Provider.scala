@@ -9,6 +9,7 @@ case class Provider(
   name: String,
   `type`: ProviderType,
   location: Option[String],
+  device: Option[String]
 )
 
 object Provider {

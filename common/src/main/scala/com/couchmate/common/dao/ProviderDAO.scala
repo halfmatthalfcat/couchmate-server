@@ -47,15 +47,13 @@ trait ProviderDAO {
     implicit
     db: Database,
     ec: ExecutionContext
-  ): Future[Provider] =
-    db.run(ProviderDAO.upsertProvider(provider))
+  ) = db.run(ProviderDAO.upsertProvider(provider))
 
   def upsertProvider$()(
     implicit
     ec: ExecutionContext,
     session: SlickSession
-  ): Flow[Provider, Provider, NotUsed] =
-    Slick.flowWithPassThrough(ProviderDAO.upsertProvider)
+  ) = Slick.flowWithPassThrough(ProviderDAO.upsertProvider)
 
   def addAndGetProvider(provider: Provider)(
     implicit
@@ -95,9 +93,9 @@ object ProviderDAO {
     getProviderForExtAndOwnerQuery(extId, providerOwnerId).result.headOption
 
   private[this] def addProviderForId(p: Provider) =
-    sql"SELECT insert_or_get_provider_id(${p.providerOwnerId}, ${p.extId}, ${p.name}, ${p.`type`}, ${p.location})".as[Long]
+    sql"SELECT insert_or_get_provider_id(${p.providerOwnerId}, ${p.extId}, ${p.name}, ${p.`type`}, ${p.location}, ${p.device})".as[Long]
 
-  private[common] def addAndGetProvider(provider: Provider)(
+  def addAndGetProvider(provider: Provider)(
     implicit
     ec: ExecutionContext
   ): DBIO[Provider] = for {
@@ -108,14 +106,5 @@ object ProviderDAO {
   def upsertProvider(provider: Provider)(
     implicit
     ec: ExecutionContext
-  ): DBIO[Provider] =
-    provider.providerId.fold[DBIO[Provider]](
-      (ProviderTable.table returning ProviderTable.table) += provider
-    ) { (providerId: Long) => for {
-      _ <- ProviderTable
-        .table
-        .filter(_.providerId === providerId)
-        .update(provider)
-      updated <- ProviderDAO.getProvider(providerId)
-    } yield updated.get}
+  ) = (ProviderTable.table returning ProviderTable.table).insertOrUpdate(provider)
 }

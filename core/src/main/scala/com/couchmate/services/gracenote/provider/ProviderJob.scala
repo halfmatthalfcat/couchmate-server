@@ -80,7 +80,7 @@ object ProviderJob
           case Success(providers) => JobEnded(
             zipCode,
             countryCode,
-            groupAndSortProviders(providers).map(p => Provider(
+            providers.map(p => Provider(
               providerId = p.providerId.get,
               name = p.name,
               `type` = p.`type`,
@@ -114,7 +114,8 @@ object ProviderJob
         extId = gProvider.lineupId,
         name = gProvider.getName(countryCode),
         `type` = gProvider.`type`,
-        location = gProvider.location
+        location = gProvider.location,
+        device = gProvider.device
       ))
       _ <- getOrAddZipProvider(zipCode, countryCode, provider.providerId.get)
     } yield provider
@@ -137,27 +138,6 @@ object ProviderJob
         ))
       )(Future.successful)
     } yield zipProvider
-
-    def groupAndSortProviders(providers: Seq[data.Provider]): Seq[data.Provider] = {
-      providers
-        .groupBy(_.providerOwnerId)
-        .flatMap { case (_, providersByOwner) =>
-          val hasVariants = {
-            providersByOwner.size > 1 &&
-              providersByOwner.map(_.extId.split("-").length).forall(_ > 2)
-          }
-          val digitalVariants =
-            providersByOwner.filter(
-              _.extId.split("-").lastOption.flatMap(o => if (o == "X") Some(o) else Option.empty).nonEmpty
-            )
-          val locationVariants =
-            providersByOwner.filter(p => p.location.flatMap(l =>
-              if (l == countryCode.getAlpha3 || l == "None") Option.empty else Some(l)
-            ).nonEmpty)
-          val totalVariants = (digitalVariants ++ locationVariants).distinct
-          if (hasVariants) { totalVariants } else { providersByOwner }
-        }.toSeq
-    }
 
     run(Seq(initiate))
   }
