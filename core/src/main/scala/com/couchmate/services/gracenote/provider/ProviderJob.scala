@@ -91,6 +91,11 @@ object ProviderJob
         }
         Behaviors.same
 
+      case ProvidersFailure(err) =>
+        ctx.log.error(s"Failed to get provider $zipCode/${countryCode.getAlpha3}", err)
+        ctx.self ! JobFailure(zipCode, countryCode, err)
+        Behaviors.same
+
       case job: JobEnded =>
         listeners.foreach(_ ! job)
         parent ! job

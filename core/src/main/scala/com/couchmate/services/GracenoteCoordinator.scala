@@ -105,7 +105,7 @@ object GracenoteCoordinator extends PlayJsonSupport {
         gnApiKey,
         Seq("lineups"),
         Map(
-          "postalCode" -> Some(zipCode),
+          "postalCode" -> Some(zipCode.replaceAll(" ", "+")),
           "country" -> Some(countryCode.getAlpha3),
         )
       )).map(Gzip.decodeMessage(_))
