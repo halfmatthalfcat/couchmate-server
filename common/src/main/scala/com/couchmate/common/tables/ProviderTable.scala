@@ -30,6 +30,11 @@ class ProviderTable(tag: Tag) extends Table[Provider](tag, "provider") {
     onDelete = ForeignKeyAction.Restrict
   )
 
+  def old_sourceIdx = index(
+    "provider_owner_idx",
+    (providerOwnerId, extId)
+  )
+
   def sourceIdx = index(
     "provider_owner_idx",
     (providerOwnerId, extId),

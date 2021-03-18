@@ -481,9 +481,7 @@ object PersistentUser {
               })
           case UserNotificationHashChangeFailed(_) => Effect.none
           case UpdatedNotificationToken(notifications) =>
-            Effect
-              .persist(NotificationConfigurationsChanged(notifications))
-              .thenNoReply()
+            Effect.persist(NotificationConfigurationsChanged(notifications))
           case UserNotificationRead => Effect.none
           case UserNotificationReadFailed(_) => Effect.none
           /**
@@ -701,6 +699,14 @@ object PersistentUser {
             Effect.none.thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
               External.TenorSearchResults(gifs)
             ))
+          case EnabledNotifications(notifications) =>
+            Effect
+              .persist(NotificationConfigurationsChanged(notifications))
+              .thenRun(_ => ws ! WSPersistentActor.OutgoingMessage(
+                External.NotificationsEnabled
+              ))
+          case UpdatedNotificationToken(notifications) =>
+            Effect.persist(NotificationConfigurationsChanged(notifications))
           case UserNotificationToggled(notifications) =>
             Effect
               .persist(NotificationsChanged(notifications))
@@ -810,6 +816,14 @@ object PersistentUser {
                 userContext.user.userId.get,
                 name
               ))
+            case External.EnableNotifications =>
+              ConnectedCommands.enableNotifications(
+                userContext.user.userId.get,
+                device
+                  .flatMap(_.os.flatMap(ApplicationPlatform.withNameOption))
+                  .getOrElse(ApplicationPlatform.Unknown),
+                device.map(_.deviceId)
+              )
             case External.ToggleSeriesNotification(seriesId, channelId, enabled, hash) =>
               ConnectedCommands.toggleSeriesNotification(
                 userContext.user.userId.get,
@@ -1018,6 +1032,11 @@ object PersistentUser {
           case NotificationsChanged(notifications) => state.copy(
             userContext = state.userContext.copy(
               notifications = notifications
+            )
+          )
+          case NotificationConfigurationsChanged(configurations) => state.copy(
+            userContext = state.userContext.copy(
+              notificationConfigurations = configurations
             )
           )
         }

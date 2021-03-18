@@ -105,4 +105,12 @@ object ProviderMigrations {
     ))
   )
 
+  def makeIdxUnique = MigrationItem(56L, ProviderTable.table)(
+    _.dropIndexes(
+      _.old_sourceIdx
+    ).addIndexes(
+      _.sourceIdx
+    )
+  )()
+
 }
