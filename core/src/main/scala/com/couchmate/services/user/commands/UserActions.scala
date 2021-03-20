@@ -2,7 +2,6 @@ package com.couchmate.services.user.commands
 
 import java.time.{Duration, LocalDateTime, ZoneId}
 import java.util.UUID
-
 import akka.actor.typed.scaladsl.ActorContext
 import com.couchmate.Server
 import com.couchmate.api.ws.protocol.External.ReportParticipant
@@ -17,6 +16,7 @@ import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser.{EmailValidated, UserNotificationAdded, UserNotificationOnlyNewChanged, UserNotificationRemoved, UserNotificationToggled, UsernameValidated}
 import com.couchmate.services.user.context.{DeviceContext, GeoContext, UserContext}
 import com.couchmate.util.akka.extensions.{JwtExtension, MailExtension}
+import com.couchmate.util.http.HttpActor
 import com.couchmate.util.jwt.Jwt.ExpiredJwtError
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.neovisionaries.i18n.CountryCode
@@ -80,7 +80,7 @@ object UserActions
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[Server.Command],
+    ctx: ActorContext[HttpActor.Command],
     jwt: JwtExtension
   ): Future[UUID] = (for {
     token <- maybeToken

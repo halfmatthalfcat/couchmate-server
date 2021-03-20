@@ -14,6 +14,7 @@ import com.couchmate.services.user.commands.UserActions
 import com.couchmate.services.user.context.{DeviceContext, GeoContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{JwtExtension, SingletonExtension, UserExtension}
+import com.couchmate.util.http.HttpActor
 import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
@@ -26,7 +27,7 @@ trait Routes
   extends CorsDirectives
   with HttpMetricsDirectives {
   implicit val ec: ExecutionContext
-  implicit val ctx: ActorContext[Server.Command]
+  implicit val ctx: ActorContext[HttpActor.Command]
 
   def routes(
     registry: PrometheusRegistry,
@@ -38,7 +39,7 @@ trait Routes
     singleton: SingletonExtension,
     config: Config,
     timeout: Timeout,
-    ctx: ActorContext[Server.Command],
+    ctx: ActorContext[HttpActor.Command],
     system: ActorSystem[Nothing],
   ): Route = cors() {
     concat(

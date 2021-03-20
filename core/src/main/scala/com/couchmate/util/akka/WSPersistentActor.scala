@@ -1,7 +1,6 @@
 package com.couchmate.util.akka
 
 import java.util.UUID
-
 import akka.NotUsed
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
@@ -13,6 +12,7 @@ import com.couchmate.Server
 import com.couchmate.api.ws.protocol.Protocol
 import com.couchmate.services.user.context.{DeviceContext, GeoContext}
 import com.couchmate.util.akka.extensions.UserExtension
+import com.couchmate.util.http.HttpActor
 import com.typesafe.scalalogging.LazyLogging
 import play.api.libs.json.Json
 
@@ -77,7 +77,7 @@ object WSPersistentActor extends LazyLogging {
     geo: GeoContext,
     device: Option[DeviceContext],
     userExtension: UserExtension,
-    ctx: ActorContext[Server.Command]
+    ctx: ActorContext[HttpActor.Command]
   ): Flow[Message, Message, NotUsed] = {
     val sb: ActorRef[Command] =
       ctx.spawn(

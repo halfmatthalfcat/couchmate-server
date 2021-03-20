@@ -8,6 +8,7 @@ import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.typed.scaladsl.{ActorSink, ActorSource}
 import akka.{Done, NotUsed}
 import com.couchmate.Server
+import com.couchmate.util.http.HttpActor
 import com.typesafe.scalalogging.LazyLogging
 import play.api.libs.json.{Format, Json}
 
@@ -26,7 +27,7 @@ object WSActor extends LazyLogging {
     outgoing: PartialFunction[T, F],
   )(
     implicit
-    ctx: ActorContext[Server.Command],
+    ctx: ActorContext[HttpActor.Command],
     ec: ExecutionContext,
   ): Flow[Message, Message, NotUsed] = {
     val actorRef: ActorRef[T] =

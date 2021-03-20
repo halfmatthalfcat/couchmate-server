@@ -10,6 +10,7 @@ import akka.util.Timeout
 import com.couchmate.Server
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.util.akka.extensions.{JwtExtension, SingletonExtension, UserExtension}
+import com.couchmate.util.http.HttpActor
 import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsSettings
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsRoute._
@@ -25,7 +26,7 @@ class ApiServer(
 )(
   implicit
   val ec: ExecutionContext,
-  val ctx: ActorContext[Server.Command],
+  val ctx: ActorContext[HttpActor.Command],
   system: ActorSystem[Nothing],
   db: Database,
   jwt: JwtExtension,
@@ -57,7 +58,7 @@ object ApiServer {
   )(
     implicit
     ec: ExecutionContext,
-    ctx: ActorContext[Server.Command],
+    ctx: ActorContext[HttpActor.Command],
     system: ActorSystem[Nothing],
     db: Database,
     jwt: JwtExtension,
