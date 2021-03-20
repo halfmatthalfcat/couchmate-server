@@ -155,5 +155,5 @@ object ProviderChannelDAO {
       channelId = c.channelId.get,
       channel = channelNumber
     )))(DBIO.successful)
-  } yield pc).transactionally
+  } yield pc)
 }

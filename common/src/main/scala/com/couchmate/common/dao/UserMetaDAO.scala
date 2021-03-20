@@ -95,5 +95,5 @@ object UserMetaDAO {
     userMeta <- exists.fold[DBIO[UserMeta]](
       (UserMetaTable.table returning UserMetaTable.table) += userMeta
     )(_ => UserMetaTable.table.filter(_.userId === userMeta.userId).update(userMeta).map(_ => userMeta))
-  } yield userMeta).transactionally
+  } yield userMeta)
 }

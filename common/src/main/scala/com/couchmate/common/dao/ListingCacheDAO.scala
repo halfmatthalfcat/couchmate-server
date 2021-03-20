@@ -88,7 +88,7 @@ object ListingCacheDAO {
       providerChannelId, startTime, airings
     ).head
     listingCache <- getListingCache(listingCacheId)
-  } yield (exists, listingCache)).transactionally
+  } yield (exists, listingCache))
 
   private[common] def upsertListingCacheWithDiff(
     providerChannelId: Long,

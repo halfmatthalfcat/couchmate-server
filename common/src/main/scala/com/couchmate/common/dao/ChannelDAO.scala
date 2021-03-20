@@ -124,5 +124,5 @@ object ChannelDAO {
       exists <- getChannelForExt(extId)
       c <- exists.fold(upsertChannel(channel))(DBIO.successful)
     } yield c
-  }).transactionally
+  })
 }

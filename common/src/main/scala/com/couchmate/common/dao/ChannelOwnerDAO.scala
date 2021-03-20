@@ -76,7 +76,7 @@ object ChannelOwnerDAO {
         .filter(_.channelOwnerId === channelOwnerId)
         .update(channelOwner)
       updated <- getChannelOwner(channelOwnerId)
-    } yield updated.get}.transactionally
+    } yield updated.get}
 
   private[common] def getOrAddChannelOwner(channelOwner: ChannelOwner)(
     implicit
@@ -93,5 +93,5 @@ object ChannelOwnerDAO {
       exists <- getChannelOwnerForExt(extId)
       owner <- exists.fold(upsertChannelOwner(channelOwner))(DBIO.successful)
     } yield owner
-  }).transactionally
+  })
 }

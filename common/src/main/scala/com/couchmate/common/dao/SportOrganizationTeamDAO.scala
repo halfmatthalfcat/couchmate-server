@@ -111,7 +111,7 @@ object SportOrganizationTeamDAO {
       sportTeamId, sportOrganizationId
     ).head
     sportOrganizationTeam <- getSportOrganizationTeamRaw(sportOrganizationTeamId).head
-  } yield sportOrganizationTeam).transactionally
+  } yield sportOrganizationTeam)
 
   private[common] def addOrGetSportOrganizationTeam(
     sportTeamId: Long,

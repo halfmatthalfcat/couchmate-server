@@ -235,7 +235,7 @@ object AiringDAO {
       .filter(_.airingId === airingId)
       .update(airing)
     updated <- AiringDAO.getAiring(airingId)
-  } yield updated.get}.transactionally
+  } yield updated.get}
 
   private[common] def getShowFromAiring(airingId: String)(
     implicit
@@ -322,7 +322,7 @@ object AiringDAO {
   ): DBIO[Airing] = (for {
     airingId <- addAiringForId(airing).head
     a <- getAiringQuery(airingId).result.head
-  } yield a).transactionally
+  } yield a)
 
   private[common] def getAiringStatus(airingId: String): SqlStreamingAction[Seq[AiringStatus], AiringStatus, Effect] =
     sql"""

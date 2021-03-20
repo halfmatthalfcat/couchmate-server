@@ -155,5 +155,5 @@ object ProviderOwnerDAO {
     } yield po
     case _ =>
       (ProviderOwnerTable.table returning ProviderOwnerTable.table) += providerOwner
-  }).transactionally
+  })
 }

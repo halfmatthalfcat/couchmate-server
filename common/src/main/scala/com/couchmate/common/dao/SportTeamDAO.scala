@@ -142,7 +142,7 @@ object SportTeamDAO {
   ): DBIO[SportTeam] = (for {
     sportTeamId <- addSportTeamForId(st).head
     sportTeam <- getSportTeamQuery(sportTeamId).result.head
-  } yield sportTeam).transactionally
+  } yield sportTeam)
 
   private[common] def addOrGetSportTeam(st: SportTeam) =
     sql"""

@@ -147,7 +147,7 @@ object LineupDAO {
           .update(lineup)
         updated <- LineupDAO.getLineup(lineupId)
       } yield updated.get
-    }}.transactionally
+    }}
 
   private[this] def addLineupForId(l: Lineup) =
     sql"""SELECT insert_or_get_lineup_id(${l.providerChannelId}, ${l.airingId}, ${l.active})""".as[Long]
@@ -158,7 +158,7 @@ object LineupDAO {
   ): DBIO[Lineup] = (for {
     lineupId <- addLineupForId(l).head
     lineup <- getLineupQuery(lineupId).result.head
-  } yield lineup).transactionally
+  } yield lineup)
 
   private[common] def addOrGetLineup(l: Lineup) =
     sql"""
@@ -218,6 +218,5 @@ object LineupDAO {
         upsertLineup(lineup.copy(
           active = false
         )).map(Option(_))
-      )
-    } yield updated).transactionally
+      ).transactionally
 }

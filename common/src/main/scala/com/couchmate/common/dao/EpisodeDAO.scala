@@ -117,7 +117,7 @@ object EpisodeDAO {
   ): DBIO[Episode] = (for {
     episodeId <- addEpisodeForId(e).head
     episode <- getEpisodeQuery(episodeId).result.head
-  } yield episode).transactionally
+  } yield episode)
 
   private[common] def addOrGetEpisode(e: Episode) =
     sql"""
