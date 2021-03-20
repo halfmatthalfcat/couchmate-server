@@ -218,5 +218,6 @@ object LineupDAO {
         upsertLineup(lineup.copy(
           active = false
         )).map(Option(_))
-      ).transactionally
+      )
+    } yield updated)
 }
