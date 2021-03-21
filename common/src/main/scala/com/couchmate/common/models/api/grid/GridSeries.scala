@@ -7,6 +7,7 @@ import slick.jdbc.GetResult
 case class GridSeries(
   seriesId: Long,
   seriesTitle: String,
+  episodeId: Long,
   season: Long,
   episode: Long,
   following: Long,

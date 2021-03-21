@@ -1,7 +1,7 @@
 package com.couchmate.common.dao
 
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.api.grid.GridSportTeam
+import com.couchmate.common.models.api.grid.GridSportRow
 import com.couchmate.common.models.data.SportEventTeam
 import com.couchmate.common.tables.{SportEventTeamTable, SportTeamTable}
 

@@ -58,6 +58,12 @@ trait SeriesDAO {
   ): Future[Seq[Airing]] =
     db.run(SeriesDAO.getUpcomingSeriesAirings(seriesId, providerChannelId))
 
+  def getAllGridSeries(
+    implicit
+    db: Database
+  ): Future[Seq[GridSeries]] =
+    db.run(SeriesDAO.getAllGridSeries)
+
   def getGridSeries(episodeId: Long)(implicit db: Database): Future[Option[GridSeries]] =
     db.run(SeriesDAO.getGridSeries(episodeId).headOption)
 
@@ -138,10 +144,26 @@ object SeriesDAO {
       updated <- SeriesDAO.getSeries(seriesId)
     } yield updated.get}
 
+  private[common] def getAllGridSeries: SqlStreamingAction[Seq[GridSeries], GridSeries, Effect] =
+    sql"""SELECT
+            s.series_id, s.series_name,
+            e.episode_id, e.season, e.episode,
+            COALESCE(seriesFollows.following, 0) as following
+          FROM episode as e
+          JOIN series as s
+          ON e.series_id = s.series_id
+          LEFT JOIN (
+            SELECT    series_id, count(*) as following
+            FROM      user_notification_series
+            GROUP BY  series_id
+          ) as seriesFollows
+          ON seriesFollows.series_id = s.series_id
+         """.as[GridSeries]
+
   private[common] def getGridSeries(episodeId: Long): SqlStreamingAction[Seq[GridSeries], GridSeries, Effect] =
     sql"""SELECT
             s.series_id, s.series_name,
-            e.season, e.episode,
+            e.episode_id, e.season, e.episode,
             COALESCE(seriesFollows.following, 0) as following
           FROM episode as e
           JOIN series as s

@@ -52,16 +52,20 @@ object GridDAO {
     ec: ExecutionContext
   ): DBIO[GridPage] = for {
     airings <- getGrid(providerId, startDate, startDate.plusHours(1))
-    extendedAirings <- DBIO.sequence(airings.map(airing => for {
-      series <- airing.episodeId.fold[DBIO[Option[GridSeries]]](DBIO.successful(Option.empty))(
-        episodeId => SeriesDAO.getGridSeries(episodeId).headOption
+    gridSeries <- SeriesDAO.getAllGridSeries
+    gridSportTeams <- SportTeamDAO.getAllGridSportRows
+    groupedGridSportTeams = gridSportTeams.groupBy(_.sportEventId)
+    extendedAirings = airings.map(airing => airing.toExtended(
+      series = airing.episodeId.flatMap(
+        episodeId => gridSeries.find(_.episodeId == episodeId)
+      ),
+      sport = for {
+        sportEventId <- airing.sportEventId
+        gridSportTeams <- groupedGridSportTeams.get(sportEventId)
+      } yield gridSportTeams.head.toGridSport.copy(
+        teams = gridSportTeams.map(_.toGridSportTeam)
       )
-      sport <- airing.sportEventId.fold[DBIO[Option[GridSport]]](DBIO.successful(Option.empty))(
-        sportEventId => SportTeamDAO.getGridSport(sportEventId)
-      )
-    } yield airing.toExtended(
-      series, sport
-    )))
+    ))
   } yield extendedAirings.foldLeft(GridPage(startDate, List.empty)) { case (page, airing) =>
     val channel: GridChannel = page.channels.headOption.getOrElse(
       GridChannel(
