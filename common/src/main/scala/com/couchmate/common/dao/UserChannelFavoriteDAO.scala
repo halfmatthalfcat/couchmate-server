@@ -5,7 +5,35 @@ import com.couchmate.common.models.data.UserChannelFavorite
 import com.couchmate.common.tables.UserChannelFavoriteTable
 
 import java.util.UUID
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
+
+trait UserChannelFavoriteDAO {
+  def getUserChannelFavorites(userId: UUID)(
+    implicit
+    db: Database
+  ): Future[Seq[UserChannelFavorite]] =
+    db.run(UserChannelFavoriteDAO.getUserChannelFavorites(userId))
+
+  def getUserChannelFavorite(userId: UUID, providerChannelId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[UserChannelFavorite]] =
+    db.run(UserChannelFavoriteDAO.getUserChannelFavorite(userId, providerChannelId))
+
+  def addUserChannelFavorite(userId: UUID, providerChannelId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[UserChannelFavorite] =
+    db.run(UserChannelFavoriteDAO.addUserChannelFavorite(userId, providerChannelId))
+
+  def removeUserChannelFavorite(userId: UUID, providerChannelId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Boolean] =
+    db.run(UserChannelFavoriteDAO.removeUserChannelFavorite(userId, providerChannelId))
+}
 
 object UserChannelFavoriteDAO {
   private[this] lazy val getUserChannelFavoritesQuery = Compiled {

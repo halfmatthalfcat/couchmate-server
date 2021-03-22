@@ -17,7 +17,8 @@ case class User(
   mutes: Seq[UserMute],
   wordMutes: Seq[String],
   notificationsEnabled: Boolean,
-  notifications: UserNotifications
+  notifications: UserNotifications,
+  favoriteChannels: Seq[Long]
 )
 
 object User {

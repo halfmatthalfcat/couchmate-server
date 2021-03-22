@@ -245,6 +245,9 @@ object External {
     grid: Grid
   ) extends Protocol
 
+  case class AddFavoriteChannel(channelId: Long) extends Protocol
+  case class RemoveFavoriteChannel(channelId: Long) extends Protocol
+
   case class JoinRoom(
     airingId: String,
     hash: Option[String]
