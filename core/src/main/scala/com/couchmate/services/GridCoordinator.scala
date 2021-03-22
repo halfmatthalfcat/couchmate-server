@@ -98,6 +98,7 @@ object GridCoordinator
         }
           Behaviors.same
         case GridSuccess(grid) =>
+          ctx.log.debug(s"Sending grid update for ${grid.providerId}")
           val nextState: GridCoordinatorState = state.getOrElse(grid.providerId, GridCoordinatorState(
             Some(grid),
             Set.empty
