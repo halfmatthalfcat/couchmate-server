@@ -59,10 +59,15 @@ object GridCoordinator
             None,
             Set.empty
           ))
+          val nextListeners: Set[ActorRef[Command]] = nextState.listeners - listener;
 
-          run(state + (providerId -> nextState.copy(
-            listeners = nextState.listeners - listener
-          )))
+          if (nextListeners.nonEmpty) {
+            run(state + (providerId -> nextState.copy(
+              listeners = nextListeners
+            )))
+          } else {
+            run(state - providerId);
+          }
         case SwapListener(fromId, toId, listener) =>
           ctx.unwatch(listener)
           ctx.watchWith(listener, RemoveListener(toId, listener))

@@ -69,7 +69,8 @@ object Migrations extends LazyLogging {
     UserActivityAnalyticsMigrations.init,
     ProviderOwnerMigrations.addIdx,
     ProviderMigrations.makeIdxUnique,
-    ProviderMigrations.addDevice
+    ProviderMigrations.addDevice,
+    UserChannelFavoriteMigrations.init
   )
 
   val functions: Seq[DBIO[Int]] = Seq(
