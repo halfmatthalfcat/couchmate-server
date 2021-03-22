@@ -37,6 +37,7 @@ object UserActions
   with UserNotificationSeriesDAO
   with UserNotificationTeamDAO
   with UserNotificationQueueDAO
+  with UserChannelFavoriteDAO
   with ProviderDAO
   with GridDAO {
 
@@ -131,6 +132,7 @@ object UserActions
       ))
       notifications <- getUserNotifications(userId)
       notificationConfigurations <- getUserNotificationConfigurations(userId)
+      favoriteChannels <- getUserChannelFavorites(userId)
     } yield UserContext(
       user = user,
       userMeta = userMeta,
@@ -140,7 +142,8 @@ object UserActions
       mutes = mutes,
       wordMutes = wordMutes,
       notifications = notifications,
-      notificationConfigurations = notificationConfigurations
+      notificationConfigurations = notificationConfigurations,
+      favoriteChannels = favoriteChannels
     )
   }) recoverWith {
     case ex: Throwable =>

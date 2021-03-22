@@ -1,7 +1,7 @@
 package com.couchmate.services.user.context
 
 import com.couchmate.common.models.api.room.Participant
-import com.couchmate.common.models.data.{User, UserMeta, UserNotificationConfiguration, UserNotifications}
+import com.couchmate.common.models.data.{User, UserChannelFavorite, UserMeta, UserNotificationConfiguration, UserNotifications}
 import com.couchmate.common.models.api.user.{UserMute, User => ExternalUser}
 
 case class UserContext(
@@ -13,7 +13,8 @@ case class UserContext(
   mutes: Seq[UserMute],
   wordMutes: Seq[String],
   notifications: UserNotifications,
-  notificationConfigurations: Seq[UserNotificationConfiguration]
+  notificationConfigurations: Seq[UserNotificationConfiguration],
+  favoriteChannels: Seq[UserChannelFavorite]
 ) {
   def getClientUser(
     deviceId: Option[String]
@@ -30,7 +31,8 @@ case class UserContext(
     notificationConfigurations
       .find(_.deviceId == deviceId)
       .exists(_.active),
-    notifications
+    notifications,
+    favoriteChannels.map(_.providerChannelId)
   )
 }
 
