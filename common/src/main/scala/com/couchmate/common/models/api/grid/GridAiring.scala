@@ -23,10 +23,7 @@ case class GridAiring(
   isNew: Boolean,
   sportEventId: Option[Long],
   episodeId: Option[Long],
-  originalAiringDate: Option[LocalDateTime],
-  status: RoomStatusType,
-  count: Long,
-  following: Long
+  originalAiringDate: Option[LocalDateTime]
 ) {
   def toExtended(
     series: Option[GridSeries],
@@ -43,9 +40,6 @@ case class GridAiring(
     description = this.description,
     `type` = this.`type`,
     originalAiringDate = this.originalAiringDate,
-    status = this.status,
-    count = this.count,
-    following = this.following,
     sport = sport,
     series = series,
     isNew = isNew

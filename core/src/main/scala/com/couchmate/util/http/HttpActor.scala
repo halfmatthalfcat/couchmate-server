@@ -6,7 +6,7 @@ import akka.http.scaladsl.Http.ServerBinding
 import akka.management.scaladsl.AkkaManagement
 import akka.util.Timeout
 import com.couchmate.api.ApiServer
-import com.couchmate.util.akka.extensions.{DatabaseExtension, JwtExtension, PromExtension, SingletonExtension, UserExtension}
+import com.couchmate.util.akka.extensions.{CacheExtension, DatabaseExtension, JwtExtension, PromExtension, SingletonExtension, UserExtension}
 import com.couchmate.common.db.PgProfile.api._
 import com.typesafe.config.{Config, ConfigFactory}
 
@@ -36,6 +36,9 @@ object HttpActor {
     implicit val jwt: JwtExtension = JwtExtension(ctx.system)
     implicit val user: UserExtension = UserExtension(ctx.system)
     val metrics: PromExtension = PromExtension(ctx.system)
+
+    val caches = CacheExtension(ctx.system)
+    import caches._
 
     ctx.pipeToSelf(for {
       api <- ApiServer(

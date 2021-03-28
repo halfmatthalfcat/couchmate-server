@@ -1,6 +1,6 @@
 package com.couchmate.common.tables
 
-import com.couchmate.common.db.PgProfile.api._
+import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.Channel
 import com.couchmate.common.util.slick.WithTableQuery
 
@@ -29,4 +29,38 @@ class ChannelTable(tag: Tag) extends Table[Channel](tag, "channel") {
 
 object ChannelTable extends WithTableQuery[ChannelTable] {
   private[couchmate] val table = TableQuery[ChannelTable]
+
+  private[couchmate] val insertOrGetChannelIdFunction: DBIO[Int] =
+    sqlu"""
+            CREATE OR REPLACE FUNCTION insert_or_get_channel_id(
+              _channel_id BIGINT,
+              _ext_id BIGINT,
+              _channel_owner_id BIGINT,
+              _callsign VARCHAR,
+              OUT __channel_id BIGINT
+            ) AS
+            $$func$$
+              BEGIN
+                LOOP
+                  SELECT  channel_id
+                  FROM    channel
+                  WHERE   ext_id = _ext_id
+                  FOR     SHARE
+                  INTO    __channel_id;
+
+                  EXIT WHEN FOUND;
+
+                  INSERT INTO channel
+                  (ext_id, channel_owner_id, callsign)
+                  VALUES
+                  (_ext_id, _channel_owner_id, _callsign)
+                  ON CONFLICT (ext_id) DO NOTHING
+                  RETURNING channel_id
+                  INTO __channel_id;
+
+                  EXIT WHEN FOUND;
+                END LOOP;
+              END;
+            $$func$$ LANGUAGE plpgsql;
+          """
 }

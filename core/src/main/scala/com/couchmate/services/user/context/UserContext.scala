@@ -14,7 +14,7 @@ case class UserContext(
   wordMutes: Seq[String],
   notifications: UserNotifications,
   notificationConfigurations: Seq[UserNotificationConfiguration],
-  favoriteChannels: Seq[UserChannelFavorite]
+  favoriteChannels: Seq[Long]
 ) {
   def getClientUser(
     deviceId: Option[String]
@@ -32,7 +32,7 @@ case class UserContext(
       .find(_.deviceId == deviceId)
       .exists(_.active),
     notifications,
-    favoriteChannels.map(_.providerChannelId)
+    favoriteChannels
   )
 }
 

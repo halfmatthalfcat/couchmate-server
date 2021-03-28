@@ -4,15 +4,14 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import com.couchmate.common.dao.GridDAO
 import com.couchmate.common.models.api.grid.Grid
-import com.couchmate.util.akka.extensions.DatabaseExtension
+import com.couchmate.util.akka.extensions.{CacheExtension, DatabaseExtension}
 import com.couchmate.common.db.PgProfile.api._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-object GridCoordinator
-  extends GridDAO {
+object GridCoordinator {
   sealed trait Command
 
   final case class AddListener(providerId: Long, listener: ActorRef[Command]) extends Command
@@ -34,6 +33,9 @@ object GridCoordinator
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     implicit val ec: ExecutionContext = ctx.executionContext
     implicit val db: Database = DatabaseExtension(ctx.system).db
+
+    val caches = CacheExtension(ctx.system)
+    import caches._
 
     Behaviors.withTimers { timers =>
       timers.startTimerAtFixedRate(StartUpdate, 5 seconds)
@@ -91,7 +93,7 @@ object GridCoordinator
             listeners = toState.listeners + listener
           )))
         case StartUpdate => state.keys.foreach { providerId: Long =>
-          ctx.pipeToSelf(getGrid(providerId)) {
+          ctx.pipeToSelf(GridDAO.getGrid(providerId)()) {
             case Success(value) => GridSuccess(value)
             case Failure(exception) => GridFailure(exception)
           }

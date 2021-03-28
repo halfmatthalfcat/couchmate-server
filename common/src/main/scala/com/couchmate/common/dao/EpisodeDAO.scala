@@ -6,78 +6,28 @@ import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.{Episode, Series, Show}
 import com.couchmate.common.tables.{EpisodeTable, SeriesTable}
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
-
-trait EpisodeDAO {
-
-  def getEpisode(episodeId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[Episode]] =
-    db.run(EpisodeDAO.getEpisode(episodeId))
-
-  def getEpisode$()(
-    implicit
-    session: SlickSession
-  ): Flow[Long, Option[Episode], NotUsed] =
-    Slick.flowWithPassThrough(EpisodeDAO.getEpisode)
-
-  def upsertEpisode(episode: Episode)(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Episode] =
-    db.run(EpisodeDAO.upsertEpisode(episode))
-
-  def upsertEpisode$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[Episode, Episode, NotUsed] =
-    Slick.flowWithPassThrough(EpisodeDAO.upsertEpisode)
-
-  def getOrAddEpisode(
-    show: Show,
-    series: Series,
-    episode: Episode
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Show] = for {
-    series <- db.run(SeriesDAO.addAndGetSeries(series)) recoverWith {
-      case ex: Throwable =>
-        System.out.println(s"Series Error: ${ex.getMessage}")
-        Future.failed(ex)
-    }
-    episode <- db.run(EpisodeDAO.addAndGetEpisode(episode.copy(
-      seriesId = series.seriesId
-    ))) recoverWith {
-      case ex: Throwable =>
-        System.out.println(s"Episode Error: ${ex.getMessage}")
-        Future.failed(ex)
-    }
-    show <- db.run(ShowDAO.addAndGetShow(show.copy(
-      episodeId = episode.episodeId
-    ))) recoverWith {
-      case ex: Throwable =>
-        System.out.println(s"Show Error: ${ex.getMessage}")
-        Future.failed(ex)
-    }
-  } yield show
-}
 
 object EpisodeDAO {
   private[this] lazy val getEpisodeQuery = Compiled { (episodeId: Rep[Long]) =>
     EpisodeTable.table.filter(_.episodeId === episodeId)
   }
 
-  private[common] def getEpisode(episodeId: Long): DBIO[Option[Episode]] =
-    getEpisodeQuery(episodeId).result.headOption
+  def getEpisode(episodeId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Episode]] = cache(
+    "getEpisode", episodeId
+  )(db.run(getEpisodeQuery(episodeId).result.headOption))()
 
   private[this] lazy val getEpisodeForSeriesQuery = Compiled {
-    (seriesId: Rep[Long], season: Rep[Option[Long]], episode: Rep[Option[Long]]) => for {
+    (seriesId: Rep[Long], season: Rep[Long], episode: Rep[Long]) => for {
       s <- SeriesTable.table if s.seriesId === seriesId
       e <- EpisodeTable.table if (
         e.season === season &&
@@ -87,68 +37,94 @@ object EpisodeDAO {
     } yield e
   }
 
-  private[common] def getEpisodeForSeries(
+  def getEpisodeForSeries(
     seriesId: Long,
-    season: Option[Long],
-    episode: Option[Long]
-  ): DBIO[Option[Episode]] =
-    getEpisodeForSeriesQuery(seriesId, season, episode).result.headOption
-
-  private[common] def upsertEpisode(episode: Episode)(
+    season: Long,
+    episode: Long
+  )(bust: Boolean = false)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Episode] =
-    episode.episodeId.fold[DBIO[Episode]](
-      (EpisodeTable.table returning EpisodeTable.table) += episode
-    ) { (episodeId: Long) => for {
-      _ <- EpisodeTable
-        .table
-        .filter(_.episodeId === episodeId)
-        .update(episode)
-      updated <- EpisodeDAO.getEpisode(episodeId)
-    } yield updated.get}
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Episode]] = cache(
+    "getEpisodeForSeries",
+    seriesId,
+    season,
+    episode
+  )(db.run(getEpisodeForSeriesQuery(seriesId, season, episode).result.headOption))(
+    bust = bust
+  )
 
-  private[this] def addEpisodeForId(e: Episode) =
-    sql"""SELECT insert_or_get_episode_id(${e.seriesId}, ${e.season}, ${e.episode})""".as[Long]
-
-  private[common] def addAndGetEpisode(e: Episode)(
+  private[this] def addEpisodeForId(e: Episode)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Episode] = (for {
-    episodeId <- addEpisodeForId(e).head
-    episode <- getEpisodeQuery(episodeId).result.head
-  } yield episode)
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Long] = cache(
+    "addEpisodeForId",
+    e.seriesId,
+    e.season,
+    e.episode
+  )(db.run(
+    sql"""SELECT insert_or_get_episode_id(${e.seriesId}, ${e.season}, ${e.episode})"""
+      .as[Long].head
+  ))()
 
-  private[common] def addOrGetEpisode(e: Episode) =
-    sql"""
-         WITH input_rows(series_id, season, episode) AS (
-          VALUES (${e.seriesId}, ${e.season}, ${e.episode})
-         ), ins AS (
-          INSERT INTO episode as e (series_id, season, episode)
-          SELECT * FROM input_rows
-          ON CONFLICT (series_id, season, episode) DO NOTHING
-          RETURNING episode_id, series_id, season, episode
-         ), sel AS (
-          SELECT episode_id, series_id, season, episode
-          FROM ins
-          UNION ALL
-          SELECT e.episode_id, series_id, season, episode
-          FROM input_rows
-          JOIN episode as e USING (series_id, season, episode)
-         ), ups AS (
-           INSERT INTO episode AS ep (series_id, season, episode)
-           SELECT i.*
-           FROM   input_rows i
-           LEFT   JOIN sel   s USING (series_id, season, episode)
-           WHERE  s.series_id IS NULL
-           ON     CONFLICT (series_id, season, episode) DO UPDATE
-           SET    series_id = excluded.series_id,
-                  season = excluded.season,
-                  episode = excluded.episode
-           RETURNING episode_id, series_id, season, episode
-         )  SELECT episode_id, series_id, season, episode FROM sel
-            UNION  ALL
-            TABLE  ups;
-         """.as[Episode]
+  def addOrGetEpisode(e: Episode)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Episode] = cache(
+    "addOrGetEpisode",
+    e.seriesId,
+    e.season,
+    e.episode
+  )(for {
+    exists <- getEpisodeForSeries(
+      e.seriesId.get, e.season, e.episode
+    )()
+    e <- exists.fold(for {
+      _ <- addEpisodeForId(e)
+      selected <- getEpisodeForSeries(
+        e.seriesId.get, e.season, e.episode
+      )(bust = true).map(_.get)
+    } yield selected)(Future.successful)
+  } yield e)()
+
+  def addOrGetShow(
+    show: Show,
+    series: Series,
+    episode: Episode
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Show] = for {
+    series <- SeriesDAO.addOrGetSeries(series) recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Series Error: ${ex.getMessage}")
+        Future.failed(ex)
+    }
+    episode <- addOrGetEpisode(episode.copy(
+      seriesId = series.seriesId
+    )) recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Episode Error: ${ex.getMessage}")
+        Future.failed(ex)
+    }
+    show <- ShowDAO.addOrGetShow(show.copy(
+      episodeId = episode.episodeId
+    )) recoverWith {
+      case ex: Throwable =>
+        System.out.println(s"Show Error: ${ex.getMessage}")
+        Future.failed(ex)
+    }
+  } yield show
 
 }

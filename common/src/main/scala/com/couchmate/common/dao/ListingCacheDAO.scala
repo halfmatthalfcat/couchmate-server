@@ -1,49 +1,15 @@
 package com.couchmate.common.dao
 
-import akka.actor.typed.scaladsl.ActorContext
-
 import java.time.LocalDateTime
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.ListingCache
 import com.couchmate.common.models.thirdparty.gracenote.{GracenoteAiring, GracenoteAiringPlan}
 import com.couchmate.common.tables.ListingCacheTable
-import play.api.libs.json.Json
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-
-trait ListingCacheDAO {
-
-  def getListingCache(listingCacheId: Long)(
-    implicit
-    db: Database
-  ): Future[ListingCache] =
-    db.run(ListingCacheDAO.getListingCache(listingCacheId))
-
-  def getListingCacheForProviderAndStart(
-    providerChannelId: Long,
-    startTime: LocalDateTime
-  )(
-    implicit
-    db: Database
-  ): Future[Option[ListingCache]] =
-    db.run(ListingCacheDAO.getListingCacheForProviderAndStart(providerChannelId, startTime))
-
-  def upsertListingCacheWithDiff(
-    providerChannelId: Long,
-    startTime: LocalDateTime,
-    airings: Seq[GracenoteAiring]
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database,
-    ctx: ActorContext[_]
-  ): Future[GracenoteAiringPlan] =
-    db.run(ListingCacheDAO.upsertListingCacheWithDiff(
-      providerChannelId,
-      startTime,
-      airings
-    ))
-}
 
 object ListingCacheDAO {
   private[this] lazy val getListingCacheQuery = Compiled {
@@ -51,8 +17,16 @@ object ListingCacheDAO {
       ListingCacheTable.table.filter(_.listingCacheId === listingCacheId)
   }
 
-  private[common] def getListingCache(listingCacheId: Long): DBIO[ListingCache] =
-    getListingCacheQuery(listingCacheId).result.head
+  def getListingCache(listingCacheId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[ListingCache] = cache(
+    "getListingCache",
+    listingCacheId
+  )(db.run(getListingCacheQuery(listingCacheId).result.head))()
 
   private[this] lazy val getListingCacheForProviderAndStartQuery = Compiled {
     (providerChannelId: Rep[Long], startTime: Rep[LocalDateTime]) =>
@@ -62,44 +36,86 @@ object ListingCacheDAO {
       }
   }
 
-  private[common] def getListingCacheForProviderAndStart(
-    providerCacheId: Long,
+  def getListingCacheForProviderAndStart(
+    providerChannelId: Long,
     startTime: LocalDateTime
-  ): DBIO[Option[ListingCache]] =
-    getListingCacheForProviderAndStartQuery(providerCacheId, startTime).result.headOption
+  )(bust: Boolean = false)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[ListingCache]] = cache(
+    "getListingCacheForProviderAndStart",
+    providerChannelId,
+    startTime.toString
+  )(db.run(getListingCacheForProviderAndStartQuery(
+    providerChannelId,
+    startTime
+  ).result.headOption))(
+    // Cache in redis for a week
+    // Cache in mem for an hour
+    ttl = Some(7.days),
+    ratio = Some(7 * 24),
+    bust = bust
+  )
 
   private[this] def addListingCacheForId(
     providerChannelId: Long,
     startTime: LocalDateTime,
     airings: Seq[GracenoteAiring]
-  ) = {
-    sql"""SELECT insert_or_get_listing_cache_id($providerChannelId, $startTime, $airings)""".as[Long]
-  }
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Long] = cache(
+    "addListingCacheForId",
+    providerChannelId,
+    startTime.toString
+  )(db.run(
+    sql"""SELECT insert_or_get_listing_cache_id($providerChannelId, $startTime, $airings)"""
+      .as[Long].head
+  ))()
 
-  private[common] def addAndGetListingCache(
-    providerChannelId: Long,
-    startTime: LocalDateTime,
-    airings: Seq[GracenoteAiring]
-  )(implicit ec: ExecutionContext): DBIO[(Boolean, ListingCache)] = (for {
-    exists <- getListingCacheForProviderAndStartQuery(
-      providerChannelId, startTime
-    ).result.headOption.map(_.nonEmpty)
-    listingCacheId <- addListingCacheForId(
-      providerChannelId, startTime, airings
-    ).head
-    listingCache <- getListingCache(listingCacheId)
-  } yield (exists, listingCache))
-
-  private[common] def upsertListingCacheWithDiff(
+  def addOrGetListingCache(
     providerChannelId: Long,
     startTime: LocalDateTime,
     airings: Seq[GracenoteAiring]
   )(
     implicit
+    db: Database,
     ec: ExecutionContext,
-    ctx: ActorContext[_]
-  ): DBIO[GracenoteAiringPlan] = for {
-    (exists, listingCache) <- addAndGetListingCache(
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[(Boolean, ListingCache)] = (for {
+    exists <- getListingCacheForProviderAndStart(
+      providerChannelId, startTime
+    )()
+    listingCache <- exists.fold(for {
+      _ <- addListingCacheForId(providerChannelId, startTime, airings)
+      lc <- getListingCacheForProviderAndStart(
+        providerChannelId, startTime
+      )(bust = true).map(_.get)
+    } yield lc)(Future.successful)
+  } yield (exists.nonEmpty, listingCache))
+
+  /**
+   * TODO: compare airing hashes and update listings based on changes
+   */
+  def upsertListingCacheWithDiff(
+    providerChannelId: Long,
+    startTime: LocalDateTime,
+    airings: Seq[GracenoteAiring]
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[GracenoteAiringPlan] = for {
+    (exists, listingCache) <- addOrGetListingCache(
       providerChannelId, startTime, airings
     )
     cache = if (!exists) Seq.empty else listingCache.airings
@@ -108,15 +124,14 @@ object ListingCacheDAO {
     skip = cache
       .filterNot(airing => remove.exists(_.equals(airing)))
       .filter(airing => airings.exists(_.equals(airing)))
-    _ = ctx.log.debug(s"Cached [$providerChannelId | ${startTime.toString}]: A ${add.size}, R ${remove.size}, S ${skip.size}")
     _ <- if (exists && (add.nonEmpty || remove.nonEmpty)) {
-      (for {
+      db.run((for {
         c <- ListingCacheTable.table.filter { lc =>
           lc.providerChannelId === providerChannelId &&
-          lc.startTime === startTime
+            lc.startTime === startTime
         }
-      } yield c.airings).update(airings)
-    } else { DBIO.successful() }
+      } yield c.airings).update(airings))
+    } else { Future.successful() }
   } yield GracenoteAiringPlan(
     providerChannelId,
     startTime,

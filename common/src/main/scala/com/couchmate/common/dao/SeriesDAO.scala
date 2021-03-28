@@ -1,7 +1,6 @@
 package com.couchmate.common.dao
 
 import java.time.{LocalDateTime, ZoneId}
-
 import akka.NotUsed
 import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
 import akka.stream.scaladsl.Flow
@@ -9,142 +8,86 @@ import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.api.grid.GridSeries
 import com.couchmate.common.models.data.{Airing, Series}
 import com.couchmate.common.tables.{AiringTable, EpisodeTable, LineupTable, SeriesTable, ShowTable}
-import slick.sql.SqlStreamingAction
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
-
-trait SeriesDAO {
-
-  def getSeries(seriesId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[Series]] = {
-    db.run(SeriesDAO.getSeries(seriesId))
-  }
-
-  def getSeries$()(
-    implicit
-    session: SlickSession
-  ): Flow[Long, Option[Series], NotUsed] =
-    Slick.flowWithPassThrough(SeriesDAO.getSeries)
-
-  def getSeriesByExt(extId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[Series]] = {
-    db.run(SeriesDAO.getSeriesByExt(extId))
-  }
-
-  def getSeriesByExt$()(
-    implicit
-    session: SlickSession
-  ): Flow[Long, Option[Series], NotUsed] =
-    Slick.flowWithPassThrough(SeriesDAO.getSeriesByExt)
-
-  def getSeriesByEpisode(episodeId: Long)(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Option[Series]] =
-    db.run(SeriesDAO.getSeriesByEpisode(episodeId))
-
-  def getUpcomingSeriesAirings(
-    seriesId: Long,
-    providerChannelId: Long
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Seq[Airing]] =
-    db.run(SeriesDAO.getUpcomingSeriesAirings(seriesId, providerChannelId))
-
-  def getAllGridSeries(
-    implicit
-    db: Database
-  ): Future[Seq[GridSeries]] =
-    db.run(SeriesDAO.getAllGridSeries)
-
-  def getGridSeries(episodeId: Long)(implicit db: Database): Future[Option[GridSeries]] =
-    db.run(SeriesDAO.getGridSeries(episodeId).headOption)
-
-  def upsertSeries(series: Series)(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Series] =
-    db.run(SeriesDAO.upsertSeries(series))
-
-  def upsertSeries$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[Series, Series, NotUsed] =
-    Slick.flowWithPassThrough(SeriesDAO.upsertSeries)
-
-  def addOrGetSeries(series: Series)(
-    implicit
-    db: Database
-  ): Future[Series] =
-    db.run(SeriesDAO.addOrGetSeries(series).head)
-}
 
 object SeriesDAO {
   private[this] lazy val getSeriesQuery = Compiled { (seriesId: Rep[Long]) =>
     SeriesTable.table.filter(_.seriesId === seriesId)
   }
 
-  private[common] def getSeries(seriesId: Long): DBIO[Option[Series]] =
-    getSeriesQuery(seriesId).result.headOption
+  def getSeries(seriesId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Series]] = cache(
+    "getSeries",
+    seriesId
+  )(db.run(getSeriesQuery(seriesId).result.headOption))()
 
   private[this] lazy val getSeriesByExtQuery = Compiled { (extId: Rep[Long]) =>
     SeriesTable.table.filter(_.extId === extId)
   }
 
-  private[common] def getSeriesByExt(extId: Long): DBIO[Option[Series]] =
-    getSeriesByExtQuery(extId).result.headOption
-
-  private[common] def getSeriesByEpisode(episodeId: Long)(
+  def getSeriesByExt(extId: Long)(bust: Boolean = false)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Option[Series]] = for {
-    exists <- EpisodeDAO.getEpisode(episodeId)
-    series <- exists.fold[DBIO[Option[Series]]](DBIO.successful(Option.empty))(e => getSeries(e.seriesId.get))
-  } yield series
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Series]] = cache(
+    "getSeriesByExt",
+    extId
+  )(db.run(getSeriesByExtQuery(extId).result.headOption))(bust = bust)
 
-  private[common] def getUpcomingSeriesAirings(
+  def getSeriesByEpisode(episodeId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Series]] = cache(
+    "getSeriesByEpisode",
+    episodeId
+  )(for {
+    exists <- EpisodeDAO.getEpisode(episodeId)
+    series <- exists.fold(
+      Future.successful(Option.empty[Series])
+    )(e => getSeries(e.seriesId.get))
+  } yield series)()
+
+  def getUpcomingSeriesAirings(
     seriesId: Long,
     providerChannelId: Long
   )(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Seq[Airing]] = (for {
+    db: Database
+  ): Future[Seq[Airing]] = db.run((for {
     e <- EpisodeTable.table if e.seriesId === seriesId
     s <- ShowTable.table if s.episodeId === e.episodeId
     a <- AiringTable.table if (
       a.showId === s.showId &&
-      a.startTime >= LocalDateTime.now(ZoneId.of("UTC"))
-    )
+        a.startTime >= LocalDateTime.now(ZoneId.of("UTC"))
+      )
     l <- LineupTable.table if (
       a.airingId === l.airingId &&
-      l.providerChannelId === providerChannelId
-    )
-  } yield a).result
+        l.providerChannelId === providerChannelId
+      )
+  } yield a).result)
 
-  private[common] def upsertSeries(series: Series)(
+  def getAllGridSeries(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Series] =
-    series.seriesId.fold[DBIO[Series]](
-      (SeriesTable.table returning SeriesTable.table) += series
-    ) { (seriesId: Long) => for {
-      _ <- SeriesTable
-        .table
-        .filter(_.seriesId === seriesId)
-        .update(series)
-      updated <- SeriesDAO.getSeries(seriesId)
-    } yield updated.get}
-
-  private[common] def getAllGridSeries: SqlStreamingAction[Seq[GridSeries], GridSeries, Effect] =
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[GridSeries]] = cache(
+    "getAllGridSeries"
+  )(db.run(
     sql"""SELECT
             s.series_id, s.series_name,
             e.episode_id, e.season, e.episode,
@@ -159,8 +102,18 @@ object SeriesDAO {
           ) as seriesFollows
           ON seriesFollows.series_id = s.series_id
          """.as[GridSeries]
+  ))()
 
-  private[common] def getGridSeries(episodeId: Long): SqlStreamingAction[Seq[GridSeries], GridSeries, Effect] =
+  def getGridSeries(episodeId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[GridSeries]] = cache(
+    "getGridSeries",
+    episodeId
+  )(db.run(
     sql"""SELECT
             s.series_id, s.series_name,
             e.episode_id, e.season, e.episode,
@@ -175,51 +128,40 @@ object SeriesDAO {
           ) as seriesFollows
           ON seriesFollows.series_id = s.series_id
           WHERE e.episode_id = ${episodeId}
-         """.as[GridSeries]
+         """.as[GridSeries].headOption
+  ))()
 
-  private[this] def addSeriesForId(s: Series): SqlStreamingAction[Vector[Long], Long, Effect] =
-    sql"""SELECT insert_or_get_series_id(${s.extId}, ${s.seriesName}, ${s.totalSeasons}, ${s.totalEpisodes})""".as[Long]
-
-  private[common] def addAndGetSeries(s: Series)(
+  private[this] def addSeriesForId(s: Series)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Series] = for {
-    seriesId <- addSeriesForId(s)
-    series <- getSeriesQuery(seriesId.head).result.headOption.collect {
-      case Some(s) => s
-      case None => throw new RuntimeException("Unable to get series")
-    }
-  } yield series
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Long] = cache(
+    "addSeriesForId",
+    s.extId
+  )(db.run(
+    sql"""SELECT insert_or_get_series_id(${s.extId}, ${s.seriesName}, ${s.totalSeasons}, ${s.totalEpisodes})"""
+      .as[Long].head
+  ))()
 
-  private[common] def addOrGetSeries(series: Series) =
-    sql"""
-         WITH input_rows(ext_id, series_name, total_seasons, total_episodes) AS (
-          VALUES (${series.extId}, ${series.seriesName}, ${series.totalSeasons}, ${series.totalEpisodes})
-         ), ins AS (
-          INSERT INTO series (ext_id, series_name, total_seasons, total_episodes)
-          SELECT * FROM input_rows
-          ON CONFLICT (ext_id) DO NOTHING
-          RETURNING series_id, ext_id, series_name, total_seasons, total_episodes
-         ), sel AS (
-          SELECT series_id, ext_id, series_name, total_seasons, total_episodes
-          FROM ins
-          UNION ALL
-          SELECT s.series_id, ext_id, s.series_name, s.total_seasons, s.total_episodes
-          FROM input_rows
-          JOIN series AS s USING (ext_id)
-         ), ups AS (
-           INSERT INTO series AS srs (ext_id, series_name, total_seasons, total_episodes)
-           SELECT i.*
-           FROM   input_rows i
-           LEFT   JOIN sel   s USING (ext_id)
-           WHERE  s.ext_id IS NULL
-           ON     CONFLICT (ext_id) DO UPDATE
-           SET    series_name = excluded.series_name,
-                  total_seasons = excluded.total_seasons,
-                  total_episodes = excluded.total_episodes
-           RETURNING series_id, ext_id, series_name, total_seasons, total_episodes
-         )  SELECT series_id, ext_id, series_name, total_seasons, total_episodes FROM sel
-            UNION  ALL
-            TABLE  ups;
-         """.as[Series]
+
+  def addOrGetSeries(s: Series)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Series] = cache(
+    "addOrGetSeries",
+    s.extId
+  )(for {
+    exists <- getSeriesByExt(s.extId)()
+    s <- exists.fold(for {
+      _ <- addSeriesForId(s)
+      selected <- getSeriesByExt(s.extId)(bust = true)
+        .map(_.get)
+    } yield selected)(Future.successful)
+  } yield s)()
+
 }

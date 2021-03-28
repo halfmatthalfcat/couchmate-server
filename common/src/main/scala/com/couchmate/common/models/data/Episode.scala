@@ -9,7 +9,7 @@ case class Episode(
   seriesId: Option[Long],
   season: Long,
   episode: Long,
-) extends Product with Serializable
+)
 
 object Episode extends JsonConfig {
   implicit val format: Format[Episode] = Json.format[Episode]

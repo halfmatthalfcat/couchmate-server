@@ -7,101 +7,26 @@ import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.data.{Airing, Lineup}
 import com.couchmate.common.models.thirdparty.gracenote.GracenoteAiring
 import com.couchmate.common.tables.{LineupTable, ProviderChannelTable}
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
-
-trait LineupDAO {
-
-  def getLineup(lineupId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[Lineup]] =
-    db.run(LineupDAO.getLineup(lineupId))
-
-  def getLineup$()(
-    implicit
-    session: SlickSession
-  ): Flow[Long, Option[Lineup], NotUsed] =
-    Slick.flowWithPassThrough(LineupDAO.getLineup)
-
-  def lineupsExistForProvider(providerId: Long)(
-    implicit
-    db: Database
-  ): Future[Boolean] =
-    db.run(LineupDAO.lineupsExistForProvider(providerId))
-
-  def lineupsExistForProvider$()(
-    implicit
-    session: SlickSession
-  ): Flow[Long, Boolean, NotUsed] =
-    Slick.flowWithPassThrough(LineupDAO.lineupsExistForProvider)
-
-  def getLineupForProviderChannelAndAiring(
-    providerChannelId: Long,
-    airingId: String
-  )(
-    implicit
-    db: Database
-  ): Future[Option[Lineup]] =
-    db.run(LineupDAO.getLineupForProviderChannelAndAiring(providerChannelId, airingId))
-
-  def getLineupForProviderChannelAndAiring$()(
-    implicit
-    session: SlickSession
-  ): Flow[(Long, String), Option[Lineup], NotUsed] =
-    Slick.flowWithPassThrough(
-      (LineupDAO.getLineupForProviderChannelAndAiring _).tupled
-    )
-
-  def upsertLineup(lineup: Lineup)(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Lineup] =
-    db.run(LineupDAO.upsertLineup(lineup))
-
-  def upsertLineup$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[Lineup, Lineup, NotUsed] =
-    Slick.flowWithPassThrough(LineupDAO.upsertLineup)
-
-  def getOrAddLineup(
-    providerChannelId: Long,
-    airing: Airing,
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Lineup] = for {
-    a <- db.run(AiringDAO.addAndGetAiring(airing))
-    l <- db.run(LineupDAO.addAndGetLineup(Lineup(
-      lineupId = None,
-      providerChannelId = providerChannelId,
-      airingId = a.airingId.get,
-      active = true
-    )))
-  } yield l
-
-  def disableLineup(
-    providerChannelId: Long,
-    gracenoteAiring: GracenoteAiring,
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Option[Lineup]] =
-    db.run(LineupDAO.disableLineup(providerChannelId, gracenoteAiring))
-}
 
 object LineupDAO {
   private[this] lazy val getLineupQuery = Compiled { (lineupId: Rep[Long]) =>
     LineupTable.table.filter(_.lineupId === lineupId)
   }
 
-  private[common] def getLineup(lineupId: Long): DBIO[Option[Lineup]] =
-    getLineupQuery(lineupId).result.headOption
+  def getLineup(lineupId: Long)(bust: Boolean = false)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Lineup]] = cache(
+    "getLineup",
+    lineupId
+  )(db.run(getLineupQuery(lineupId).result.headOption))(bust = bust)
 
   private[this] lazy val lineupsExistForProviderQuery = Compiled { (providerId: Rep[Long]) =>
     (for {
@@ -113,8 +38,16 @@ object LineupDAO {
     } yield pc.providerId).exists
   }
 
-  private[common] def lineupsExistForProvider(providerId: Long): DBIO[Boolean] =
-    lineupsExistForProviderQuery(providerId).result
+  def lineupsExistForProvider(providerId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Boolean] = cache(
+    "lineupsExistForProvider",
+    providerId
+  )(db.run(lineupsExistForProviderQuery(providerId).result))()
 
   private[this] lazy val getLineupForProviderChannelAndAiringQuery = Compiled {
     (providerChannelId: Rep[Long], airingId: Rep[String]) =>
@@ -124,83 +57,97 @@ object LineupDAO {
       }
   }
 
-  private[common] def getLineupForProviderChannelAndAiring(
+  def getLineupForProviderChannelAndAiring(
     providerChannelId: Long,
     airingId: String
-  ): DBIO[Option[Lineup]] =
-    getLineupForProviderChannelAndAiringQuery(
-      providerChannelId,
-      airingId
-    ).result.headOption
-
-  private[common] def upsertLineup(lineup: Lineup)(
+  )(bust: Boolean = false)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Lineup] =
-    lineup.lineupId.fold[DBIO[Lineup]](
-      (LineupTable.table returning LineupTable.table) += lineup
-    ) { (lineupId: Long) => {
-      for {
-        _ <- LineupTable
-          .table
-          .filter(_.lineupId === lineupId)
-          .update(lineup)
-        updated <- LineupDAO.getLineup(lineupId)
-      } yield updated.get
-    }}
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Lineup]] = cache(
+    "getLineupForProviderChannelAndAiring",
+    providerChannelId,
+    airingId
+  )(db.run(getLineupForProviderChannelAndAiringQuery(
+    providerChannelId,
+    airingId
+  ).result.headOption))(bust = bust)
 
-  private[this] def addLineupForId(l: Lineup) =
-    sql"""SELECT insert_or_get_lineup_id(${l.providerChannelId}, ${l.airingId}, ${l.active})""".as[Long]
-
-  private[common] def addAndGetLineup(l: Lineup)(
+  private[this] def addLineupForId(l: Lineup)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Lineup] = (for {
-    lineupId <- addLineupForId(l).head
-    lineup <- getLineupQuery(lineupId).result.head
-  } yield lineup)
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Long] = cache(
+    "addLineupForId",
+    l.providerChannelId,
+    l.airingId
+  )(db.run(
+    sql"""SELECT insert_or_get_lineup_id(${l.providerChannelId}, ${l.airingId}, ${l.active})"""
+      .as[Long].head
+  ))()
 
-  private[common] def addOrGetLineup(l: Lineup) =
-    sql"""
-          WITH input_rows(provider_channel_id, airing_id, active) AS (
-            VALUES (${l.providerChannelId}, ${l.airingId}, ${l.active})
-          ), ins AS (
-            INSERT INTO lineup as l (provider_channel_id, airing_id, active)
-            SELECT * from input_rows
-            ON CONFLICT (provider_channel_id, airing_id) DO NOTHING
-            RETURNING lineup_id, provider_channel_id, airing_id, active
-          ), sel AS (
-            SELECT lineup_id, provider_channel_id, airing_id, active
-            FROM ins
-            UNION ALL
-            SELECT l.lineup_id, provider_channel_id, airing_id, l.active
-            FROM input_rows
-            JOIN lineup as l USING (provider_channel_id, airing_id)
-          ), ups AS (
-           INSERT INTO lineup AS l (provider_channel_id, airing_id, active)
-           SELECT i.*
-           FROM   input_rows i
-           LEFT   JOIN sel   s USING (provider_channel_id, airing_id)
-           WHERE  s.provider_channel_id IS NULL
-           ON     CONFLICT (provider_channel_id, airing_id) DO UPDATE
-           SET    provider_channel_id = l.provider_channel_id,
-                  airing_id = l.airing_id
-           RETURNING lineup_id, provider_channel_id, airing_id, active
-         )  SELECT lineup_id, provider_channel_id, airing_id, active FROM sel
-            UNION  ALL
-            TABLE  ups;
-         """.as[Lineup]
+  def addOrGetLineup(l: Lineup)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Lineup] = cache(
+    "addOrGetLineup",
+    l.providerChannelId,
+    l.airingId
+  )(for {
+    exists <- getLineupForProviderChannelAndAiring(
+      l.providerChannelId, l.airingId
+    )()
+    l <- exists.fold(for {
+      _ <- addLineupForId(l)
+      selected <- getLineupForProviderChannelAndAiring(
+        l.providerChannelId, l.airingId
+      )(bust = true).map(_.get)
+    } yield selected)(Future.successful)
+  } yield l)()
 
-  private[common] def disableLineup(
+  def addOrGetLineupFromProviderChannelAndAiring(
+    providerChannelId: Long,
+    airing: Airing,
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Lineup] = cache(
+    "addOrGetLineupFromProviderChannelAndAiring",
+    providerChannelId,
+    airing.airingId
+  )(for {
+    a <- AiringDAO.addOrGetAiring(airing)
+    l <- addOrGetLineup(Lineup(
+      lineupId = None,
+      providerChannelId = providerChannelId,
+      airingId = a.airingId,
+      active = true
+    ))
+  } yield l)()
+
+  def disableLineup(
     providerChannelId: Long,
     gracenoteAiring: GracenoteAiring,
   )(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Option[Lineup]] =
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Lineup]] =
     (for {
-      s <- ShowDAO.getShowByExt(gracenoteAiring.program.rootId)
-      a <- s.fold[DBIO[Option[Airing]]](DBIO.successful(Option.empty))(show =>
+      s <- ShowDAO.getShowByExt(gracenoteAiring.program.rootId)()
+      a <- s.fold(Future.successful(Option.empty[Airing]))(show =>
         AiringDAO
           .getAiringByShowStartAndEnd(
             show.showId.get,
@@ -208,16 +155,20 @@ object LineupDAO {
             gracenoteAiring.endTime
           )
       )
-      l <- a.fold[DBIO[Option[Lineup]]](DBIO.successful(Option.empty))(airing =>
+      l <- a.fold(Future.successful(Option.empty[Lineup]))(airing =>
         getLineupForProviderChannelAndAiring(
           providerChannelId,
-          airing.airingId.get
+          airing.airingId
+        )()
+      )
+      updated <- l.fold(Future.successful(Option.empty[Lineup]))(lineup => for {
+        _ <- db.run(LineupTable
+          .table
+          .filter(_.lineupId === lineup.lineupId)
+          .map(_.active)
+          .update(false)
         )
-      )
-      updated <- l.fold[DBIO[Option[Lineup]]](DBIO.successful(Option.empty))(lineup =>
-        upsertLineup(lineup.copy(
-          active = false
-        )).map(Option(_))
-      )
+        newL <- getLineup(lineup.lineupId.get)(bust = true)
+      } yield newL)
     } yield updated)
 }

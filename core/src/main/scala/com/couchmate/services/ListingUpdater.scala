@@ -9,19 +9,18 @@ import akka.persistence.typed.PersistenceId
 import akka.util.Timeout
 import com.couchmate.common.dao.{ListingJobDAO, ProviderDAO, UserProviderDAO}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.data.{ListingJob => ListingJobModel, ProviderType}
+import com.couchmate.common.models.data.{ProviderType, ListingJob => ListingJobModel}
 import com.couchmate.services.gracenote.listing.{ListingJob, ListingPullType}
-import com.couchmate.util.akka.extensions.DatabaseExtension
+import com.couchmate.util.akka.extensions.{CacheExtension, DatabaseExtension}
 import com.typesafe.akka.extension.quartz.QuartzSchedulerExtension
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-object ListingUpdater
-  extends ProviderDAO
-  with UserProviderDAO
-  with ListingJobDAO {
+object ListingUpdater {
   sealed trait Command
 
   private final case class AddJobs(providers: Seq[Job]) extends Command
@@ -74,6 +73,9 @@ object ListingUpdater
     implicit val db: Database = DatabaseExtension(ctx.system).db
     implicit val timeout: Timeout = 5 seconds
 
+    val caches = CacheExtension(ctx.system)
+    import caches._
+
     val scheduler: QuartzSchedulerExtension =
       QuartzSchedulerExtension(ctx.system.toClassic)
 
@@ -105,7 +107,7 @@ object ListingUpdater
               ctx.self ! StartJob(job)
             })
         case EnsureListing(providerId) =>
-          Effect.none.thenRun(_ => ctx.pipeToSelf(getLastListingJobForProvider(providerId)) {
+          Effect.none.thenRun(_ => ctx.pipeToSelf(ListingJobDAO.getLastListingJobForProvider(providerId)) {
             case Success(job) => PreviousProviderJobSuccess(providerId, job)
             case Failure(ex) => PreviousProviderJobFailed(ex)
           })
@@ -254,10 +256,12 @@ object ListingUpdater
 
   def getProviders()(
     implicit
+    db: Database,
     ec: ExecutionContext,
-    db: Database
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[Seq[Long]] = for {
-    defaults <- getProvidersForType(ProviderType.Default)
-    users <- getUniqueProviders()
+    defaults <- ProviderDAO.getProvidersForType(ProviderType.Default)
+    users <- UserProviderDAO.getUniqueProviders()
   } yield (defaults ++ users).map(_.providerId.get).distinct
 }

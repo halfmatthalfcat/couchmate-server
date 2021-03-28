@@ -1,161 +1,59 @@
 package com.couchmate.common.dao
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.api.grid.AiringConversion
 import com.couchmate.common.models.data._
 import com.couchmate.common.tables._
-import slick.dbio.Effect
-import slick.sql.SqlStreamingAction
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import java.time.LocalDateTime
 import scala.concurrent.{ExecutionContext, Future}
-
-trait AiringDAO {
-
-  def getAiring(airingId: String)(
-    implicit
-    db: Database
-  ): Future[Option[Airing]] = {
-    db.run(AiringDAO.getAiring(airingId))
-  }
-
-  def getAiring$()(
-    implicit
-    session: SlickSession
-  ): Flow[String, Option[Airing], NotUsed] =
-    Slick.flowWithPassThrough(AiringDAO.getAiring)
-
-  def getAiringsByStart(startTime: LocalDateTime)(
-    implicit
-    db: Database
-  ): Future[Seq[Airing]] = {
-    db.run(AiringDAO.getAiringsByStart(startTime))
-  }
-
-  def getAiringsByStart$()(
-    implicit
-    session: SlickSession
-  ): Flow[LocalDateTime, Seq[Airing], NotUsed] =
-    Slick.flowWithPassThrough(AiringDAO.getAiringsByStart)
-
-  def getAiringsByEnd(endTime: LocalDateTime)(
-    implicit
-    db: Database
-  ): Future[Seq[Airing]] = {
-    db.run(AiringDAO.getAiringsByEnd(endTime))
-  }
-
-  def getAiringsByEnd$()(
-    implicit
-    session: SlickSession
-  ): Flow[LocalDateTime, Seq[Airing], NotUsed] =
-    Slick.flowWithPassThrough(AiringDAO.getAiringsByEnd)
-
-  def getAiringByShowStartAndEnd(showId: Long, startTime: LocalDateTime, endTime: LocalDateTime)(
-    implicit
-    db: Database
-  ): Future[Option[Airing]] =
-    db.run(AiringDAO.getAiringByShowStartAndEnd(showId, startTime, endTime))
-
-  def getAiringByShowStartAndEnd$()(
-    implicit
-    session: SlickSession
-  ): Flow[(Long, LocalDateTime, LocalDateTime), Option[Airing], NotUsed] =
-    Slick.flowWithPassThrough(
-      (AiringDAO.getAiringByShowStartAndEnd _).tupled
-    )
-
-  def getAiringsByStartAndDuration(startTime: LocalDateTime, duration: Int)(
-    implicit
-    db: Database
-  ): Future[Seq[Airing]] = {
-    val endTime: LocalDateTime = startTime.plusMinutes(duration)
-    db.run(AiringDAO.getAiringsBetweenStartAndEnd(startTime, endTime))
-  }
-
-  def getAiringsByStartAndDuration$()(
-    implicit
-    session: SlickSession
-  ): Flow[(LocalDateTime, Int), Seq[Airing], NotUsed] =
-    Flow[(LocalDateTime, Int)].map(tuple => (
-        tuple._1, tuple._1.plusMinutes(tuple._2)
-      )).via(
-        Slick.flowWithPassThrough((AiringDAO.getAiringsBetweenStartAndEnd _).tupled)
-      )
-
-  def upsertAiring(airing: Airing)(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Airing] =
-    db.run(AiringDAO.upsertAiring(airing))
-
-  def upsertAiring$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[Airing, Airing, NotUsed] =
-    Slick.flowWithPassThrough(AiringDAO.upsertAiring)
-
-  def getAiringStatus(airingId: String)(
-    implicit
-    db: Database
-  ): Future[Option[AiringStatus]] =
-    db.run(AiringDAO.getAiringStatus(airingId).headOption)
-
-  def getShowFromAiring(airingId: String)(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Option[ShowDetailed]] =
-    db.run(AiringDAO.getShowFromAiring(airingId)).map {
-      case Some((s: Show, series: Option[Series], se: Option[SportEvent])) => Some(ShowDetailed(
-        `type` = s.`type`,
-        title = s.title,
-        description = s.description,
-        seriesTitle = series.map(_.seriesName),
-        sportEventTitle = se.map(_.sportEventTitle),
-        originalAirDate = s.originalAirDate,
-      ))
-      case _ => Option.empty
-    }
-
-  def getAiringFromGracenote(convert: AiringConversion)(
-    implicit
-    db: Database
-  ): Future[Option[String]] =
-    db.run(AiringDAO.getAiringFromGracenote(convert).headOption)
-
-  def getAiringsFromGracenote(converts: Seq[AiringConversion])(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Seq[String]] =
-    Future.sequence(
-      converts.map(c =>
-        db.run(AiringDAO.getAiringFromGracenote(c).headOption)
-      )
-    ).map(_.filter(_.isDefined).map(_.get))
-
-  def getExtShowIdsByProviderChannelAndStartTime(
-    providerChannelId: Long,
-    startTime: LocalDateTime
-  )(implicit db: Database): Future[Seq[Long]] =
-    db.run(AiringDAO.getExtShowIdsByProviderChannelAndStartTime(
-      providerChannelId, startTime
-    ))
-}
 
 object AiringDAO {
   private[this] lazy val getAiringQuery = Compiled { (airingId: Rep[String]) =>
     AiringTable.table.filter(_.airingId === airingId)
   }
 
-  private[common] def getAiring(airingId: String): DBIO[Option[Airing]] =
-    getAiringQuery(airingId).result.headOption
+  def getAiring(airingId: String)(bust: Boolean = false)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Airing]] = cache(
+    "getAiring", airingId
+  )(db.run(getAiringQuery(airingId).result.headOption))(
+    bust = bust
+  )
+
+  private[this] lazy val getAiringsByStartQuery = Compiled { (startTime: Rep[LocalDateTime]) =>
+    AiringTable.table.filter(_.startTime === startTime)
+  }
+
+  def getAiringsByStart(startTime: LocalDateTime)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[Airing]] = cache(
+    "getAiringsByStart", startTime.toString
+  )(db.run(getAiringsByStartQuery(startTime).result))()
+
+  private[this] lazy val getAiringsByEndQuery = Compiled { (endTime: Rep[LocalDateTime]) =>
+    AiringTable.table.filter(_.endTime === endTime)
+  }
+
+  def getAiringsByEnd(endTime: LocalDateTime)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[Airing]] = cache(
+    "getAiringsByEnd", endTime.toString
+  )(db.run(getAiringsByEndQuery(endTime).result))()
 
   private[this] lazy val getAiringByShowStartAndEndQuery = Compiled {
     (showId: Rep[Long], startTime: Rep[LocalDateTime], endTime: Rep[LocalDateTime]) =>
@@ -166,44 +64,47 @@ object AiringDAO {
       }
   }
 
-  private[common] def getAiringByShowStartAndEnd(
-    showId: Long,
-    startTime: LocalDateTime,
-    endTime: LocalDateTime
-  ): DBIO[Option[Airing]] =
-    getAiringByShowStartAndEndQuery(showId, startTime, endTime).result.headOption
-
-  private[this] lazy val getAiringsByStartQuery = Compiled { (startTime: Rep[LocalDateTime]) =>
-    AiringTable.table.filter(_.startTime === startTime)
-  }
-
-  private[common] def getAiringsByStart(startTime: LocalDateTime): DBIO[Seq[Airing]] =
-    getAiringsByStartQuery(startTime).result
-
-  private[this] lazy val getAiringsByEndQuery = Compiled { (endTime: Rep[LocalDateTime]) =>
-    AiringTable.table.filter(_.endTime === endTime)
-  }
-
-  private[common] def getAiringsByEnd(endTime: LocalDateTime): DBIO[Seq[Airing]] =
-    getAiringsByEndQuery(endTime).result
+  def getAiringByShowStartAndEnd(showId: Long, startTime: LocalDateTime, endTime: LocalDateTime)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[Airing]] = cache(
+    "getAiringByShowStartAndEnd", showId, startTime.toString, endTime.toString
+  )(db.run(getAiringByShowStartAndEndQuery(
+    showId,
+    startTime,
+    endTime
+  ).result.headOption))()
 
   private[this] lazy val getAiringsBetweenStartAndEndQuery = Compiled {
     (startTime: Rep[LocalDateTime], endTime: Rep[LocalDateTime]) =>
       AiringTable.table.filter { airing =>
         (airing.startTime between (startTime, endTime)) &&
-        (airing.endTime between (startTime, endTime)) &&
-        (
-          airing.startTime <= startTime &&
-          airing.endTime >= endTime
-        )
+          (airing.endTime between (startTime, endTime)) &&
+          (
+            airing.startTime <= startTime &&
+            airing.endTime >= endTime
+          )
       }
   }
 
-  private[common] def getAiringsBetweenStartAndEnd(
-    startTime: LocalDateTime,
-    endTime: LocalDateTime
-  ): DBIO[Seq[Airing]] =
-    getAiringsBetweenStartAndEndQuery(startTime, endTime).result
+  def getAiringsByStartAndDuration(startTime: LocalDateTime, duration: Int)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[Airing]] = cache(
+    "getAiringsByStartAndDuration", startTime.toString, duration
+  )({
+    val endTime: LocalDateTime = startTime.plusMinutes(duration)
+    db.run(getAiringsBetweenStartAndEndQuery(
+      startTime,
+      endTime
+    ).result)
+  })()
 
   private[this] lazy val getExtShowIdsByProviderChannelAndStartTimeQuery = Compiled {
     (providerChannelId: Rep[Long], startTime: Rep[LocalDateTime]) => for {
@@ -216,115 +117,89 @@ object AiringDAO {
     } yield s.extId
   }
 
-  private[common] def getExtShowIdsByProviderChannelAndStartTime(
+  def getExtShowIdsByProviderChannelAndStartTime(
     providerChannelId: Long,
     startTime: LocalDateTime
-  ): DBIO[Seq[Long]] =
-    getExtShowIdsByProviderChannelAndStartTimeQuery(providerChannelId, startTime).result
-
-  private[common] def upsertAiring(airing: Airing)(
+  )(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Airing] = airing.airingId.fold[DBIO[Airing]](
-    (AiringTable.table returning AiringTable.table) += airing.copy(
-      airingId = Some(Airing.generateShortcode)
-    )
-  ) { (airingId: String) => for {
-    _ <- AiringTable
-      .table
-      .filter(_.airingId === airingId)
-      .update(airing)
-    updated <- AiringDAO.getAiring(airingId)
-  } yield updated.get}
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[Long]] = cache(
+    "getExtShowIdsByProviderChannelAndStartTime",
+    providerChannelId,
+    startTime.toString
+  )(db.run(getExtShowIdsByProviderChannelAndStartTimeQuery(
+    providerChannelId,
+    startTime
+  ).result))()
 
-  private[common] def getShowFromAiring(airingId: String)(
+  def getShowFromAiring(airingId: String)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Option[(Show, Option[Series], Option[SportEvent])]] = (for {
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[ShowDetailed]] = cache(
+    "getShowFromAiring", airingId
+  )(db.run((for {
     a <- AiringTable.table if a.airingId === airingId
     ((s, _), series) <- (ShowTable.table
-                  .joinLeft(EpisodeTable.table).on(_.episodeId === _.episodeId)
-                  .joinLeft(SeriesTable.table).on(_._2.map(_.seriesId).flatten === _.seriesId)) if s.showId === a.showId
+                                  .joinLeft(EpisodeTable.table).on(_.episodeId === _.episodeId)
+                                  .joinLeft(SeriesTable.table).on(_._2.map(_.seriesId) === _.seriesId)) if s.showId === a.showId
     (_, se) <- ShowTable.table.joinLeft(SportEventTable.table).on(_.sportEventId === _.sportEventId)
-  } yield (s, series, se)).result.headOption
+  } yield (s, series, se)).result.headOption).map {
+    case Some((s: Show, series: Option[Series], se: Option[SportEvent])) => Some(ShowDetailed(
+      `type` = s.`type`,
+      title = s.title,
+      description = s.description,
+      seriesTitle = series.map(_.seriesName),
+      sportEventTitle = se.map(_.sportEventTitle),
+      originalAirDate = s.originalAirDate,
+    ))
+    case _ => Option.empty
+  })()
 
-  private[this] def getLastAiringIdForShow(showId: Long)(
+  private[this] def addAiringForId(a: Airing)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Option[String]] = AiringTable
-    .table
-    .groupBy(row => (row.showId, row.airingId))
-    .filter(_._1._1 === showId)
-    .map {
-      case ((_, airingId), query) =>
-        airingId -> query.map(_.startTime).max
-    }.map(_._1).result.headOption
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[String] = cache(
+    "addAiringForId", a.airingId
+  )(db.run(
+    sql"""SELECT insert_or_get_airing_id(${a.airingId}, ${a.showId}, ${a.startTime}, ${a.endTime}, ${a.duration})"""
+      .as[String].head
+  ))()
 
-  private[common] def getLastAiringForShow(showId: Long)(
+  def addOrGetAiring(airing: Airing)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Option[Airing]] = for {
-    exists <- getLastAiringIdForShow(showId)
-    airing <- exists.fold[DBIO[Option[Airing]]](DBIO.successful(Option.empty[Airing]))(getAiring)
-  } yield airing
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Airing] = cache(
+    "addOrGetAiring",
+    airing.airingId
+  )(for {
+    exists <- getAiring(airing.airingId)()
+    a <- exists.fold(for {
+      airingId <- addAiringForId(airing)
+      selected <- getAiring(airingId)(bust = true).map(_.get)
+    } yield selected)(Future.successful)
+  } yield a)()
 
-  private[common] def getLastAiringForShow(showId: Long) =
-    sql"""SELECT a.*
-          FROM   airing as a
-          LEFT OUTER JOIN (
-            SELECT    show_id, max(start_time) as start_time
-            FROM      airing
-            GROUP BY  show_id
-          ) as latest
-          ON     a.show_id = latest.show_id
-          AND    a.start_time = latest.start_time
-          WHERE  a.show_id = $showId
-         """.as[Airing]
-
-  private[common] def addOrGetAiring(a: Airing) =
-    sql"""
-         WITH input_rows(airing_id, show_id, start_time, end_time, duration, is_new) AS (
-          VALUES (${a.airingId}, ${a.showId}, ${a.startTime}::timestamp, ${a.endTime}::timestamp, ${a.duration}, ${a.isNew})
-         ), ins AS (
-          INSERT INTO airing AS a (airing_id, show_id, start_time, end_time, duration, is_new)
-          SELECT * FROM input_rows
-          ON CONFLICT (show_id, start_time, end_time) DO NOTHING
-          RETURNING airing_id, show_id, start_time, end_time, duration, is_new
-         ), sel AS (
-          SELECT airing_id, show_id, start_time, end_time, duration, is_new
-          FROM ins
-          UNION ALL
-          SELECT a.airing_id, a.show_id, start_time, end_time, a.duration, a.is_new
-          FROM input_rows
-          JOIN airing as a USING (show_id, start_time, end_time)
-         ), ups AS (
-           INSERT INTO airing AS air (airing_id, show_id, start_time, end_time, duration, is_new)
-           SELECT i.*
-           FROM   input_rows i
-           LEFT   JOIN sel   s USING (show_id, start_time, end_time)
-           WHERE  s.show_id IS NULL
-           ON     CONFLICT (show_id, start_time, end_time) DO UPDATE
-           SET    show_id = excluded.show_id,
-                  start_time = excluded.start_time,
-                  end_time = excluded.end_time
-           RETURNING airing_id, show_id, start_time, end_time, duration, is_new
-         )  SELECT airing_id, show_id, start_time, end_time, duration, is_new FROM sel
-            UNION  ALL
-            TABLE  ups;
-         """.as[Airing]
-
-  private[this] def addAiringForId(a: Airing) =
-    sql"""SELECT insert_or_get_airing_id(${a.airingId}, ${a.showId}, ${a.startTime}, ${a.endTime}, ${a.duration})""".as[String]
-
-  private[common] def addAndGetAiring(airing: Airing)(
+  def getAiringStatus(airingId: String)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Airing] = (for {
-    airingId <- addAiringForId(airing).head
-    a <- getAiringQuery(airingId).result.head
-  } yield a)
-
-  private[common] def getAiringStatus(airingId: String): SqlStreamingAction[Seq[AiringStatus], AiringStatus, Effect] =
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[AiringStatus]] = cache(
+    "getAiringStatus", airingId
+  )(db.run(
     sql"""
        SELECT  a.airing_id, a.show_id, a.start_time, a.end_time, a.duration, a.is_new, CASE
         WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 15 AND
@@ -340,9 +215,10 @@ object AiringDAO {
         END AS  status
         FROM    airing as a
         WHERE   airing_id = $airingId
-      """.as[AiringStatus]
+      """.as[AiringStatus].headOption
+  ))()
 
-  private[common] def getAiringFromGracenote(convert: AiringConversion) =
+  private[this] def getAiringFromGracenoteQuery(convert: AiringConversion) =
     sql"""
          SELECT a.airing_id
          FROM   airing as a
@@ -361,4 +237,33 @@ object AiringDAO {
                 s.ext_id = ${convert.extShowId} AND
                 a.start_time = ${convert.startTime}
          """.as[String]
+
+  def getAiringFromGracenote(convert: AiringConversion)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[String]] = cache(
+    "getAiringFromGracenote",
+    convert.extChannelId,
+    convert.extShowId,
+    convert.provider,
+    convert.startTime.toString
+  )(db.run(getAiringFromGracenoteQuery(convert).headOption))()
+
+  def getAiringsFromGracenote(converts: Seq[AiringConversion])(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[String]] = cache(
+    "getAiringsFromGracenote",
+    converts.map(c => s"${c.extChannelId}|${c.extShowId}|${c.provider}|${c.startTime.toString}").mkString("|")
+  )(Future.sequence(
+    converts.map(c =>
+      getAiringFromGracenote(c)
+    )
+  ).map(_.filter(_.isDefined).map(_.get)))()
 }

@@ -16,7 +16,7 @@ import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{ProviderOwner, ZipProvider, Provider => InternalProvider}
 import com.couchmate.services.GracenoteCoordinator
 import com.couchmate.services.gracenote._
-import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
+import com.couchmate.util.akka.extensions.{CacheExtension, DatabaseExtension, SingletonExtension}
 import com.neovisionaries.i18n.CountryCode
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
@@ -25,12 +25,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-object ProviderJob
-  extends PlayJsonSupport
-  with ProviderDAO
-  with ProviderOwnerDAO
-  with ProviderChannelDAO
-  with ZipProviderDAO {
+object ProviderJob extends PlayJsonSupport {
 
   sealed trait Command
   case class JobEnded(
@@ -59,6 +54,9 @@ object ProviderJob
     implicit val mat: Materializer = Materializer(ctx)
     implicit val db: Database = DatabaseExtension(ctx.system).db
     implicit val timeout: Timeout = 30 seconds
+
+    val caches = CacheExtension(ctx.system)
+    import caches._
 
     val gracenoteCoordinator: ActorRef[GracenoteCoordinator.Command] =
       SingletonExtension(ctx.system).gracenoteCoordinator
@@ -107,14 +105,14 @@ object ProviderJob
     }
 
     def ingestProvider(gProvider: GracenoteProvider): Future[data.Provider] = for {
-      owner <- gProvider.mso.fold(addAndGetProviderOwner(
+      owner <- gProvider.mso.fold(ProviderOwnerDAO.addOrGetProviderOwner(
         "unknown",
         "Unknown"
-      ))(mso => addAndGetProviderOwner(
+      ))(mso => ProviderOwnerDAO.addOrGetProviderOwner(
         mso.id,
         mso.name
       ))
-      provider <- addAndGetProvider(data.Provider(
+      provider <- ProviderDAO.addOrGetProvider(data.Provider(
         providerOwnerId = owner.providerOwnerId.get,
         extId = gProvider.lineupId,
         name = gProvider.getName(countryCode),
@@ -130,13 +128,13 @@ object ProviderJob
       countryCode: CountryCode,
       providerId: Long,
     ): Future[ZipProvider] = for {
-      exists <- getZipProviderForZipAndCode(
+      exists <- ZipProviderDAO.getZipProviderForZipAndCode(
         zipCode,
         countryCode,
         providerId
       )
       zipProvider <- exists.fold(
-        addZipProvider(ZipProvider(
+        ZipProviderDAO.addZipProvider(ZipProvider(
           zipCode,
           countryCode,
           providerId

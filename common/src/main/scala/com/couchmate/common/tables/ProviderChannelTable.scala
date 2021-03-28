@@ -36,12 +36,53 @@ class ProviderChannelTable(tag: Tag) extends Table[ProviderChannel](tag, "provid
     onDelete = ForeignKeyAction.Restrict,
   )
 
+  def oldProviderChannelIdx = index(
+    "provider_channel_idx",
+    (providerId, channelId),
+  )
+
   def providerChannelIdx = index(
     "provider_channel_idx",
-    (providerId, channelId)
+    (providerId, channelId),
+    unique = true
   )
 }
 
 object ProviderChannelTable extends WithTableQuery[ProviderChannelTable] {
   private[couchmate] val table = TableQuery[ProviderChannelTable]
+
+  private[couchmate] val insertOrGetProviderChannelIdFunction: DBIO[Int] =
+    sqlu"""
+            CREATE OR REPLACE FUNCTION insert_or_get_provider_channel_id(
+              _provider_channel_id BIGINT,
+              _provider_id BIGINT,
+              _channel_id BIGINT,
+              _channel VARCHAR,
+              OUT __provider_channel_id BIGINT
+            ) AS
+            $$func$$
+              BEGIN
+                LOOP
+                  SELECT  provider_channel_id
+                  FROM    provider_channel
+                  WHERE   provider_id = _provider_id
+                  AND     channel_id = _channel_id
+                  FOR     SHARE
+                  INTO    __provider_channel_id;
+
+                  EXIT WHEN FOUND;
+
+                  INSERT INTO provider_channel
+                  (provider_id, channel_id, channel)
+                  VALUES
+                  (_provider_id, _channel_id, _channel)
+                  ON CONFLICT (provider_id, channel_id) DO NOTHING
+                  RETURNING provider_channel_id
+                  INTO __provider_channel_id;
+
+                  EXIT WHEN FOUND;
+                END LOOP;
+              END;
+            $$func$$ LANGUAGE plpgsql
+          """
 }

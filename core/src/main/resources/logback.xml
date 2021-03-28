@@ -10,10 +10,10 @@
   </root>
   <logger name="scala"                              level="INFO" />
   <logger name="akka"                               level="INFO" />
-  <logger name="slick"                              level="DEBUG" />
+  <logger name="slick"                              level="INFO" />
   <logger name="com.couchmate"                      level="DEBUG" />
   <logger name="com.couchmate.common.db.PgProfile"  level="ERROR" />
-  <logger name="com.zaxxer"                         level="DEBUG" />
+  <logger name="com.zaxxer"                         level="INFO" />
   <logger name="com.typesafe"                       level="INFO" />
   <logger name="org.quartz"                         level="INFO" />
 </configuration>

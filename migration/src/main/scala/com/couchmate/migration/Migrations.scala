@@ -1,7 +1,7 @@
 package com.couchmate.migration
 
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.tables.{AiringTable, EpisodeTable, LineupTable, ListingCacheTable, ProviderOwnerTable, ProviderTable, SeriesTable, ShowTable, SportEventTable, SportEventTeamTable, SportOrganizationTable, SportOrganizationTeamTable, SportTeamTable}
+import com.couchmate.common.tables.{AiringTable, ChannelOwnerTable, ChannelTable, EpisodeTable, LineupTable, ListingCacheTable, ProviderChannelTable, ProviderOwnerTable, ProviderTable, SeriesTable, ShowTable, SportEventTable, SportEventTeamTable, SportOrganizationTable, SportOrganizationTeamTable, SportTeamTable}
 import com.couchmate.migration.db.{Migration, MigrationDAO, MigrationItem, MigrationTable}
 import com.couchmate.migration.migrations._
 import com.typesafe.scalalogging.LazyLogging
@@ -70,7 +70,9 @@ object Migrations extends LazyLogging {
     ProviderOwnerMigrations.addIdx,
     ProviderMigrations.makeIdxUnique,
     ProviderMigrations.addDevice,
-    UserChannelFavoriteMigrations.init
+    UserChannelFavoriteMigrations.init,
+    LineupMigrations.airingIdx,
+    ProviderChannelMigrations.createUniqueIdx
   )
 
   val functions: Seq[DBIO[Int]] = Seq(
@@ -86,7 +88,10 @@ object Migrations extends LazyLogging {
     SportOrganizationTeamTable.insertOrGetSportOrganizationTeamIdFunction,
     SportTeamTable.insertOrGetSportTeamIdFunction,
     ProviderOwnerTable.insertOrGetProviderOwnerIdFunction,
-    ProviderTable.insertOrGetProviderIdFunction
+    ProviderTable.insertOrGetProviderIdFunction,
+    ChannelTable.insertOrGetChannelIdFunction,
+    ChannelOwnerTable.insertOrGetChannelOwnerIdFunction,
+    ProviderChannelTable.insertOrGetProviderChannelIdFunction
   )
 
   private[this] def applyMigrations()(

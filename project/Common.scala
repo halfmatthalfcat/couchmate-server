@@ -32,4 +32,13 @@ object Common {
 
     "com.github.tminglei" %% trueModule % Versions.slickPg
   }
+
+  def scalaCache(module: String = ""): ModuleID = {
+    val trueModule: String = module match {
+      case "" => "scalacache-core"
+      case _ => s"scalacache-$module"
+    }
+
+    "com.github.cb372" %% trueModule % Versions.scalaCache
+  }
 }

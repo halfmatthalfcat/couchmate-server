@@ -7,7 +7,7 @@ import akka.util.Timeout
 import com.couchmate.common.dao.{RoomActivityAnalyticsDAO, UserActivityAnalyticsDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{RoomActivityAnalytics, UserActivityAnalytics}
-import com.couchmate.util.akka.extensions.{DatabaseExtension, MailExtension}
+import com.couchmate.util.akka.extensions.{CacheExtension, DatabaseExtension, MailExtension}
 import com.typesafe.akka.extension.quartz.QuartzSchedulerExtension
 import com.typesafe.config.{Config, ConfigFactory}
 
@@ -16,9 +16,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-object ReportCoordinator
-  extends UserActivityAnalyticsDAO
-  with RoomActivityAnalyticsDAO {
+object ReportCoordinator {
   sealed trait Command
 
   private final case object RunUserActivityAnalyticsReport extends Command
@@ -41,6 +39,9 @@ object ReportCoordinator
     val scheduler: QuartzSchedulerExtension =
       QuartzSchedulerExtension(ctx.system.toClassic)
 
+    val caches = CacheExtension(ctx.system)
+    import caches._
+
     scheduler.schedule(
       "EveryDay",
       ctx.self.toClassic,
@@ -50,8 +51,8 @@ object ReportCoordinator
 
     Behaviors.receiveMessage {
       case RunUserActivityAnalyticsReport => ctx.pipeToSelf(for {
-        userAnalytics <- getAndAddUserAnalytics
-        roomAnalytics <- getRoomAnalytics
+        userAnalytics <- UserActivityAnalyticsDAO.getAndAddUserAnalytics
+        roomAnalytics <- RoomActivityAnalyticsDAO.getRoomAnalytics
       } yield (userAnalytics, roomAnalytics)) {
         case Success(report) => UserActivityAnalyticsReportSuccess(report)
         case Failure(exception) => UserActivityAnalyticsReportFailed(exception)

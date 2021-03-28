@@ -20,6 +20,8 @@ import com.couchmate.util.http.HttpActor
 import com.couchmate.util.jwt.Jwt.ExpiredJwtError
 import com.github.halfmatthalfcat.moniker.Moniker
 import com.neovisionaries.i18n.CountryCode
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -30,23 +32,17 @@ object UserActions
   with UserMuteDAO
   with UserWordBlockDAO
   with UserActivityDAO
-  with UserProviderDAO
   with UserReportDAO
-  with UserNotificationConfigurationDAO
-  with UserNotificationShowDAO
-  with UserNotificationSeriesDAO
-  with UserNotificationTeamDAO
-  with UserNotificationQueueDAO
-  with UserChannelFavoriteDAO
-  with ProviderDAO
-  with GridDAO {
+  with UserChannelFavoriteDAO {
 
   private[this] val moniker: Moniker = Moniker()
 
   private[commands] def createUser(geo: GeoContext)(
     implicit
+    db: Database,
     ec: ExecutionContext,
-    db: Database
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[InternalUser] = {
     val defaultProvider: GracenoteDefaultProvider =
       getDefaultProvider(geo)
@@ -67,7 +63,7 @@ object UserActions
           .mkString(""),
         email = None
       ))
-      _ <- addUserProvider(UserProvider(
+      _ <- UserProviderDAO.addUserProvider(UserProvider(
         userId = user.userId.get,
         defaultProvider.value
       ))
@@ -79,8 +75,10 @@ object UserActions
     geo: GeoContext
   )(
     implicit
-    ec: ExecutionContext,
     db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
     ctx: ActorContext[HttpActor.Command],
     jwt: JwtExtension
   ): Future[UUID] = (for {
@@ -103,8 +101,10 @@ object UserActions
 
   private[user] def createUserContext(userId: UUID)(
     implicit
-    ec: ExecutionContext,
     db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
     ctx: ActorContext[PersistentUser.Command],
     jwt: JwtExtension,
   ): Future[UserContext] = (getUser(userId) flatMap {
@@ -117,10 +117,10 @@ object UserActions
       ))
       mutes <- getUserMutes(userId)
       wordMutes <- getUserWordBlocks(userId)
-      userProvider <- getUserProvider(userId).map(_.getOrElse(
+      userProvider <- UserProviderDAO.getUserProvider(userId)().map(_.getOrElse(
         throw new RuntimeException(s"Could not find userProvider for $userId")
       ))
-      provider <- getProvider(userProvider.providerId).map(_.getOrElse(
+      provider <- ProviderDAO.getProvider(userProvider.providerId).map(_.getOrElse(
         throw new RuntimeException(s"Could not find provider for $userId (${userProvider.providerId})")
       ))
       token <- Future.fromTry(jwt.createToken(
@@ -131,7 +131,8 @@ object UserActions
         expiry = Duration.ofDays(365L)
       ))
       notifications <- getUserNotifications(userId)
-      notificationConfigurations <- getUserNotificationConfigurations(userId)
+      notificationConfigurations <- UserNotificationConfigurationDAO
+        .getUserNotificationConfigurations(userId)
       favoriteChannels <- getUserChannelFavorites(userId)
     } yield UserContext(
       user = user,
@@ -143,7 +144,7 @@ object UserActions
       wordMutes = wordMutes,
       notifications = notifications,
       notificationConfigurations = notificationConfigurations,
-      favoriteChannels = favoriteChannels
+      favoriteChannels = favoriteChannels.map(_.providerChannelId)
     )
   }) recoverWith {
     case ex: Throwable =>
@@ -541,6 +542,30 @@ object UserActions
     }
   }
 
+  private[commands] def addChannelFavorite(
+    userId: UUID,
+    providerChannelId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Seq[Long]] = for {
+    _ <- addUserChannelFavorite(userId, providerChannelId)
+    favorites <- getUserChannelFavorites(userId)
+  } yield favorites.map(_.providerChannelId)
+
+  private[commands] def removeChannelFavorite(
+    userId: UUID,
+    providerChannelId: Long
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Seq[Long]] = for {
+    _ <- removeUserChannelFavorite(userId, providerChannelId)
+    favorites <- getUserChannelFavorites(userId)
+  } yield favorites.map(_.providerChannelId)
+
   private[commands] def setNotificationToken(
     userId: UUID,
     os: ApplicationPlatform,
@@ -551,10 +576,11 @@ object UserActions
     ec: ExecutionContext,
     db: Database,
   ): Future[Seq[UserNotificationConfiguration]] = for {
-    _ <- updateUserNotificationToken(
+    _ <- UserNotificationConfigurationDAO.updateUserNotificationToken(
       userId, os, deviceId, token
     )
-    notifications <- getUserNotificationConfigurations(userId)
+    notifications <- UserNotificationConfigurationDAO
+      .getUserNotificationConfigurations(userId)
   } yield notifications
 
   private[commands] def enableNotifications(
@@ -566,10 +592,11 @@ object UserActions
     ec: ExecutionContext,
     db: Database,
   ): Future[Seq[UserNotificationConfiguration]] = for {
-    _ <- updateUserNotificationActive(
+    _ <- UserNotificationConfigurationDAO.updateUserNotificationActive(
       userId, os, deviceId, active = true
     )
-    notifications <- getUserNotificationConfigurations(userId)
+    notifications <- UserNotificationConfigurationDAO
+      .getUserNotificationConfigurations(userId)
   } yield notifications
 
   private[commands] def disableNotifications(
@@ -581,17 +608,18 @@ object UserActions
     ec: ExecutionContext,
     db: Database
   ): Future[Seq[UserNotificationConfiguration]] = for {
-    _ <- updateUserNotificationActive(
+    _ <- UserNotificationConfigurationDAO.updateUserNotificationActive(
       userId, os, deviceId, active = false
     )
-    notifications <- getUserNotificationConfigurations(userId)
+    notifications <- UserNotificationConfigurationDAO
+      .getUserNotificationConfigurations(userId)
   } yield notifications
 
   private[commands] def notificationRead(notificationId: UUID)(
     implicit
     ec: ExecutionContext,
     db: Database
-  ): Future[Boolean] = updateNotificationRead(notificationId)
+  ): Future[Boolean] = UserNotificationQueueDAO.updateNotificationRead(notificationId)
 
   private[commands] def addShowNotification(
     userId: UUID,
@@ -601,12 +629,14 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotifications] = for {
-    notification <- addOrGetUserShowNotification(
+    notification <- UserNotificationShowDAO.addOrGetUserShowNotification(
       userId, airingId, providerChannelId, hash
     )
-    _ <- addUserShowNotification(
+    _ <- UserNotificationQueueDAO.addUserNotificationForShow(
       userId,
       airingId,
       providerChannelId,
@@ -622,10 +652,12 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotifications] = for {
-    _ <- removeUserShowNotification(userId, airingId, channelId)
-    _ <- removeUserNotificationForShow(userId, airingId)
+    _ <- UserNotificationShowDAO.removeUserShowNotification(userId, airingId, channelId)
+    _ <- UserNotificationQueueDAO.removeUserNotificationForShow(userId, airingId)
     notifications <- getUserNotifications(userId)
   } yield notifications
 
@@ -638,9 +670,11 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotifications] = for {
-    _ <- toggleUserTeamNotification(
+    _ <- UserNotificationTeamDAO.toggleUserTeamNotification(
       userId, teamId, providerId, hash, enabled
     )
     notifications <- getUserNotifications(userId)
@@ -655,9 +689,11 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotifications] = for {
-    _ <- toggleOnlyNewUserTeamNotification(
+    _ <- UserNotificationTeamDAO.toggleOnlyNewUserTeamNotification(
       userId, teamId, providerId, hash, onlyNew
     )
     notifications <- getUserNotifications(userId)
@@ -671,9 +707,11 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotifications] = for {
-    _ <- updateHashTeamNotification(
+    _ <- UserNotificationTeamDAO.updateHashUserTeamNotification(
       userId, teamId, providerId, hash
     )
     notifications <- getUserNotifications(userId)
@@ -687,12 +725,14 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotificationAdded] = for {
-    notification <- addOrGetUserTeamNotification(
+    notification <- UserNotificationTeamDAO.addOrGetUserTeamNotification(
       userId, teamId, providerId, hash
     )
-    _ <- addUserNotificationForSportTeam(
+    _ <- UserNotificationQueueDAO.addUserNotificationForSportTeam(
       userId,
       teamId,
       providerId,
@@ -709,10 +749,12 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotificationRemoved] = for {
-    _ <- removeUserTeamNotification(userId, teamId, providerId)
-    _ <- removeUserNotificationForTeam(userId, teamId, providerId)
+    _ <- UserNotificationTeamDAO.removeUserTeamNotification(userId, teamId, providerId)
+    _ <- UserNotificationQueueDAO.removeUserNotificationForTeam(userId, teamId, providerId)
     notifications <- getUserNotifications(userId)
   } yield UserNotificationRemoved(notifications)
 
@@ -724,12 +766,14 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotificationAdded] = for {
-    notification <- addOrGetUserSeriesNotification(
+    notification <- UserNotificationSeriesDAO.addOrGetUserSeriesNotification(
       userId, seriesId, providerChannelId, hash
     )
-    _ <- addUserNotificationForSeries(
+    _ <- UserNotificationQueueDAO.addUserNotificationForSeries(
       userId,
       seriesId,
       providerChannelId,
@@ -748,9 +792,11 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotifications] = for {
-    _ <- toggleUserSeriesNotification(
+    _ <- UserNotificationSeriesDAO.toggleUserSeriesNotification(
       userId,
       seriesId,
       providerChannelId,
@@ -768,9 +814,11 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotifications] = for {
-    _ <- updateHashUserSeriesNotification(
+    _ <- UserNotificationSeriesDAO.updateHashUserSeriesNotification(
       userId, seriesId, providerChannelId, hash
     )
     notifications <- getUserNotifications(userId)
@@ -785,9 +833,11 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotifications] = for {
-    _ <- toggleOnlyNewUserSeriesNotification(
+    _ <- UserNotificationSeriesDAO.toggleOnlyNewUserSeriesNotification(
       userId, seriesId, providerChannelId, hash, enabled
     )
     notifications <- getUserNotifications(userId)
@@ -800,21 +850,25 @@ object UserActions
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotificationRemoved] = for {
-    _ <- removeUserSeriesNotification(userId, seriesId, channelId)
-    _ <- removeUserNotificationForSeries(userId, seriesId, channelId)
+    _ <- UserNotificationSeriesDAO.removeUserSeriesNotification(userId, seriesId, channelId)
+    _ <- UserNotificationQueueDAO.removeUserNotificationForSeries(userId, seriesId, channelId)
     notifications <- getUserNotifications(userId)
   } yield UserNotificationRemoved(notifications)
 
   private[this] def getUserNotifications(userId: UUID)(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[UserNotifications] = for {
-    shows <- getUserShowNotifications(userId)
-    series <- getUserSeriesNotifications(userId)
-    teams <- getUserTeamNotifications(userId)
+    shows <- UserNotificationShowDAO.getUserShowNotifications(userId)
+    series <- UserNotificationSeriesDAO.getUserSeriesNotifications(userId)
+    teams <- UserNotificationTeamDAO.getUserTeamNotifications(userId)
   } yield UserNotifications(
     shows,
     series,
@@ -826,14 +880,16 @@ object UserActions
     providerId: Long
   )(
     implicit
+    db: Database,
     ec: ExecutionContext,
-    db: Database
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[Provider] = for {
-    _ <- updateUserProvider(UserProvider(
+    _ <- UserProviderDAO.updateUserProvider(UserProvider(
       userId = userId,
       providerId = providerId
     ))
-    provider <- getProvider(providerId)
+    provider <- ProviderDAO.getProvider(providerId)
   } yield provider.get
 
   private[this] def getDefaultProvider(context: GeoContext): GracenoteDefaultProvider = context match {

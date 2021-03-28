@@ -18,8 +18,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-object NotificationCoordinator
-  extends UserNotificationQueueDAO {
+object NotificationCoordinator {
   sealed trait Command
 
   private final case object Run extends Command
@@ -101,10 +100,10 @@ object NotificationCoordinator
           case SendResults(results) => Effect.none.thenRun(_ => {
             Future.sequence(results.collect({
               case Right(NotificationSuccess(notificationId)) =>
-                deliverUserNotificationItem(notificationId, true)
+                UserNotificationQueueDAO.deliverUserNotificationItem(notificationId, true)
               case Left(NotificationFailure(notificationId, cause, description)) =>
                 ctx.log.error(s"Failed to deliver notification: ${cause}:${description}")
-                deliverUserNotificationItem(notificationId, false)
+                UserNotificationQueueDAO.deliverUserNotificationItem(notificationId, false)
             }))
           })
           case SendError(ex) => Effect.none.thenRun(_ => {
@@ -148,17 +147,17 @@ object NotificationCoordinator
       to
     )
     if (diff > 1 && diff > 15) {
-      getUserNotificationItemsForDeliveryRange(
+      UserNotificationQueueDAO.getUserNotificationItemsForDeliveryRange(
         to.minusMinutes(15),
         to
       )
     } else if (diff > 1) {
-      getUserNotificationItemsForDeliveryRange(
+      UserNotificationQueueDAO.getUserNotificationItemsForDeliveryRange(
         from,
         to
       )
     } else {
-      getUserNotificationItemsForDelivery(to)
+      UserNotificationQueueDAO.getUserNotificationItemsForDelivery(to)
     }
   }
 }

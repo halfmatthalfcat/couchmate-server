@@ -2,7 +2,6 @@ package com.couchmate.services.gracenote.listing
 
 import java.time.{LocalDateTime, ZoneId}
 import java.util.UUID
-
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.http.scaladsl.{Http, HttpExt}
@@ -17,7 +16,7 @@ import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{Lineup, ListingJobStatus, Provider, ListingJob => ListingJobModel}
 import com.couchmate.common.util.DateUtils
 import com.couchmate.services.GracenoteCoordinator
-import com.couchmate.util.akka.extensions.{DatabaseExtension, SingletonExtension}
+import com.couchmate.util.akka.extensions.{CacheExtension, DatabaseExtension, SingletonExtension}
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 
@@ -25,11 +24,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-object ListingJob
-  extends PlayJsonSupport
-  with ProviderDAO
-  with GridDAO
-  with ListingJobDAO {
+object ListingJob extends PlayJsonSupport {
   sealed trait Command
 
   final case class AddListener(actorRef: ActorRef[Command]) extends Command
@@ -94,10 +89,13 @@ object ListingJob
     implicit val config: Config = ConfigFactory.load()
     implicit val timeout: Timeout = 30 seconds
 
+    val caches = CacheExtension(ctx.system)
+    import caches._
+
     val gracenoteCoordinator: ActorRef[GracenoteCoordinator.Command] =
       SingletonExtension(ctx.system).gracenoteCoordinator
 
-    ctx.pipeToSelf(getProvider(providerId)) {
+    ctx.pipeToSelf(ProviderDAO.getProvider(providerId)) {
       case Success(Some(value)) => ProviderSuccess(value)
       case Success(None) => ProviderFailure(new RuntimeException("Cant find provider"))
       case Failure(exception) => ProviderFailure(exception)
@@ -109,7 +107,7 @@ object ListingJob
       case Failure(exception) => SportsFailure(exception)
     }
 
-    ctx.pipeToSelf(upsertListingJob(ListingJobModel(
+    ctx.pipeToSelf(ListingJobDAO.upsertListingJob(ListingJobModel(
       providerId = providerId,
       pullAmount = pullType.value,
       started = LocalDateTime.now(ZoneId.of("UTC")),
@@ -231,7 +229,7 @@ object ListingJob
              }
            })
           // Side-effect to update job
-          .alsoTo(Sink.foreachAsync(1)(plan => upsertListingJob(
+          .alsoTo(Sink.foreachAsync(1)(plan => ListingJobDAO.upsertListingJob(
             state.job.copy(
               lastSlot = Some(plan.startTime)
             )
@@ -243,10 +241,10 @@ object ListingJob
          ))
         )
         .run
-        .flatMap(_ => getGrid(providerId))
+        .flatMap(_ => GridDAO.getGrid(providerId)(bust = true))
         .onComplete {
           case Success(value) =>
-            upsertListingJob(
+            ListingJobDAO.upsertListingJob(
               state.job.copy(
                 completed = Some(LocalDateTime.now(ZoneId.of("UTC"))),
                 status = ListingJobStatus.Complete,
@@ -260,7 +258,7 @@ object ListingJob
             }
           case Failure(exception) =>
             ctx.log.error(s"Listing job for $providerId failed", exception)
-            upsertListingJob(
+            ListingJobDAO.upsertListingJob(
               state.job.copy(
                 completed = Some(LocalDateTime.now(ZoneId.of("UTC"))),
                 status = ListingJobStatus.Error

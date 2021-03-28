@@ -14,7 +14,7 @@ import com.couchmate.common.models.api.room.message.{Message, SystemMessage, Sys
 import com.couchmate.common.models.data.{AiringStatus, RoomActivity, RoomActivityType, RoomStatusType}
 import com.couchmate.services.room.LinkScanner.{ScanMessage, getLinks}
 import com.couchmate.services.user.context.UserContext
-import com.couchmate.util.akka.extensions.{DatabaseExtension, PromExtension, SingletonExtension, UserExtension}
+import com.couchmate.util.akka.extensions.{CacheExtension, DatabaseExtension, PromExtension, SingletonExtension, UserExtension}
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.sslconfig.util.ConfigLoader
 
@@ -23,9 +23,7 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-object Chatroom
-  extends AiringDAO
-  with RoomActivityDAO {
+object Chatroom {
   val TypeKey: EntityTypeKey[Command] =
     EntityTypeKey[Command]("Chatroom")
 
@@ -166,6 +164,9 @@ object Chatroom
     implicit val singleton: SingletonExtension =
       SingletonExtension(ctx.system)
 
+    val caches = CacheExtension(ctx.system)
+    import caches._
+
     Behaviors.withTimers { timers =>
       EventSourcedBehavior(
         persistenceId,
@@ -185,7 +186,7 @@ object Chatroom
         eventHandler
       ).receiveSignal {
         case (State(airingId, None, _, _), RecoveryCompleted) =>
-          ctx.pipeToSelf(getAiringStatus(airingId)) {
+          ctx.pipeToSelf(AiringDAO.getAiringStatus(airingId)) {
             case Success(Some(value)) => GetAiringSuccess(value)
             case Success(None) => GetAiringFailure(new RuntimeException(s"Unable to get Airing for ${airingId}"))
             case Failure(ex) => GetAiringFailure(ex)
@@ -295,7 +296,7 @@ object Chatroom
             .thenRun((_: State) => room.broadcastInCluster(
               UpdateHashRooms(roomMgr.getHashRoomCounts)
             ))
-            .thenRun((s: State) => addRoomActivity(RoomActivity(
+            .thenRun((s: State) => RoomActivityDAO.addRoomActivity(RoomActivity(
                s.airingId,
                userContext.user.userId.get,
                RoomActivityType.Joined
@@ -373,7 +374,7 @@ object Chatroom
               ParticipantLeft(participant)
             )
           ))
-          .thenRun((s: State) => addRoomActivity(RoomActivity(
+          .thenRun((s: State) => RoomActivityDAO.addRoomActivity(RoomActivity(
             s.airingId,
             userId,
             RoomActivityType.Left

@@ -14,8 +14,7 @@ import com.neovisionaries.i18n.CountryCode
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
-object ProviderCoordinator
-  extends ZipProviderDAO {
+object ProviderCoordinator {
   sealed trait Command
 
   final case class RequestProviders(
@@ -46,7 +45,7 @@ object ProviderCoordinator
       case ProviderJob.JobFailure(zipCode, country, _) => RemoveProvider(zipCode, country, Seq())
     }
 
-    ctx.pipeToSelf(getZipMap) {
+    ctx.pipeToSelf(ZipProviderDAO.getZipMap) {
       case Success(value) => ZipProvidersSuccess(
         value
           .groupBy(dzp => (dzp.zipCode, dzp.countryCode))

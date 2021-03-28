@@ -6,21 +6,14 @@ import com.couchmate.common.models.data.{Airing, RoomActivity, RoomActivityAnaly
 import com.couchmate.common.tables.RoomActivityTable
 import com.couchmate.common.util.DateUtils
 import play.api.libs.json.{Format, Json}
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import java.time.{Duration, LocalDateTime, ZoneId}
 import java.util.UUID
 import scala.annotation.tailrec
 import scala.compat.java8.DurationConverters
 import scala.concurrent.{ExecutionContext, Future}
-
-trait RoomActivityAnalyticsDAO {
-  def getRoomAnalytics(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[RoomActivityAnalytics] =
-    db.run(RoomActivityAnalyticsDAO.getRoomAnalytics)
-}
 
 object RoomActivityAnalyticsDAO {
   private[this] case class RoomActivityAnalyticSession(
@@ -72,25 +65,28 @@ object RoomActivityAnalyticsDAO {
 
   private[this] def getRoomActivityAnalyticAiring(airingId: String)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Option[RoomActivityAnalyticAiring]] = (for {
-    airing <- AiringDAO.getAiring(airingId)
-    show <- airing.fold[DBIO[Option[Show]]](DBIO.successful(Option.empty))(
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[RoomActivityAnalyticAiring]] = (for {
+    airing <- AiringDAO.getAiring(airingId)()
+    show <- airing.fold(Future.successful(Option.empty[Show]))(
       show => ShowDAO.getShow(show.showId)
     )
-    series <- show.flatMap(_.episodeId).fold[DBIO[Option[GridSeries]]](DBIO.successful(Option.empty))(
-      episodeId => SeriesDAO.getGridSeries(episodeId).headOption
+    series <- show.flatMap(_.episodeId).fold(Future.successful(Option.empty[GridSeries]))(
+      episodeId => SeriesDAO.getGridSeries(episodeId)
     )
-    sport <- show.flatMap(_.sportEventId).fold[DBIO[Option[GridSport]]](DBIO.successful(Option.empty))(
+    sport <- show.flatMap(_.sportEventId).fold(Future.successful(Option.empty[GridSport]))(
       sportEventId => SportTeamDAO.getGridSport(sportEventId)
     )
   } yield (airing, show, series, sport)) flatMap {
-    case (Some(airing), Some(show), series, sport) => DBIO.successful(
+    case (Some(airing), Some(show), series, sport) => Future.successful(
       Some(RoomActivityAnalyticAiring(
         airing, show, sport, series
       ))
     )
-    case _ => DBIO.successful(
+    case _ => Future.successful(
       Option.empty[RoomActivityAnalyticAiring]
     )
   }
@@ -102,17 +98,21 @@ object RoomActivityAnalyticsDAO {
       ).sortBy(_.created.asc)
     }
 
-  private[couchmate] def getLast24Hours: DBIO[Seq[RoomActivity]] =
-    getActivityRange(
-      DateUtils.roundNearestDay(
-        LocalDateTime.now(ZoneId.of("UTC")).minusDays(1)
-      ),
-      DateUtils.roundNearestDay(
-        LocalDateTime.now(ZoneId.of("UTC"))
-      )
-    ).result
+  private[this] def getLast24Hours(
+    implicit db: Database
+  ): Future[Seq[RoomActivity]] = db.run(getActivityRange(
+    DateUtils.roundNearestDay(
+      LocalDateTime.now(ZoneId.of("UTC")).minusDays(1)
+    ),
+    DateUtils.roundNearestDay(
+      LocalDateTime.now(ZoneId.of("UTC"))
+    )
+  ).result)
 
-  private[couchmate] def getLastWeek: DBIO[Seq[RoomActivity]] =
+
+  private[this] def getLastWeek(
+    implicit db: Database
+  ): Future[Seq[RoomActivity]] = db.run(
     getActivityRange(
       DateUtils.roundNearestDay(
         LocalDateTime.now(ZoneId.of("UTC"))
@@ -122,8 +122,12 @@ object RoomActivityAnalyticsDAO {
         LocalDateTime.now(ZoneId.of("UTC"))
       )
     ).result
+  )
 
-  private[couchmate] def getLastMonth: DBIO[Seq[RoomActivity]] =
+
+  private[this] def getLastMonth(
+    implicit db: Database
+  ): Future[Seq[RoomActivity]] = db.run(
     getActivityRange(
       DateUtils.roundNearestDay(
         LocalDateTime.now(ZoneId.of("UTC"))
@@ -133,11 +137,15 @@ object RoomActivityAnalyticsDAO {
         LocalDateTime.now(ZoneId.of("UTC"))
       )
     ).result
+  )
 
-  private[couchmate] def getRoomAnalytics(
+  def getRoomAnalytics(
     implicit
-    ec: ExecutionContext
-  ): DBIO[RoomActivityAnalytics] = for {
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[RoomActivityAnalytics] = for {
     last24Hours <- getLast24Hours.flatMap(getAiringsFromActivities)
     lastWeek <- getLastWeek.flatMap(getAiringsFromActivities)
     lastMonth <- getLastMonth.flatMap(getAiringsFromActivities)
@@ -149,8 +157,11 @@ object RoomActivityAnalyticsDAO {
 
   private[this] def getAiringsFromActivities(activities: Seq[RoomActivity])(
     implicit
-    ec: ExecutionContext
-  ): DBIO[RoomActivityAnalyticContent] = DBIO.fold[Seq[RoomActivityAnalyticSessions], Effect.All](
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[RoomActivityAnalyticContent] = Future.sequence(
     activities.groupBy(_.airingId).map {
       case (airingId, roomActivities) =>
         getRoomActivityAnalyticAiring(airingId)
@@ -163,9 +174,8 @@ object RoomActivityAnalyticsDAO {
               )
             )
           ))).getOrElse(Seq.empty))
-    }.toSeq,
-    Seq.empty
-  )(_ ++ _).map(sessions => {
+    }.toSeq
+  ).map(_.fold(Seq.empty)(_ ++ _)).map(sessions => {
     val typs = sessions.groupBy(_.airing.show.`type`)
     RoomActivityAnalyticContent(
       shows = typs

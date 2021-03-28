@@ -19,6 +19,8 @@ import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsDirectives
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
 import fr.davit.akka.http.metrics.prometheus.marshalling.PrometheusMarshallers._
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -41,6 +43,8 @@ trait Routes
     timeout: Timeout,
     ctx: ActorContext[HttpActor.Command],
     system: ActorSystem[Nothing],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Route = cors() {
     concat(
       path("metrics") {
