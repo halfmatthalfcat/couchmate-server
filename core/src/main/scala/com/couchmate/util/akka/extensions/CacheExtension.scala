@@ -36,9 +36,12 @@ class CacheExtension(system: ActorSystem[_]) extends Extension {
     jedisPoolConfig,
     config.getString("cache.redis.host"),
     config.getInt("cache.redis.port"),
-    2000,
-    Try(config.getString("cache.redis.password")).getOrElse(null)
+    10000,
+    Try(config.getString("cache.redis.password")).getOrElse(null),
+    config.getString("environment") != "local"
   )
+
+  System.out.println(s"${config.getString("cache.redis.host")}:${config.getInt("cache.redis.port")} @ ${Try(config.getString("cache.redis.password")).getOrElse(null)}")
 
   implicit val caffeine: CaffeineCache[String] =
     CaffeineCache(caffeineCache)
