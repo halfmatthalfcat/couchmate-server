@@ -19,6 +19,10 @@ app:
     username: {{.Values.dbUsername}}
     password: {{.Values.dbPassword}}
     name: {{.Values.dbName}}
+  redis:
+    host: {{.Values.redisHost}}
+    port: {{.Values.redisPort}}
+    password: {{.Values.redisPassword}}
   mailgun:
     apiKey: {{.Values.mailgunApiKey}}
     validationKey: {{.Values.mailgunValidationKey}}

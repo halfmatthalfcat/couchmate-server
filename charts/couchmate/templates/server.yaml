@@ -41,6 +41,12 @@ spec:
               value: {{.Values.app.db.username}}
             - name: POSTGRES_PASSWORD
               value: {{.Values.app.db.password}}
+            - name: REDIS_HOST
+              value: {{.Values.app.redis.host}}
+            - name: REDIS_PORT
+              value: {{.Values.app.redis.port}}
+            - name: REDIS_PASSWORD
+              value: {{.Values.app.redis.password}}
             - name: MAILGUN_API_KEY
               value: {{.Values.app.mailgun.apiKey}}
             - name: MAILGUN_VALIDATION_KEY
