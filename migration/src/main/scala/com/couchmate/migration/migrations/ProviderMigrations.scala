@@ -3,9 +3,12 @@ package com.couchmate.migration.migrations
 import com.couchmate.common.dao.ProviderDAO
 import com.couchmate.common.models.data.{Provider, ProviderType}
 import com.couchmate.common.tables.ProviderTable
+import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.migration.db.MigrationItem
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 object ProviderMigrations {
 
@@ -32,12 +35,18 @@ object ProviderMigrations {
     )
   )()
 
-  def addDevice(implicit ec: ExecutionContext) = MigrationItem(57L, ProviderTable.table)(
+  def addDevice(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ) = MigrationItem(57L, ProviderTable.table)(
     _.addColumns(
       _.device
     )
-  )(
-    ProviderDAO.addAndGetProvider(Provider(
+  )(() => Seq(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "USA-DFLTE",
@@ -46,7 +55,7 @@ object ProviderMigrations {
       location = Some("USA"),
       device = None
     )),
-    ProviderDAO.addAndGetProvider(Provider(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "USA-DFLTC",
@@ -55,7 +64,7 @@ object ProviderMigrations {
       location = Some("USA"),
       device = None
     )),
-    ProviderDAO.addAndGetProvider(Provider(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "USA-DFLTM",
@@ -64,7 +73,7 @@ object ProviderMigrations {
       location = Some("USA"),
       device = None
     )),
-    ProviderDAO.addAndGetProvider(Provider(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "USA-DFLTP",
@@ -73,7 +82,7 @@ object ProviderMigrations {
       location = Some("USA"),
       device = None
     )),
-    ProviderDAO.addAndGetProvider(Provider(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "USA-DFLTH",
@@ -82,7 +91,7 @@ object ProviderMigrations {
       location = Some("USA"),
       device = None
     )),
-    ProviderDAO.addAndGetProvider(Provider(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "USA-DFLTA",
@@ -91,7 +100,7 @@ object ProviderMigrations {
       location = Some("USA"),
       device = None
     )),
-    ProviderDAO.addAndGetProvider(Provider(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "CAN-DFLTEC",
@@ -100,7 +109,7 @@ object ProviderMigrations {
       location = Some("Canada"),
       device = None
     )),
-    ProviderDAO.addAndGetProvider(Provider(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "CAN-DFLTCC",
@@ -109,7 +118,7 @@ object ProviderMigrations {
       location = Some("Canada"),
       device = None
     )),
-    ProviderDAO.addAndGetProvider(Provider(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "CAN-DFLTMC",
@@ -118,7 +127,7 @@ object ProviderMigrations {
       location = Some("Canada"),
       device = None
     )),
-    ProviderDAO.addAndGetProvider(Provider(
+    () => ProviderDAO.addOrGetProvider(Provider(
       providerId = None,
       providerOwnerId = 1L,
       extId = "CAN-DFLTPC",
@@ -127,6 +136,10 @@ object ProviderMigrations {
       location = Some("Canada"),
       device = None
     ))
-  )
+  ).foldLeft(Future.successful(Seq.empty[Provider]))((acc, curr) => for {
+    results <- acc
+    result <- curr()
+    _ = System.out.println(s"Created ${result}")
+  } yield results :+ result))
 
 }

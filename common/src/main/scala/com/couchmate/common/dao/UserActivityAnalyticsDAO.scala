@@ -11,22 +11,6 @@ import scala.annotation.tailrec
 import scala.compat.java8.DurationConverters
 import scala.concurrent.{ExecutionContext, Future}
 
-trait UserActivityAnalyticsDAO {
-  def getUserAnalytics(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[UserActivityAnalytics] =
-    db.run(UserActivityAnalyticsDAO.getUserAnalytics)
-
-  def getAndAddUserAnalytics(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[UserActivityAnalytics] =
-    db.run(UserActivityAnalyticsDAO.getAndAddUserAnalytics)
-}
-
 object UserActivityAnalyticsDAO {
   private[this] case class UserAnalyticSession(
     begin: LocalDateTime,
@@ -49,7 +33,9 @@ object UserActivityAnalyticsDAO {
       ).sortBy(_.created.asc)
     }
 
-  private[couchmate] def getLast24Hours: DBIO[Seq[UserActivity]] =
+  private[this] def getLast24Hours(
+    implicit db: Database
+  ): Future[Seq[UserActivity]] = db.run(
     getActivityRange(
       DateUtils.roundNearestDay(
         LocalDateTime.now(ZoneId.of("UTC")).minusDays(1)
@@ -58,8 +44,12 @@ object UserActivityAnalyticsDAO {
         LocalDateTime.now(ZoneId.of("UTC"))
       )
     ).result
+  )
 
-  private[couchmate] def getPrev24Hours: DBIO[Seq[UserActivity]] =
+
+  private[this] def getPrev24Hours(
+    implicit db: Database
+  ): Future[Seq[UserActivity]] = db.run(
     getActivityRange(
       DateUtils.roundNearestDay(
         LocalDateTime.now(ZoneId.of("UTC")).minusDays(2)
@@ -68,8 +58,12 @@ object UserActivityAnalyticsDAO {
         LocalDateTime.now(ZoneId.of("UTC")).minusDays(1)
       )
     ).result
+  )
 
-  private[couchmate] def getLast24HoursLastWeek: DBIO[Seq[UserActivity]] =
+
+  private[this] def getLast24HoursLastWeek(
+    implicit db: Database
+  ): Future[Seq[UserActivity]] = db.run(
     getActivityRange(
       DateUtils.roundNearestDay(
         LocalDateTime.now(ZoneId.of("UTC"))
@@ -80,8 +74,12 @@ object UserActivityAnalyticsDAO {
         LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(1)
       )
     ).result
+  )
 
-  private[couchmate] def getLastWeek: DBIO[Seq[UserActivity]] =
+
+  private[this] def getLastWeek(
+    implicit db: Database
+  ): Future[Seq[UserActivity]] = db.run(
     getActivityRange(
       DateUtils.roundNearestDay(
         LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(1)
@@ -90,8 +88,12 @@ object UserActivityAnalyticsDAO {
         LocalDateTime.now(ZoneId.of("UTC"))
       )
     ).result
+  )
 
-  private[couchmate] def getPrevWeek: DBIO[Seq[UserActivity]] =
+
+  private[this] def getPrevWeek(
+    implicit db: Database
+  ): Future[Seq[UserActivity]] = db.run(
     getActivityRange(
       DateUtils.roundNearestHour(
         LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(2)
@@ -100,8 +102,12 @@ object UserActivityAnalyticsDAO {
         LocalDateTime.now(ZoneId.of("UTC")).minusWeeks(1)
       )
     ).result
+  )
 
-  private[couchmate] def getLastMonth: DBIO[Seq[UserActivity]] =
+
+  private[this] def getLastMonth(
+    implicit db: Database
+  ): Future[Seq[UserActivity]] = db.run(
     getActivityRange(
       DateUtils.roundNearestDay(
         LocalDateTime.now(ZoneId.of("UTC")).minusMonths(1)
@@ -110,8 +116,12 @@ object UserActivityAnalyticsDAO {
         LocalDateTime.now(ZoneId.of("UTC"))
       )
     ).result
+  )
 
-  private[couchmate] def getPrevMonth: DBIO[Seq[UserActivity]] =
+
+  private[this] def getPrevMonth(
+    implicit db: Database
+  ): Future[Seq[UserActivity]] = db.run(
     getActivityRange(
       DateUtils.roundNearestDay(
         LocalDateTime.now(ZoneId.of("UTC")).minusMonths(2)
@@ -120,8 +130,13 @@ object UserActivityAnalyticsDAO {
         LocalDateTime.now(ZoneId.of("UTC")).minusMonths(1)
       )
     ).result
+  )
 
-  private[couchmate] def getUserAnalytics(implicit ec: ExecutionContext): DBIO[UserActivityAnalytics] = for {
+  def getUserAnalytics(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserActivityAnalytics] = for {
     last24 <- getLast24Hours.map(getUserSessionsFromActivities)
     prev24 <- getPrev24Hours.map(getUserSessionsFromActivities)
     last24LastWeek <- getLast24HoursLastWeek.map(getUserSessionsFromActivities)
@@ -209,9 +224,13 @@ object UserActivityAnalyticsDAO {
     )
   }
 
-  private[couchmate] def getAndAddUserAnalytics(implicit ec: ExecutionContext): DBIO[UserActivityAnalytics] = for {
+  private[couchmate] def getAndAddUserAnalytics(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[UserActivityAnalytics] = for {
     report <- getUserAnalytics
-    _ <- UserActivityAnalyticsTable.table.insertOrUpdate(report)
+    _ <- db.run(UserActivityAnalyticsTable.table.insertOrUpdate(report))
   } yield report
 
   private[this] def getUserSessionsFromActivities(activities: Seq[UserActivity]): Seq[UserAnalyticSessions] = {

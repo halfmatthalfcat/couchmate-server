@@ -14,7 +14,7 @@ class AiringTable(tag: Tag) extends Table[Airing](tag, "airing") {
   def duration: Rep[Int] = column[Int]("duration")
   def isNew: Rep[Boolean] = column[Boolean]("is_new", O.Default(false))
   def * = (
-    airingId.?,
+    airingId,
     showId,
     startTime,
     endTime,

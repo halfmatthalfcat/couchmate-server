@@ -4,7 +4,7 @@ import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.ActorContext
 import akka.persistence.typed.scaladsl.{Effect, EffectBuilder}
 import com.couchmate.api.ws.protocol.External
-import com.couchmate.common.dao.UserActivityDAO
+import com.couchmate.common.dao.{GridDAO, UserActivityDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.room.message.{Authorable, Message}
 import com.couchmate.common.models.data.{UserActivity, UserActivityType}
@@ -12,11 +12,11 @@ import com.couchmate.services.GridCoordinator
 import com.couchmate.services.room.RoomId
 import com.couchmate.services.user.PersistentUser
 import com.couchmate.services.user.PersistentUser.{Disconnected, HashRoomChanged, RoomJoined, RoomLeft, State, UpdateGrid}
-import com.couchmate.services.user.commands.ConnectedCommands.addUserActivity
-import com.couchmate.services.user.commands.InitialCommands.getGrid
 import com.couchmate.services.user.context.{DeviceContext, GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, SingletonExtension}
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.ExecutionContext
 import scala.util.Success
@@ -183,8 +183,10 @@ object RoomCommands
     implicit
     ctx: ActorContext[PersistentUser.Command],
     db: Database,
-    singletons: SingletonExtension,
     ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+    singletons: SingletonExtension,
     gridAdapter: ActorRef[GridCoordinator.Command]
   ): Effect[Nothing, State] = Effect
     .none
@@ -193,7 +195,7 @@ object RoomCommands
         userContext.providerId, gridAdapter,
       ),
     )
-    .thenRun((_: State) => ctx.pipeToSelf(getGrid(userContext.providerId)) {
+    .thenRun((_: State) => ctx.pipeToSelf(GridDAO.getGrid(userContext.providerId)()) {
       case Success(value) => UpdateGrid(value)
     })
     .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(

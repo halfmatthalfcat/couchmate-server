@@ -7,7 +7,7 @@ case class Channel(
   extId: Long,
   channelOwnerId: Option[Long],
   callsign: String,
-) extends Product with Serializable
+)
 
 object Channel extends JsonConfig {
   implicit val format: Format[Channel] = Json.format[Channel]

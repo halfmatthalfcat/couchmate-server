@@ -1,129 +1,13 @@
 package com.couchmate.common.dao
 
 import java.util.UUID
-
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.UserNotificationSeries
 import com.couchmate.common.tables.{EpisodeTable, ProviderChannelTable, SeriesTable, UserNotificationQueueTable, UserNotificationSeriesTable}
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
-
-trait UserNotificationSeriesDAO {
-
-  def getUserSeriesNotifications(userId: UUID)(
-    implicit
-    db: Database
-  ): Future[Seq[UserNotificationSeries]] =
-    db.run(UserNotificationSeriesDAO.getUserSeriesNotifications(userId))
-
-  def getNotificationsForSeries(
-    seriesId: Long,
-    channelId: Long
-  )(
-    implicit
-    db: Database
-  ): Future[Seq[UserNotificationSeries]] =
-    db.run(UserNotificationSeriesDAO.getNotificationsForSeries(seriesId, channelId))
-
-  def getUserSeriesNotification(
-    userId: UUID,
-    seriesId: Long,
-    providerChannelId: Long
-  )(
-    implicit
-    db: Database
-  ): Future[Option[UserNotificationSeries]] =
-    db.run(UserNotificationSeriesDAO.getUserSeriesNotification(
-      userId, seriesId, providerChannelId
-    ))
-
-  def getNotificationsForEpisode(
-    episodeId: Long,
-    channelId: Long
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Seq[UserNotificationSeries]] =
-    db.run(UserNotificationSeriesDAO.getNotificationsForEpisode(episodeId, channelId))
-
-  def addUserSeriesNotification(notification: UserNotificationSeries)(
-    implicit
-    db: Database
-  ): Future[UserNotificationSeries] =
-    db.run(UserNotificationSeriesDAO.addUserSeriesNotification(notification))
-
-  def removeUserSeriesNotification(
-    userId: UUID,
-    seriesId: Long,
-    channelId: Long
-  )(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[Boolean] =
-    db.run(UserNotificationSeriesDAO.removeUserSeriesNotification(
-      userId, seriesId, channelId
-    ))
-
-  def addOrGetUserSeriesNotification(
-    userId: UUID,
-    seriesId: Long,
-    providerChannelId: Long,
-    hash: String,
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Option[UserNotificationSeries]] =
-    db.run(UserNotificationSeriesDAO.addOrGetUserSeriesNotification(
-      userId, seriesId, providerChannelId, hash
-    ))
-
-  def toggleUserSeriesNotification(
-    userId: UUID,
-    seriesId: Long,
-    providerChannelId: Long,
-    hash: String,
-    enabled: Boolean
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Boolean] =
-    db.run(UserNotificationSeriesDAO.toggleUserSeriesNotification(
-      userId, seriesId, providerChannelId, hash, enabled
-    ))
-
-  def toggleOnlyNewUserSeriesNotification(
-    userId: UUID,
-    seriesId: Long,
-    providerChannelId: Long,
-    hash: String,
-    onlyNew: Boolean
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Boolean] =
-    db.run(UserNotificationSeriesDAO.toggleOnlyNewUserSeriesNotification(
-      userId, seriesId, providerChannelId, hash, onlyNew
-    ))
-
-  def updateHashUserSeriesNotification(
-    userId: UUID,
-    seriesId: Long,
-    providerChannelId: Long,
-    hash: String
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Boolean] =
-    db.run(UserNotificationSeriesDAO.updateHashUserSeriesNotification(
-      userId, seriesId, providerChannelId, hash
-    ))
-}
 
 object UserNotificationSeriesDAO {
   private[this] lazy val getUserSeriesNotificationsQuery = Compiled {
@@ -134,8 +18,11 @@ object UserNotificationSeriesDAO {
         .sortBy(_.name)
   }
 
-  private[common] def getUserSeriesNotifications(userId: UUID): DBIO[Seq[UserNotificationSeries]] =
-    getUserSeriesNotificationsQuery(userId).result
+  def getUserSeriesNotifications(userId: UUID)(
+    implicit
+    db: Database
+  ): Future[Seq[UserNotificationSeries]] =
+    db.run(getUserSeriesNotificationsQuery(userId).result)
 
   private[this] lazy val getNotificationsForSeriesAndProviderChannelQuery = Compiled {
     (seriesId: Rep[Long], providerChannelId: Rep[Long]) =>
@@ -145,11 +32,18 @@ object UserNotificationSeriesDAO {
       }
   }
 
-  private[common] def getNotificationsForSeries(
+  def getNotificationsForSeries(
     seriesId: Long,
-    providerChannelId: Long
-  ): DBIO[Seq[UserNotificationSeries]] =
-    getNotificationsForSeriesAndProviderChannelQuery(seriesId, providerChannelId).result
+    channelId: Long
+  )(
+    implicit
+    db: Database
+  ): Future[Seq[UserNotificationSeries]] =
+    db.run(getNotificationsForSeriesAndProviderChannelQuery(
+      seriesId,
+      channelId
+    ).result)
+
 
   private[this] lazy val getUserSeriesNotificationQuery = Compiled {
     (userId: Rep[UUID], seriesId: Rep[Long], providerChannelId: Rep[Long]) =>
@@ -160,15 +54,33 @@ object UserNotificationSeriesDAO {
       }
   }
 
-  private[common] def getNotificationsForEpisode(
+  def getUserSeriesNotification(
+    userId: UUID,
+    seriesId: Long,
+    providerChannelId: Long
+  )(
+    implicit
+    db: Database
+  ): Future[Option[UserNotificationSeries]] =
+    db.run(getUserSeriesNotificationQuery(
+      userId,
+      seriesId,
+      providerChannelId
+    ).result.headOption)
+
+
+  def getNotificationsForEpisode(
     episodeId: Long,
     providerChannelId: Long
   )(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Seq[UserNotificationSeries]] = for {
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[UserNotificationSeries]] = for {
     exists <- SeriesDAO.getSeriesByEpisode(episodeId)
-    notifications <- exists.fold[DBIO[Seq[UserNotificationSeries]]](DBIO.successful(Seq.empty))(
+    notifications <- exists.fold(Future.successful(Seq.empty[UserNotificationSeries]))(
       series => getNotificationsForSeries(
         series.seriesId.get,
         providerChannelId
@@ -187,20 +99,14 @@ object UserNotificationSeriesDAO {
     } yield uNS
   }
 
-  private[common] def getNotificationsForProviderAndEpisode(
+  def getNotificationsForProviderAndEpisode(
     providerId: Long,
     episodeId: Long
-  ): DBIO[Seq[UserNotificationSeries]] =
+  )(implicit db: Database): Future[Seq[UserNotificationSeries]] = db.run(
     getNotificationsForProviderAndEpisodeQuery(providerId, episodeId).result
+  )
 
-  private[common] def getUserSeriesNotification(
-    userId: UUID,
-    seriesId: Long,
-    providerChannelId: Long
-  ): DBIO[Option[UserNotificationSeries]] =
-    getUserSeriesNotificationQuery(userId, seriesId, providerChannelId).result.headOption
-
-  private[common] def toggleUserSeriesNotification(
+  def toggleUserSeriesNotification(
     userId: UUID,
     seriesId: Long,
     providerChannelId: Long,
@@ -208,9 +114,11 @@ object UserNotificationSeriesDAO {
     enabled: Boolean
   )(
     implicit
+    db: Database,
     ec: ExecutionContext,
-    db: Database
-  ): DBIO[Boolean] = for {
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Boolean] = for {
     notification <- addOrGetUserSeriesNotification(
       userId, seriesId, providerChannelId, hash
     )
@@ -228,16 +136,16 @@ object UserNotificationSeriesDAO {
         userId, seriesId, providerChannelId
       )
     }
-    success <- (for {
+    success <- db.run((for {
       uNS <- UserNotificationSeriesTable.table if (
         uNS.userId === userId &&
         uNS.seriesId === seriesId &&
         uNS.providerChannelId === providerChannelId
       )
-    } yield uNS.active).update(enabled).map(_ > 0)
+    } yield uNS.active).update(enabled).map(_ > 0))
   } yield success
 
-  private[common] def toggleOnlyNewUserSeriesNotification(
+  def toggleOnlyNewUserSeriesNotification(
     userId: UUID,
     seriesId: Long,
     providerChannelId: Long,
@@ -245,9 +153,11 @@ object UserNotificationSeriesDAO {
     onlyNew: Boolean
   )(
     implicit
+    db: Database,
     ec: ExecutionContext,
-    db: Database
-  ): DBIO[Boolean] = for {
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Boolean] = for {
     notification <- addOrGetUserSeriesNotification(
       userId, seriesId, providerChannelId, hash
     )
@@ -262,35 +172,37 @@ object UserNotificationSeriesDAO {
       notification.map(_.hash).getOrElse(hash),
       onlyNew
     ).map(_ => true)
-    success <- (for {
+    success <- db.run((for {
       uNS <- UserNotificationSeriesTable.table if (
         uNS.userId === userId &&
         uNS.seriesId === seriesId &&
         uNS.providerChannelId === providerChannelId
       )
-    } yield uNS.onlyNew).update(onlyNew).map(_ > 0)
+    } yield uNS.onlyNew).update(onlyNew).map(_ > 0))
   } yield success
 
-  private[common] def updateHashUserSeriesNotification(
+  def updateHashUserSeriesNotification(
     userId: UUID,
     seriesId: Long,
     providerChannelId: Long,
     hash: String
   )(
     implicit
+    db: Database,
     ec: ExecutionContext,
-    db: Database
-  ): DBIO[Boolean] = for {
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Boolean] = for {
     notification <- addOrGetUserSeriesNotification(
       userId, seriesId, providerChannelId, hash
     )
-    _ <- (for {
+    _ <- db.run((for {
       uNS <- UserNotificationSeriesTable.table if (
         uNS.userId === userId &&
         uNS.seriesId === seriesId &&
         uNS.providerChannelId === providerChannelId
       )
-    } yield uNS.hash).update(hash).map(_ > 0)
+    } yield uNS.hash).update(hash).map(_ > 0))
     _ <- UserNotificationQueueDAO.removeUserNotificationForSeries(
       userId, seriesId, providerChannelId
     )
@@ -304,41 +216,47 @@ object UserNotificationSeriesDAO {
     ).map(_ => true)
   } yield true
 
-  private[common] def addUserSeriesNotification(
+  def addUserSeriesNotification(
     notification: UserNotificationSeries
-  ): DBIO[UserNotificationSeries] =
+  )(implicit db: Database): Future[UserNotificationSeries] = db.run(
     (UserNotificationSeriesTable.table returning UserNotificationSeriesTable.table) += notification
+  )
 
-  private[common] def removeUserSeriesNotification(
+  def removeUserSeriesNotification(
     userId: UUID,
     seriesId: Long,
     providerChannelId: Long
   )(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Boolean] =
+    ec: ExecutionContext,
+    db: Database
+  ): Future[Boolean] = db.run(
     UserNotificationSeriesTable.table.filter { uNS =>
       uNS.userId === userId &&
-      uNS.seriesId === seriesId &&
-      uNS.providerChannelId === providerChannelId
+        uNS.seriesId === seriesId &&
+        uNS.providerChannelId === providerChannelId
     }.delete.map(_ > 0)
+  )
 
-  private[common] def addOrGetUserSeriesNotification(
+  def addOrGetUserSeriesNotification(
     userId: UUID,
     seriesId: Long,
     providerChannelId: Long,
     hash: String,
   )(
     implicit
-    ec: ExecutionContext
-  ): DBIO[Option[UserNotificationSeries]] = for {
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[UserNotificationSeries]] = for {
     exists <- getUserSeriesNotification(
       userId,
       seriesId,
       providerChannelId
     )
     uSN <- exists
-      .map(n => DBIO.successful(Some(n)))
+      .map(n => Future.successful(Some(n)))
       .getOrElse((for {
         channel <- ChannelDAO
           .getChannelForProviderChannel(providerChannelId)
@@ -353,7 +271,7 @@ object UserNotificationSeriesDAO {
           channel.callsign,
           hash
         )).map(Some(_))
-        case _ => DBIO.successful(Option.empty)
+        case _ => Future.successful(Option.empty)
       })
   } yield uSN
 }

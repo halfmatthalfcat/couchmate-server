@@ -21,25 +21,30 @@ class LineupTable(tag: Tag) extends Table[Lineup](tag, "lineup") {
     providerChannelId,
     ProviderChannelTable.table,
     )(
-    _.providerChannelId,
-    onUpdate = ForeignKeyAction.Cascade,
-    onDelete = ForeignKeyAction.Restrict,
-  )
+      _.providerChannelId,
+      onUpdate = ForeignKeyAction.Cascade,
+      onDelete = ForeignKeyAction.Restrict,
+    )
 
   def airingFk = foreignKey(
     "lineup_airing_fk",
     airingId,
     AiringTable.table,
     )(
-    _.airingId,
-    onUpdate = ForeignKeyAction.Cascade,
-    onDelete = ForeignKeyAction.Restrict,
-  )
+      _.airingId,
+      onUpdate = ForeignKeyAction.Cascade,
+      onDelete = ForeignKeyAction.Restrict,
+    )
 
   def pcAiringIdx = index(
     "provider_channel_airing_idx",
     (providerChannelId, airingId),
     unique = true
+  )
+
+  def airingIdx = index(
+    "lineup_airing_idx",
+    airingId
   )
 }
 

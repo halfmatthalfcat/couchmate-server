@@ -9,12 +9,12 @@ import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import com.couchmate.api.ws.protocol._
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.Provider
-import com.couchmate.common.models.api.grid.Grid
+import com.couchmate.common.models.api.grid.{Grid, GridAiringDynamic, GridDynamic}
 import com.couchmate.common.models.api.room.tenor.TenorGif
 import com.couchmate.common.models.api.user.UserMute
 import com.couchmate.common.models.data.{ApplicationPlatform, UserMeta, UserNotificationConfiguration, UserNotifications, UserReportType, UserRole}
 import com.couchmate.services.{GracenoteCoordinator, GridCoordinator, ProviderCoordinator}
-import com.couchmate.services.GridCoordinator.GridUpdate
+import com.couchmate.services.GridCoordinator.{GridDynamicUpdate, GridUpdate}
 import com.couchmate.services.gracenote.provider.ProviderJob
 import com.couchmate.services.room.TenorService.{GetTenorTrending, SearchTenor}
 import com.couchmate.services.room.{Chatroom, RoomId}
@@ -61,6 +61,9 @@ object PersistentUser {
   case class UpdateGrid(grid: Grid) extends Command
   case class UpdateGridFailed(ex: Throwable) extends Command
 
+  case class UpdateGridDynamic(updates: GridDynamic) extends Command
+  case class UpdateGridDynamicFailed(ex: Throwable) extends Command
+
   case class EmailValidated(exists: Boolean, valid: Boolean) extends Command
   case class EmailValidationFailed(ex: Throwable) extends Command
 
@@ -102,6 +105,12 @@ object PersistentUser {
 
   case class UnmuteWord(mutes: Seq[String]) extends Command
   case class UnmuteWordFailed(ex: Throwable) extends Command
+
+  case class UserChannelFavoriteAdded(favoriteChannels: Seq[Long]) extends Command
+  case class UserChannelFavoriteAddFailed(ex: Throwable) extends Command
+
+  case class UserChannelFavoriteRemoved(favoriteChannels: Seq[Long]) extends Command
+  case class UserChannelFavoriteRemoveFailed(ex: Throwable) extends Command
 
   case class GetProvidersSuccess(
     zipCode: String,
@@ -185,6 +194,7 @@ object PersistentUser {
   final case class ParticipantUnmuted(mutes: Seq[UserMute]) extends Event
   final case class WordMuted(mutes: Seq[String]) extends Event
   final case class WordUnmuted(mutes: Seq[String]) extends Event
+  final case class ChannelFavoritesUpdated(channelFavorites: Seq[Long]) extends Event
   final case class RoomJoined(airingId: String, roomId: RoomId) extends Event
   final case class HashRoomChanged(roomId: RoomId) extends Event
   final case class NotificationsChanged(notifications: UserNotifications) extends Event
@@ -239,8 +249,12 @@ object PersistentUser {
     implicit val user: UserExtension =
       UserExtension(ctx.system)
 
+    val caches = CacheExtension(ctx.system)
+    import caches._
+
     implicit val gridAdapter: ActorRef[GridCoordinator.Command] = ctx.messageAdapter {
       case GridUpdate(grid) => UpdateGrid(grid)
+      case GridDynamicUpdate(updates) => UpdateGridDynamic(updates)
     }
 
     val providerAdapter: ActorRef[ProviderJob.Command] = ctx.messageAdapter {
@@ -328,6 +342,8 @@ object PersistentUser {
             ConnectedCommands.disconnect(userContext, geo, device)
           case UpdateGrid(grid) =>
             ConnectedCommands.updateGrid(grid, ws)
+          case UpdateGridDynamic(updates) =>
+            ConnectedCommands.upgradeGridDynamic(updates, ws)
           case UpdateGridFailed(_) => Effect.none
           case validated: EmailValidated =>
             ConnectedCommands.emailValidated(validated, ws)
@@ -400,6 +416,18 @@ object PersistentUser {
           case UnmuteWord(mutes) =>
             ConnectedCommands.wordUnmuted(mutes)
           case UnmuteWordFailed(_) => Effect.none
+          case UserChannelFavoriteAdded(favoriteChannels) =>
+            ConnectedCommands.updateUserChannelFavorites(
+              favoriteChannels,
+              ws
+            )
+          case UserChannelFavoriteAddFailed(ex) => Effect.none
+          case UserChannelFavoriteRemoved(favoriteChannels) =>
+            ConnectedCommands.updateUserChannelFavorites(
+              favoriteChannels,
+              ws
+            )
+          case UserChannelFavoriteRemoveFailed(ex) => Effect.none
           case EnabledNotifications(notifications) =>
             Effect
               .persist(NotificationConfigurationsChanged(notifications))
@@ -557,6 +585,16 @@ object PersistentUser {
               ConnectedCommands.unmuteWord(
                 userContext.user.userId.get,
                 word
+              )
+            case External.AddFavoriteChannel(channelId) =>
+              ConnectedCommands.addUserChannelFavorite(
+                userContext.user.userId.get,
+                channelId
+              )
+            case External.RemoveFavoriteChannel(channelId) =>
+              ConnectedCommands.removeUserChannelFavorite(
+                userContext.user.userId.get,
+                channelId
               )
             case External.JoinRoom(airingId, hash) if hash.forall(RoomCommands.hashValid) =>
               Effect.none.thenRun(_ => lobby.join(
@@ -984,6 +1022,11 @@ object PersistentUser {
           case WordUnmuted(mutes) => state.copy(
             userContext = userContext.copy(
               wordMutes = mutes
+            )
+          )
+          case ChannelFavoritesUpdated(channelFavorites) => state.copy(
+            userContext = userContext.copy(
+              favoriteChannels = channelFavorites
             )
           )
           case RoomJoined(airingId, roomId) => RoomState(

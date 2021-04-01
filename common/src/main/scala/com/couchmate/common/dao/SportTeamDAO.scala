@@ -1,54 +1,15 @@
 package com.couchmate.common.dao
 
 import java.time.{LocalDateTime, ZoneId}
-
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.api.grid.{GridAiring, GridSport, GridSportRow}
 import com.couchmate.common.models.data.{Airing, SportEventTeam, SportOrganization, SportTeam}
 import com.couchmate.common.tables.{AiringTable, LineupTable, ProviderChannelTable, ProviderTable, ShowTable, SportEventTable, SportEventTeamTable, SportTeamTable, UserNotificationTeamTable}
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 import slick.sql.SqlStreamingAction
 
 import scala.concurrent.{ExecutionContext, Future}
-
-trait SportTeamDAO {
-  def getSportTeam(sportTeamId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[SportTeam]] =
-    db.run(SportTeamDAO.getSportTeam(sportTeamId))
-
-  def getSportTeamByExt(extSportTeamId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[SportTeam]] =
-    db.run(SportTeamDAO.getSportTeamByExt(extSportTeamId))
-
-  def upsertSportTeam(sportTeam: SportTeam)(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[SportTeam] =
-    db.run(SportTeamDAO.upsertSportTeam(sportTeam))
-
-  def getGridSportTeam(
-    sportEventId: Long,
-    sportTeamId: Long
-  )(implicit db: Database): Future[Option[GridSportRow]] =
-    db.run(SportTeamDAO.getGridSportTeam(sportEventId, sportTeamId).headOption)
-
-  def getAllGridSportRows(
-    implicit
-    db: Database
-  ): Future[Seq[GridSportRow]] =
-    db.run(SportTeamDAO.getAllGridSportRows)
-
-  def getGridSport(sportEventId: Long)(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[Option[GridSport]] =
-    db.run(SportTeamDAO.getGridSport(sportEventId))
-}
 
 object SportTeamDAO {
   private[this] lazy val getSportTeamQuery = Compiled {
@@ -56,21 +17,39 @@ object SportTeamDAO {
       SportTeamTable.table.filter(_.sportTeamId === sportTeamId)
   }
 
-  private[common] def getSportTeam(sportTeamId: Long): DBIO[Option[SportTeam]] =
-    getSportTeamQuery(sportTeamId).result.headOption
+  def getSportTeam(sportTeamId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[SportTeam]] = cache(
+    "getSportTeam",
+    sportTeamId
+  )(db.run(getSportTeamQuery(sportTeamId).result.headOption))()
 
   private[this] lazy val getSportTeamByExtQuery = Compiled {
     (extSportTeamId: Rep[Long]) =>
       SportTeamTable.table.filter(_.extSportTeamId === extSportTeamId)
   }
 
-  private[common] def getSportTeamByExt(extSportTeamId: Long): DBIO[Option[SportTeam]] =
-    getSportTeamByExtQuery(extSportTeamId).result.headOption
+  def getSportTeamByExt(extSportTeamId: Long)(bust: Boolean = false)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[SportTeam]] = cache(
+    "getSportTeamByExt",
+    extSportTeamId
+  )(db.run(getSportTeamByExtQuery(extSportTeamId).result.headOption))(
+    bust = bust
+  )
 
-  private[common] def getUpcomingSportTeamAirings(
+  def getUpcomingSportTeamAirings(
     sportOrganizationTeamId: Long,
     providerId: Long
-  ): DBIO[Seq[Airing]] = (for {
+  )(implicit db: Database): Future[Seq[Airing]] = db.run((for {
     sET <- SportEventTeamTable.table if sET.sportOrganizationTeamId === sportOrganizationTeamId
     s <- ShowTable.table if s.sportEventId === sET.sportEventId
     a <- AiringTable.table if (
@@ -82,41 +61,54 @@ object SportTeamDAO {
       pc.providerChannelId === l.providerChannelId &&
       pc.providerId === providerId
     )
-  } yield a).result
-
-  private[common] def upsertSportTeam(sportTeam: SportTeam): DBIO[SportTeam] =
-    (SportTeamTable.table returning SportTeamTable.table) += sportTeam
+  } yield a).result)
 
   private[common] def getGridSport(
     sportEventId: Long
-  )(implicit ec: ExecutionContext): DBIO[Option[GridSport]] = for {
-    sport <- SportEventDAO.getSportEvent(sportEventId)
-    org <- sport.fold[DBIO[Option[SportOrganization]]](DBIO.successful(Option.empty))(
-      s => s.sportOrganizationId.fold[DBIO[Option[SportOrganization]]](
-        DBIO.successful(Option.empty)
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[GridSport]] = cache(
+    "getGridSport",
+    sportEventId
+  )(for {
+    sport <- SportEventDAO.getSportEvent(sportEventId)()
+    org <- sport.fold(Future.successful(Option.empty[SportOrganization]))(
+      s => s.sportOrganizationId.fold(
+        Future.successful(Option.empty[SportOrganization])
       )(orgId => SportOrganizationDAO.getSportOrganization(orgId))
     )
-    teams <- sport.fold[DBIO[Seq[SportEventTeam]]](DBIO.successful(Seq.empty))(
+    teams <- sport.fold(Future.successful(Seq.empty[SportEventTeam]))(
       _ => SportEventTeamDAO.getSportEventTeams(sportEventId)
     )
-    gridTeams <- DBIO.fold(
-      teams.map(team => getGridSportTeam(
-        sportEventId,
-        team.sportOrganizationTeamId
-      )),
-      Seq.empty
-    )(_ ++ _)
+    gridTeams <- Future.sequence(teams.map(team => getGridSportRow(
+      sportEventId,
+      team.sportOrganizationTeamId
+    )))
   } yield sport.fold[Option[GridSport]](Option.empty)(
     s => Some(GridSport(
       sportEventId,
       s.sportEventTitle,
       org.map(_.sportName).getOrElse("Unknown"),
       org.flatMap(_.orgName),
-      gridTeams.map(_.toGridSportTeam)
+      gridTeams.collect {
+        case Some(value) => value.toGridSportTeam
+      }
     ))
-  )
+  ))()
 
-  private[common] def getAllGridSportRows: SqlStreamingAction[Seq[GridSportRow], GridSportRow, Effect] =
+  def getAllGridSportRows(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[GridSportRow]] = cache(
+    "getAllGridSportRows"
+  )(db.run(
     sql"""
           SELECT  set.sport_event_id,
                   sot.sport_organization_team_id,
@@ -143,11 +135,22 @@ object SportTeamDAO {
           ON      notifications.team_id = sot.sport_organization_team_id
           ORDER BY sport_event_id DESC
          """.as[GridSportRow]
+  ))()
 
-  private[common] def getGridSportTeam(
+  def getGridSportRow(
     sportEventId: Long,
     sportOrganizationTeamId: Long
-  ): SqlStreamingAction[Seq[GridSportRow], GridSportRow, Effect] =
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[GridSportRow]] =cache(
+    "getGridSportRow",
+    sportEventId,
+    sportOrganizationTeamId
+  )(db.run(
     sql"""SELECT  set.sport_event_id, sot.sport_organization_team_id, st.name, set.is_home, (
             SELECT  count(*)
             FROM    user_notification_team
@@ -160,46 +163,37 @@ object SportTeamDAO {
           ON      set.sport_organization_team_id = sot.sport_organization_team_id
           AND     set.sport_event_id = ${sportEventId}
           WHERE   sot.sport_organization_team_id = ${sportOrganizationTeamId}
-       """.as[GridSportRow]
+       """.as[GridSportRow].headOption
+  ))()
 
-  private[this] def addSportTeamForId(st: SportTeam) =
-    sql"""SELECT insert_or_get_sport_team_id(${st.extSportTeamId}, ${st.name})""".as[Long]
-
-  private[common] def addAndGetSportTeam(st: SportTeam)(
+  private[this] def addSportTeamForId(st: SportTeam)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[SportTeam] = (for {
-    sportTeamId <- addSportTeamForId(st).head
-    sportTeam <- getSportTeamQuery(sportTeamId).result.head
-  } yield sportTeam)
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Long] = cache(
+    "addSportTeamForId",
+    st.extSportTeamId
+  )(db.run(
+    sql"""SELECT insert_or_get_sport_team_id(${st.extSportTeamId}, ${st.name})"""
+      .as[Long].head
+  ))()
 
-  private[common] def addOrGetSportTeam(st: SportTeam) =
-    sql"""
-         WITH input_rows(ext_sport_team_id, name) as (
-          VALUES(${st.extSportTeamId}, ${st.name})
-         ), ins AS (
-          INSERT INTO sport_team (ext_sport_team_id, name)
-          SELECT * FROM input_rows
-          ON CONFLICT (ext_sport_team_id) DO NOTHING
-          RETURNING sport_team_id, ext_sport_team_id, name
-         ), sel AS (
-          SELECT sport_team_id, ext_sport_team_id, name
-          FROM ins
-          UNION ALL
-          SELECT st.sport_team_id, ext_sport_team_id, name
-          FROM input_rows
-          JOIN sport_team AS st USING (ext_sport_team_id, name)
-         ), ups AS (
-          INSERT INTO sport_team AS st (ext_sport_team_id, name)
-          SELECT  i.*
-          FROM    input_rows  i
-          LEFT    JOIN sel    s USING (ext_sport_team_id, name)
-          WHERE   s.sport_team_id IS NULL
-          ON      CONFLICT (ext_sport_team_id) DO UPDATE
-          SET     name = excluded.name
-          RETURNING sport_team_id, ext_sport_team_id, name
-         )  SELECT  sport_team_id, ext_sport_team_id, name FROM sel
-            UNION   ALL
-            TABLE   ups;
-         """.as[SportTeam]
+  private[common] def addOrGetSportTeam(st: SportTeam)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[SportTeam] = cache(
+    "addOrGetSportTeam",
+    st.extSportTeamId
+  )(for {
+    exists <- getSportTeamByExt(st.extSportTeamId)()
+    s <- exists.fold(for {
+      _ <- addSportTeamForId(st)
+      selected <- getSportTeamByExt(st.extSportTeamId)(bust = true).map(_.get)
+    } yield selected)(Future.successful)
+  } yield s)()
 }

@@ -10,7 +10,7 @@ import slick.jdbc.GetResult
 import scala.util.Random
 
 case class Airing(
-  airingId: Option[String],
+  airingId: String,
   showId: Long,
   startTime: LocalDateTime,
   endTime: LocalDateTime,

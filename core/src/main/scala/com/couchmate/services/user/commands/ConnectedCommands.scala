@@ -7,7 +7,7 @@ import akka.persistence.typed.scaladsl.{Effect, EffectBuilder}
 import com.couchmate.api.ws.protocol.{External, ForgotPasswordError, ForgotPasswordErrorCause, LoginError, LoginErrorCause, PasswordResetError, PasswordResetErrorCause, Protocol, RegisterAccountError, RegisterAccountErrorCause, UpdateUsernameError, UpdateUsernameErrorCause}
 import com.couchmate.common.dao.{UserActivityDAO, ZipProviderDAO}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.api.grid.Grid
+import com.couchmate.common.models.api.grid.{Grid, GridAiringDynamic, GridDynamic}
 import com.couchmate.common.models.api.user.UserMute
 import com.couchmate.common.models.data.{ApplicationPlatform, User, UserActivity, UserActivityType, UserMeta, UserNotificationSeries, UserNotificationShow, UserNotificationTeam}
 import com.couchmate.services.{GridCoordinator, ListingUpdater}
@@ -17,13 +17,14 @@ import com.couchmate.services.user.context.{DeviceContext, GeoContext, UserConte
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{JwtExtension, MailExtension, PromExtension, SingletonExtension, UserExtension}
 import com.neovisionaries.i18n.CountryCode
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 object ConnectedCommands
-  extends UserActivityDAO
-  with ZipProviderDAO {
+  extends UserActivityDAO {
 
   private[user] def disconnect(
     userContext: UserContext,
@@ -70,6 +71,18 @@ object ConnectedCommands
   ) = Effect
     .none
     .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(External.UpdateGrid(grid)))
+
+  private[user] def upgradeGridDynamic(
+    updates: GridDynamic,
+    ws: ActorRef[WSPersistentActor.Command]
+  )(
+    implicit
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(
+      External.UpdateGridDynamic(updates)
+    ))
 
   private[user] def validateEmail(email: String)(
     implicit
@@ -221,8 +234,10 @@ object ConnectedCommands
 
   private[user] def logout(geo: GeoContext)(
     implicit
-    ec: ExecutionContext,
     db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
     ctx: ActorContext[PersistentUser.Command]
   ): Effect[Nothing, State] = Effect
     .none
@@ -421,6 +436,51 @@ object ConnectedCommands
         )
       })
 
+  private[user] def addUserChannelFavorite(
+    userId: UUID,
+    providerChannelId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): Effect[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.addChannelFavorite(userId, providerChannelId)) {
+      case Success(value) => UserChannelFavoriteAdded(value)
+      case Failure(ex) => UserChannelFavoriteAddFailed(ex)
+    })
+
+  private[user] def updateUserChannelFavorites(
+    channelFavorites: Seq[Long],
+    ws: ActorRef[WSPersistentActor.Command]
+  ): EffectBuilder[ChannelFavoritesUpdated, State] = Effect
+    .persist(ChannelFavoritesUpdated(channelFavorites))
+    .thenRun {
+      case state: ConnectedState => ws ! WSPersistentActor.OutgoingMessage(
+        External.SetSession(
+          state.userContext.getClientUser(state.device.map(_.deviceId)),
+          state.userContext.providerName,
+          state.userContext.token
+        )
+      )
+    }
+
+  private[user] def removeUserChannelFavorite(
+    userId: UUID,
+    providerChannelId: Long
+  )(
+    implicit
+    ec: ExecutionContext,
+    db: Database,
+    ctx: ActorContext[PersistentUser.Command]
+  ): Effect[Nothing, State] = Effect
+    .none
+    .thenRun(_ => ctx.pipeToSelf(UserActions.removeChannelFavorite(userId, providerChannelId)) {
+      case Success(value) => UserChannelFavoriteRemoved(value)
+      case Failure(ex) => UserChannelFavoriteRemoveFailed(ex)
+    })
+
   private[user] def updateNotificationToken(
     userId: UUID,
     os: ApplicationPlatform,
@@ -495,7 +555,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.addShowNotification(
@@ -513,7 +575,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.removeShowNotification(
@@ -534,7 +598,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.addSeriesNotification(
@@ -554,7 +620,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.toggleSeriesNotification(
@@ -574,7 +642,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.toggleOnlyNewSeriesNotification(
@@ -593,7 +663,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.updateHashSeriesNotification(
@@ -610,7 +682,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.removeSeriesNotification(
@@ -632,7 +706,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.toggleTeamNotification(
@@ -652,7 +728,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.toggleOnlyNewTeamNotification(
@@ -671,7 +749,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.updateHashTeamNotification(
@@ -689,7 +769,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.addTeamNotification(
@@ -707,7 +789,9 @@ object ConnectedCommands
     implicit
     ec: ExecutionContext,
     db: Database,
-    ctx: ActorContext[PersistentUser.Command]
+    ctx: ActorContext[PersistentUser.Command],
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): EffectBuilder[Nothing, State] = Effect
     .none
     .thenRun(_ => ctx.pipeToSelf(UserActions.removeTeamNotification(
@@ -724,8 +808,10 @@ object ConnectedCommands
     providerId: Long
   )(
     implicit
-    ec: ExecutionContext,
     db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
     ctx: ActorContext[PersistentUser.Command]
   ): EffectBuilder[Nothing, State] = Effect
     .none

@@ -13,13 +13,14 @@ import com.couchmate.services.user.PersistentUser._
 import com.couchmate.services.user.context.{DeviceContext, GeoContext, RoomContext, UserContext}
 import com.couchmate.util.akka.WSPersistentActor
 import com.couchmate.util.akka.extensions.{PromExtension, RoomExtension, SingletonExtension}
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 object InitialCommands
-  extends GridDAO
-  with UserActivityDAO {
+  extends UserActivityDAO {
 
   private[user] def connect(
     userContext: UserContext,
@@ -32,6 +33,8 @@ object InitialCommands
     ctx: ActorContext[PersistentUser.Command],
     db: Database,
     ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
     metrics: PromExtension,
     singletons: SingletonExtension,
     gridAdapter: ActorRef[GridCoordinator.Command],
@@ -64,7 +67,7 @@ object InitialCommands
           userContext.providerId, gridAdapter,
         ),
       )
-      .thenRun((_: State) => ctx.pipeToSelf(getGrid(userContext.providerId)) {
+      .thenRun((_: State) => ctx.pipeToSelf(GridDAO.getGrid(userContext.providerId)()) {
         case Success(value) => UpdateGrid(value)
         case Failure(exception) => UpdateGridFailed(exception)
       })

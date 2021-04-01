@@ -19,4 +19,10 @@ object LineupMigrations {
     )
   )()
 
+  val airingIdx = MigrationItem(59L, LineupTable.table)(
+    _.addIndexes(
+      _.airingIdx
+    )
+  )()
+
 }

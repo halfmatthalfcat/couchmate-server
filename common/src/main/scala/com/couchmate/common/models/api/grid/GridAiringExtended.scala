@@ -17,10 +17,7 @@ case class GridAiringExtended(
   description: String,
   `type`: String,
   originalAiringDate: Option[LocalDateTime],
-  status: RoomStatusType,
   isNew: Boolean,
-  count: Long,
-  following: Long,
   sport: Option[GridSport],
   series: Option[GridSeries]
 )

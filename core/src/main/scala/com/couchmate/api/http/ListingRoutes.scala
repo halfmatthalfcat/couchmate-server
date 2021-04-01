@@ -18,6 +18,8 @@ import com.couchmate.util.akka.extensions.SingletonExtension
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -25,7 +27,6 @@ import scala.util.{Failure, Success}
 object ListingRoutes
   extends PlayJsonSupport
   with LazyLogging
-  with AiringDAO
   with PathUtils {
 
   def apply()(
@@ -35,12 +36,14 @@ object ListingRoutes
     system: ActorSystem[Nothing],
     config: Config,
     timeout: Timeout,
-    singleton: SingletonExtension
+    singleton: SingletonExtension,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Route = concat(
     path("convert") {
       post {
         entity(as[Seq[AiringConversion]]) { conversions =>
-          onComplete(getAiringsFromGracenote(conversions)) {
+          onComplete(AiringDAO.getAiringsFromGracenote(conversions)) {
             case Success(value) => complete(StatusCodes.OK -> value)
             case Failure(exception) =>
               logger.error(s"Couldn't get conversions: ${exception.getMessage}")
@@ -51,7 +54,7 @@ object ListingRoutes
     },
     path("detail" / Segment) { airingId: String =>
       get {
-        onComplete(getShowFromAiring(airingId)) {
+        onComplete(AiringDAO.getShowFromAiring(airingId)) {
           case Success(value) => complete(StatusCodes.OK -> value)
           case Failure(exception) =>
             logger.error(s"Couldn't get show for ${airingId}: ${exception.getMessage}")

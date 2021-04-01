@@ -6,29 +6,6 @@ import com.couchmate.common.tables.ListingJobTable
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait ListingJobDAO {
-
-  def getListingJob(listingJobId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[ListingJob]] =
-    db.run(ListingJobDAO.getListingJob(listingJobId))
-
-  def getLastListingJobForProvider(providerId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[ListingJob]] =
-    db.run(ListingJobDAO.getLastListingJob(providerId))
-
-  def upsertListingJob(listingJob: ListingJob)(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[ListingJob] =
-    db.run(ListingJobDAO.upsertListingJob(listingJob))
-
-}
-
 object ListingJobDAO {
   private[this] lazy val getListingJobQuery = Compiled {
     (listingJobId: Rep[Long]) =>
@@ -37,8 +14,11 @@ object ListingJobDAO {
         .filter(_.listingJobId === listingJobId)
   }
 
-  private[common] def getListingJob(listingJobId: Long): DBIO[Option[ListingJob]] =
-    getListingJobQuery(listingJobId).result.headOption
+  def getListingJob(listingJobId: Long)(
+    implicit
+    db: Database
+  ): Future[Option[ListingJob]] =
+    db.run(getListingJobQuery(listingJobId).result.headOption)
 
   private[this] lazy val getListingJobFromProviderQuery = Compiled {
     (providerId: Rep[Long]) =>
@@ -48,20 +28,24 @@ object ListingJobDAO {
         .sortBy(_.started)
   }
 
-  private[common] def getLastListingJob(providerId: Long): DBIO[Option[ListingJob]] =
-    getListingJobFromProviderQuery(providerId).result.headOption
-
-  private[common] def upsertListingJob(listingJob: ListingJob)(
+  def getLastListingJobForProvider(providerId: Long)(
     implicit
-    ec: ExecutionContext
-  ): DBIO[ListingJob] =
-    listingJob.listingJobId.fold[DBIO[ListingJob]](
-      (ListingJobTable.table returning ListingJobTable.table) += listingJob
+    db: Database
+  ): Future[Option[ListingJob]] =
+    db.run(getListingJobFromProviderQuery(providerId).result.headOption)
+
+  def upsertListingJob(listingJob: ListingJob)(
+    implicit
+    ec: ExecutionContext,
+    db: Database
+  ): Future[ListingJob] =
+    listingJob.listingJobId.fold[Future[ListingJob]](
+      db.run((ListingJobTable.table returning ListingJobTable.table) += listingJob)
     ) { (listingJobId: Long) => for {
-      _ <- ListingJobTable
+      _ <- db.run(ListingJobTable
           .table
           .filter(_.listingJobId === listingJobId)
-          .update(listingJob)
+          .update(listingJob))
       updated <- ListingJobDAO.getListingJob(listingJobId)
     } yield updated.get}
 }

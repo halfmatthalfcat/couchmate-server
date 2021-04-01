@@ -1,104 +1,31 @@
 package com.couchmate.common.dao
 
 import java.util.UUID
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.{Flow, Source}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{Provider, UserProvider}
 import com.couchmate.common.tables.{ProviderTable, UserProviderTable}
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
-
-trait UserProviderDAO {
-
-  def getUserProvider(userId: UUID)(
-    implicit
-    db: Database
-  ): Future[Option[UserProvider]] =
-    db.run(UserProviderDAO.getUserProvider(userId))
-
-  def getUserProvider$()(
-    implicit
-    session: SlickSession
-  ): Flow[UUID, Option[UserProvider], NotUsed] =
-    Slick.flowWithPassThrough(UserProviderDAO.getUserProvider)
-
-  def getProviders(userId: UUID)(
-    implicit
-    db: Database
-  ): Future[Seq[Provider]] =
-    db.run(UserProviderDAO.getProviders(userId))
-
-  def getProviders$()(
-    implicit
-    session: SlickSession
-  ): Flow[UUID, Seq[Provider], NotUsed] =
-    Slick.flowWithPassThrough(UserProviderDAO.getProviders)
-
-  def userProviderExists(providerId: Long)(
-    implicit
-    db: Database
-  ): Future[Boolean] =
-    db.run(UserProviderDAO.userProviderExists(providerId))
-
-  def userProviderExists$()(
-    implicit
-    session: SlickSession
-  ): Flow[Long, Boolean, NotUsed] =
-    Slick.flowWithPassThrough(UserProviderDAO.userProviderExists)
-
-  def getUniqueInternalProviders()(
-    implicit
-    db: Database
-  ): Future[Seq[UserProvider]] =
-    db.run(UserProviderDAO.getUniqueInternalProviders)
-
-  def getUniqueInternalProviders$()(
-    implicit
-    session: SlickSession
-  ): Source[UserProvider, NotUsed] =
-    Slick.source(UserProviderDAO.getUniqueInternalProviders)
-
-  def getUniqueProviders()(
-    implicit
-    db: Database
-  ): Future[Seq[Provider]] =
-    db.run(UserProviderDAO.getUniqueProviders)
-
-  def getUniqueProviders$()(
-    implicit
-    session: SlickSession
-  ): Source[Provider, NotUsed] =
-    Slick.source(UserProviderDAO.getUniqueProviders)
-
-  def addUserProvider(userProvider: UserProvider)(
-    implicit
-    db: Database
-  ): Future[UserProvider] =
-    db.run(UserProviderDAO.addUserProvider(userProvider))
-
-  def addUserProvider$()(
-    implicit
-    session: SlickSession
-  ): Flow[UserProvider, UserProvider, NotUsed] =
-    Slick.flowWithPassThrough(UserProviderDAO.addUserProvider)
-
-  def updateUserProvider(userProvider: UserProvider)(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[UserProvider] =
-    db.run(UserProviderDAO.updateUserProvider(userProvider))
-}
 
 object UserProviderDAO {
   private[this] lazy val getUserProviderQuery = Compiled { (userId: Rep[UUID]) =>
     UserProviderTable.table.filter(_.userId === userId)
   }
 
-  private[common] def getUserProvider(userId: UUID): DBIO[Option[UserProvider]] =
-    getUserProviderQuery(userId).result.headOption
+  def getUserProvider(userId: UUID)(bust: Boolean = false)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[UserProvider]] = cache(
+    "getUserProvider",
+    userId.toString
+  )(db.run(getUserProviderQuery(userId).result.headOption))(
+    bust = bust
+  )
 
   private[this] lazy val getProvidersQuery = Compiled { (userId: Rep[UUID]) =>
     for {
@@ -107,8 +34,16 @@ object UserProviderDAO {
     } yield p
   }
 
-  private[common] def getProviders(userId: UUID): DBIO[Seq[Provider]] =
-    getProvidersQuery(userId).result
+  def getProviders(userId: UUID)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[Provider]] = cache(
+    "getProviders",
+    userId.toString
+  )(db.run(getProvidersQuery(userId).result))()
 
   private[this] lazy val userProviderExistsQuery = Compiled {
     (providerId: Rep[Long]) =>
@@ -117,15 +52,30 @@ object UserProviderDAO {
       }.exists
   }
 
-  private[common] def userProviderExists(providerId: Long): DBIO[Boolean] =
-    userProviderExistsQuery(providerId).result
+  def userProviderExists(providerId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Boolean] = cache(
+    "userProviderExists",
+    providerId
+  )(db.run(userProviderExistsQuery(providerId).result))()
 
   private[this] lazy val getUniqueInternalProvidersQuery = Compiled {
     UserProviderTable.table.distinct
   }
 
-  private[common] def getUniqueInternalProviders: StreamingDBIO[Seq[UserProvider], UserProvider] =
-    getUniqueInternalProvidersQuery.result
+  def getUniqueInternalProviders()(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[UserProvider]] = cache(
+    "getUniqueInternalProviders"
+  )(db.run(getUniqueInternalProvidersQuery.result))()
 
   private[this] lazy val getUniqueProvidersQuery = Compiled {
     (for {
@@ -134,19 +84,36 @@ object UserProviderDAO {
     } yield p).distinct
   }
 
-  private[common] def getUniqueProviders: StreamingDBIO[Seq[Provider], Provider] =
-    getUniqueProvidersQuery.result
-
-  private[common] def addUserProvider(userProvider: UserProvider): DBIO[UserProvider] =
-    (UserProviderTable.table returning UserProviderTable.table) += userProvider
-
-  private[common] def updateUserProvider(userProvider: UserProvider)(
+  def getUniqueProviders()(
     implicit
-    ec: ExecutionContext
-  ): DBIO[UserProvider] = for {
-    _ <- UserProviderTable.table.filter(_.userId === userProvider.userId).update(userProvider)
-    provider <- getUserProviderQuery(
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Seq[Provider]] = cache(
+    "getUniqueProviders"
+  )(db.run(getUniqueProvidersQuery.result))()
+
+  def addUserProvider(userProvider: UserProvider)(
+    implicit
+    db: Database
+  ): Future[UserProvider] = db.run(
+    (UserProviderTable.table returning UserProviderTable.table) += userProvider
+  )
+
+
+  def updateUserProvider(userProvider: UserProvider)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[UserProvider] = for {
+    _ <- db.run(
+      UserProviderTable.table.filter(_.userId === userProvider.userId).update(userProvider)
+    )
+    provider <- getUserProvider(
       userProvider.userId
-    ).result.head
+    )(bust = true).map(_.get)
   } yield provider
 }

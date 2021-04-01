@@ -17,25 +17,13 @@ import com.couchmate.common.models.data.{Airing, Channel, ChannelOwner, Episode,
 import com.couchmate.services.gracenote._
 import com.typesafe.config.Config
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 
-object ListingStreams
-  extends PlayJsonSupport
-  with ProviderDAO
-  with ProviderChannelDAO
-  with ListingCacheDAO
-  with ShowDAO
-  with EpisodeDAO
-  with SportEventDAO
-  with SportTeamDAO
-  with SportEventTeamDAO
-  with LineupDAO
-  with UserNotificationShowDAO
-  with UserNotificationSeriesDAO
-  with UserNotificationTeamDAO
-  with UserNotificationQueueDAO {
+object ListingStreams extends PlayJsonSupport {
 
   def slots(pullType: ListingPullType, startTime: LocalDateTime): Source[LocalDateTime, NotUsed] =
     Source
@@ -80,6 +68,8 @@ object ListingStreams
     implicit
     ec: ExecutionContext,
     db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
     ctx: ActorContext[_]
   ): Source[GracenoteAiringPlan, NotUsed] = {
     val channelOwner: Option[ChannelOwner] = channelAiring
@@ -91,7 +81,7 @@ object ListingStreams
       ))
 
     Source
-      .future(getOrAddChannel(
+      .future(ProviderChannelDAO.addOrGetChannel(
         providerId,
         channelAiring.channel,
         channelOwner,
@@ -103,7 +93,7 @@ object ListingStreams
         )
       ))
       .map(_.providerChannelId.get)
-      .mapAsync(10)(upsertListingCacheWithDiff(
+      .mapAsync(10)(ListingCacheDAO.upsertListingCacheWithDiff(
         _,
         startTime,
         channelAiring.airings
@@ -118,6 +108,8 @@ object ListingStreams
     implicit
     ec: ExecutionContext,
     db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
     config: Config,
     ctx: ActorContext[_]
   ): Source[Lineup, NotUsed] = RestartSource.onFailuresWithBackoff(
@@ -141,7 +133,7 @@ object ListingStreams
           System.out.println(s"Episode failed: ${ex.getMessage}")
           Future.failed(ex)
       }
-    case GracenoteAiring(_, _, _, _, program) => addOrGetShow(Show(
+    case GracenoteAiring(_, _, _, _, program) => ShowDAO.addOrGetShow(Show(
       showId = None,
       extId = program.rootId,
       `type` = ShowType.Show,
@@ -159,10 +151,10 @@ object ListingStreams
         Future.failed(ex)
     }
   })).mapAsync(10)(show => for {
-    l <- getOrAddLineup(
+    l <- LineupDAO.addOrGetLineupFromProviderChannelAndAiring(
       providerChannelId,
       Airing(
-        airingId = Some(Airing.generateShortcode),
+        airingId = Airing.generateShortcode,
         showId = show.showId.get,
         startTime = gracenoteAiring.startTime,
         endTime = gracenoteAiring.endTime,
@@ -172,19 +164,19 @@ object ListingStreams
     )
     n <- {
       if (show.sportEventId.nonEmpty) {
-        addUserNotificationsForSport(
+        UserNotificationQueueDAO.addUserNotificationsForSport(
           l.airingId,
           providerChannelId,
           show.sportEventId.get
         )
       } else if (show.episodeId.nonEmpty) {
-        addUserNotificationsForEpisode(
+        UserNotificationQueueDAO.addUserNotificationsForEpisode(
           l.airingId,
           show.episodeId.get,
           providerChannelId,
         )
       } else {
-        addUserNotificationsForShow(
+        UserNotificationQueueDAO.addUserNotificationsForShow(
           l.airingId,
           providerChannelId,
         )
@@ -198,15 +190,19 @@ object ListingStreams
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Source[Option[Lineup], NotUsed] =
-    Source.future(disableLineup(providerChannelId, gracenoteAiring))
+    Source.future(LineupDAO.disableLineup(providerChannelId, gracenoteAiring))
 
   private[this] def episode(program: GracenoteProgram)(
     implicit
     ec: ExecutionContext,
-    db: Database
-  ): Future[Show] = getOrAddEpisode(
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Show] = EpisodeDAO.addOrGetShow(
     Show(
       showId = None,
       extId = program.rootId,
@@ -243,7 +239,9 @@ object ListingStreams
   )(
     implicit
     ec: ExecutionContext,
-    db: Database
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[Show] = {
     val gnSport: Option[GracenoteSport] =
       sports.find(_.sportsId == program.sportsId.get)
@@ -306,7 +304,7 @@ object ListingStreams
       episode = program.episodeNum.getOrElse(0L)
     ))
 
-    getOrAddSportEvent(
+    SportEventDAO.getOrAddShow(
       Show(
         showId = None,
         extId = program.rootId,

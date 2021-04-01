@@ -9,5 +9,6 @@ object Versions {
   val alpakka: String = "2.0.0"
   val slick: String = "3.3.2"
   val slickPg: String = "0.19.0"
+  val scalaCache: String = "0.28.0"
 
 }

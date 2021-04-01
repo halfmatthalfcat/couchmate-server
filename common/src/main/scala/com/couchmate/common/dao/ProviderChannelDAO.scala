@@ -1,87 +1,28 @@
 package com.couchmate.common.dao
 
-import akka.NotUsed
-import akka.stream.alpakka.slick.scaladsl.{Slick, SlickSession}
-import akka.stream.scaladsl.Flow
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{Channel, ChannelOwner, ProviderChannel}
-import com.couchmate.common.tables.{AiringTable, LineupTable, ProviderChannelTable}
+import com.couchmate.common.tables.{LineupTable, ProviderChannelTable}
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
-
-trait ProviderChannelDAO {
-
-  def getProviderChannel(providerChannelId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[ProviderChannel]] =
-    db.run(ProviderChannelDAO.getProviderChannel(providerChannelId))
-
-  def getProviderChannel$()(
-    implicit
-    session: SlickSession
-  ): Flow[Long, Option[ProviderChannel], NotUsed] =
-    Slick.flowWithPassThrough(ProviderChannelDAO.getProviderChannel)
-
-  def getProviderChannelForProviderAndChannel(providerId: Long, channelId: Long)(
-    implicit
-    db: Database
-  ): Future[Option[ProviderChannel]] =
-    db.run(ProviderChannelDAO.getProviderChannelForProviderAndChannel(providerId, channelId))
-
-  def getProviderChannelForProviderAndChannel$()(
-    implicit
-    session: SlickSession
-  ): Flow[(Long, Long), Option[ProviderChannel], NotUsed] =
-    Slick.flowWithPassThrough(
-      (ProviderChannelDAO.getProviderChannelForProviderAndChannel _).tupled
-    )
-
-  def getProviderChannelForProviderAndAiring(
-    providerId: Long,
-    airingId: String
-  )(implicit db: Database): Future[Option[ProviderChannel]] =
-    db.run(ProviderChannelDAO.getProviderChannelForProviderAndAiring(providerId, airingId))
-
-  def upsertProviderChannel(providerChannel: ProviderChannel)(
-    implicit
-    db: Database,
-    ec: ExecutionContext
-  ): Future[ProviderChannel] =
-    db.run(ProviderChannelDAO.upsertProviderChannel(providerChannel))
-
-  def upsertProviderChannel$()(
-    implicit
-    ec: ExecutionContext,
-    session: SlickSession
-  ): Flow[ProviderChannel, ProviderChannel, NotUsed] =
-    Slick.flowWithPassThrough(ProviderChannelDAO.upsertProviderChannel)
-
-  def getOrAddChannel(
-    providerId: Long,
-    channelNumber: String,
-    channelOwner: Option[ChannelOwner],
-    channel: Channel
-  )(
-    implicit
-    ec: ExecutionContext,
-    db: Database
-  ): Future[ProviderChannel] =
-    db.run(ProviderChannelDAO.getOrAddChannel(
-      providerId,
-      channelNumber,
-      channelOwner,
-      channel
-    ))
-}
 
 object ProviderChannelDAO {
   private[this] lazy val getProviderChannelQuery = Compiled { (providerChannelId: Rep[Long]) =>
     ProviderChannelTable.table.filter(_.providerChannelId === providerChannelId)
   }
 
-  private[common] def getProviderChannel(providerChannelId: Long): DBIO[Option[ProviderChannel]] =
-    getProviderChannelQuery(providerChannelId).result.headOption
+  def getProviderChannel(providerChannelId: Long)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[ProviderChannel]] = cache(
+    "getProviderChannel",
+    providerChannelId
+  )(db.run(getProviderChannelQuery(providerChannelId).result.headOption))()
 
   private[this] lazy val getProviderChannelForProviderAndChannelQuery = Compiled {
     (providerId: Rep[Long], channelId: Rep[Long]) =>
@@ -91,11 +32,25 @@ object ProviderChannelDAO {
       }
   }
 
-  private[common] def getProviderChannelForProviderAndChannel(
+  def getProviderChannelForProviderAndChannel(
     providerId: Long,
     channelId: Long
-  ): DBIO[Option[ProviderChannel]] =
-    getProviderChannelForProviderAndChannelQuery(providerId, channelId).result.headOption
+  )(
+    bust: Boolean = false
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[ProviderChannel]] = cache(
+    "getProviderChannelForProviderAndChannel",
+    providerId,
+    channelId
+  )(db.run(getProviderChannelForProviderAndChannelQuery(
+    providerId,
+    channelId
+  ).result.headOption))(bust = bust)
 
   private[this] lazy val getProviderChannelForProviderAndAiringQuery = Compiled {
     (providerId: Rep[Long], airingId: Rep[String]) => for {
@@ -107,53 +62,90 @@ object ProviderChannelDAO {
     } yield pc
   }
 
-  private[common] def getProviderChannelForProviderAndAiring(
+  def getProviderChannelForProviderAndAiring(
     providerId: Long,
     airingId: String
-  ): DBIO[Option[ProviderChannel]] =
-    getProviderChannelForProviderAndAiringQuery(providerId, airingId).result.headOption
-
-  private[common] def upsertProviderChannel(providerChannel: ProviderChannel)(
+  )(
     implicit
-    ec: ExecutionContext
-  ): DBIO[ProviderChannel] =
-    providerChannel.providerChannelId.fold[DBIO[ProviderChannel]](
-      (ProviderChannelTable.table returning ProviderChannelTable.table) += providerChannel
-    ) { (providerChannelId: Long) => for {
-      _ <- ProviderChannelTable
-        .table
-        .filter(_.providerChannelId === providerChannelId)
-        .update(providerChannel)
-      updated <- ProviderChannelDAO.getProviderChannel(providerChannelId)
-    } yield updated.get}
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Option[ProviderChannel]] = cache(
+    "getProviderChannelForProviderAndAiring",
+    providerId,
+    airingId
+  )(db.run(getProviderChannelForProviderAndAiringQuery(
+    providerId,
+    airingId
+  ).result.headOption))()
 
-  private[common] def getOrAddChannel(
+  private[this] def addProviderChannelForId(p: ProviderChannel)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[Long] = cache(
+    "addProviderChannelForId",
+    p.providerId,
+    p.channelId
+  )(db.run(
+    sql"SELECT insert_or_get_provider_channel_id(${p.providerChannelId}, ${p.providerId}, ${p.channelId}, ${p.channel})"
+      .as[Long].head
+  ))()
+
+  def addOrGetProviderChannel(p: ProviderChannel)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[ProviderChannel] = cache(
+    "addOrGetProviderChannel",
+    p.providerId,
+    p.channelId
+  )(for {
+    exists <- getProviderChannelForProviderAndChannel(
+      p.providerId, p.channelId
+    )()
+    pc <- exists.fold(for {
+      _ <- addProviderChannelForId(p)
+      selected <- getProviderChannelForProviderAndChannel(
+        p.providerId, p.channelId
+      )(bust = true).map(_.get)
+    } yield selected)(Future.successful)
+  } yield pc)()
+
+  def addOrGetChannel(
     providerId: Long,
     channelNumber: String,
     channelOwner: Option[ChannelOwner],
     channel: Channel
   )(
     implicit
-    ec: ExecutionContext
-  ): DBIO[ProviderChannel] = (for {
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[ProviderChannel] = (for {
     cO <- channelOwner
-      .fold[DBIOAction[Option[ChannelOwner], NoStream, Effect.All]](
-        DBIO.successful(Option.empty[ChannelOwner])
+      .fold[Future[Option[ChannelOwner]]](
+        Future.successful(Option.empty[ChannelOwner])
       )(owner =>
         ChannelOwnerDAO
-          .getOrAddChannelOwner(owner)
+          .addOrGetChannelOwner(owner)
           .map(o => Option(o))
       )
-    c <- cO.fold(ChannelDAO.getOrAddChannel(channel))(owner =>
-      ChannelDAO.getOrAddChannel(channel.copy(
+    c <- cO.fold(ChannelDAO.addOrGetChannel(channel))(owner =>
+      ChannelDAO.addOrGetChannel(channel.copy(
         channelOwnerId = owner.channelOwnerId
       )))
-    pcExists <- getProviderChannelForProviderAndChannel(providerId, c.channelId.get)
-    pc <- pcExists.fold(upsertProviderChannel(ProviderChannel(
+    pc <- addOrGetProviderChannel(ProviderChannel(
       providerChannelId = None,
       providerId = providerId,
       channelId = c.channelId.get,
       channel = channelNumber
-    )))(DBIO.successful)
+    ))
   } yield pc)
 }

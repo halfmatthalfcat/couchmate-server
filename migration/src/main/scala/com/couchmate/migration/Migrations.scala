@@ -1,18 +1,29 @@
 package com.couchmate.migration
 
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.tables.{AiringTable, EpisodeTable, LineupTable, ListingCacheTable, ProviderOwnerTable, ProviderTable, SeriesTable, ShowTable, SportEventTable, SportEventTeamTable, SportOrganizationTable, SportOrganizationTeamTable, SportTeamTable}
+import com.couchmate.common.tables.{AiringTable, ChannelOwnerTable, ChannelTable, EpisodeTable, LineupTable, ListingCacheTable, ProviderChannelTable, ProviderOwnerTable, ProviderTable, SeriesTable, ShowTable, SportEventTable, SportEventTeamTable, SportOrganizationTable, SportOrganizationTeamTable, SportTeamTable}
 import com.couchmate.migration.db.{Migration, MigrationDAO, MigrationItem, MigrationTable}
 import com.couchmate.migration.migrations._
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.blemale.scaffeine.Scaffeine
 import com.typesafe.scalalogging.LazyLogging
+import redis.clients.jedis.JedisPool
+import scalacache.Entry
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.collection.immutable.SortedSet
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 object Migrations extends LazyLogging {
-  private[this] def migrations(implicit db: Database): SortedSet[MigrationItem[_]] = SortedSet(
+  private[this] def migrations(
+    implicit
+    db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): SortedSet[MigrationItem[_]] = SortedSet(
     UserMigrations.init,
     ProviderOwnerMigrations.init,
     ProviderMigrations.init,
@@ -70,7 +81,11 @@ object Migrations extends LazyLogging {
     ProviderOwnerMigrations.addIdx,
     ProviderMigrations.makeIdxUnique,
     ProviderMigrations.addDevice,
-    UserChannelFavoriteMigrations.init
+    UserChannelFavoriteMigrations.init,
+    LineupMigrations.airingIdx,
+    ProviderChannelMigrations.createUniqueIdx,
+    ChannelOwnerMigrations.extId,
+    ChannelMigrations.extIdIdx
   )
 
   val functions: Seq[DBIO[Int]] = Seq(
@@ -86,12 +101,17 @@ object Migrations extends LazyLogging {
     SportOrganizationTeamTable.insertOrGetSportOrganizationTeamIdFunction,
     SportTeamTable.insertOrGetSportTeamIdFunction,
     ProviderOwnerTable.insertOrGetProviderOwnerIdFunction,
-    ProviderTable.insertOrGetProviderIdFunction
+    ProviderTable.insertOrGetProviderIdFunction,
+    ChannelTable.insertOrGetChannelIdFunction,
+    ChannelOwnerTable.insertOrGetChannelOwnerIdFunction,
+    ProviderChannelTable.insertOrGetProviderChannelIdFunction
   )
 
   private[this] def applyMigrations()(
     implicit
     db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[Unit] = ensureTableAndGet flatMap { currentMigrations =>
     System.out.println(s"Found ${currentMigrations.size} migrations already applied.")
 
@@ -99,22 +119,25 @@ object Migrations extends LazyLogging {
       System.out.println("All migrations have already been applied, adding/updating functions.")
       db.run(DBIO.sequence(functions)).map(_ => ())
     } else {
-      val newMigrations = migrations
+      val newMigrations: Future[Seq[Migration]] = migrations
         .filterNot(m => currentMigrations.exists(_.migrationId == m.migrationId))
         .toSeq
-        .map(item => (for {
+        .sortBy(_.migrationId)
+        .foldLeft(Future.successful(Seq.empty[Migration]))((acc, item) => for {
+          result <- acc
           _ <- item.up
-          migrated <- MigrationDAO.addMigration(Migration(
+          migrated <- db.run(MigrationDAO.addMigration(Migration(
             item.migrationId,
-          ))
-        } yield migrated).transactionally)
+          )))
+          _ = System.out.println(s"Ran item ${item.migrationId}")
+        } yield result :+ migrated)
 
 
-      System.out.println(s"Applying ${newMigrations.size} migrations and ${functions.size} functions.")
+      // System.out.println(s"Applying ${newMigrations.size} migrations and ${functions.size} functions.")
 
       for {
         _ <- db.run(DBIO.sequence(functions))
-        _ <- db.run(DBIO.sequence(newMigrations))
+        _ <- newMigrations
       } yield ()
     }
   }
@@ -122,6 +145,8 @@ object Migrations extends LazyLogging {
   private[this] def dropMigrations()(
     implicit
     db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[Seq[Unit]] = ensureTableAndGet flatMap { currentMigrations =>
     System.out.println(s"Found ${currentMigrations.size} migrations.")
 
@@ -134,18 +159,23 @@ object Migrations extends LazyLogging {
         .toSeq.reverse
         .map(item => (for {
           _ <- item.down
-          _ <- MigrationDAO.removeMigration(item.migrationId)
-        } yield ()).transactionally)
+          _ <- db.run(MigrationDAO.removeMigration(item.migrationId))
+        } yield ()))
 
       System.out.println(s"Unapplying ${newMigrations.size} migrations.")
 
-      db.run(DBIO.sequence(newMigrations))
+      newMigrations.foldLeft(Future.successful(Seq.empty[Unit])) { (acc, curr) => for {
+        result <- acc
+        migration <- curr
+      } yield result :+ migration}
     }
   }
 
   private[this] def resetSchema()(
     implicit
     db: Database,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[Unit] = for {
     _ <- dropMigrations
     _ <- applyMigrations
@@ -176,12 +206,24 @@ object Migrations extends LazyLogging {
 //  }
 
   def main(args: Array[String]): Unit = {
+    import scalacache.serialization.binary._
+
+    implicit val db: Database =
+      Database.forConfig("db")
+    implicit val jedisPool: JedisPool = new JedisPool()
+
+    val caffeineCache: Cache[String, Entry[String]] = Scaffeine()
+      .build[String, Entry[String]]().underlying
+
+    implicit val caffeine: CaffeineCache[String] =
+      CaffeineCache(caffeineCache)
+
+    implicit val redis: RedisCache[String] =
+      RedisCache(jedisPool)
+
     args match {
       case Array("apply") =>
         System.out.println("Applying schema")
-
-        implicit val db: Database =
-          Database.forConfig("db")
 
         Await.result(
           applyMigrations(),

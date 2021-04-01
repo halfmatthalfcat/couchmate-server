@@ -19,4 +19,12 @@ object ProviderChannelMigrations {
     )
   )()
 
+  val createUniqueIdx = MigrationItem(60L, ProviderChannelTable.table)(
+    _.dropIndexes(
+      _.oldProviderChannelIdx
+    ).addIndexes(
+      _.providerChannelIdx
+    )
+  )()
+
 }

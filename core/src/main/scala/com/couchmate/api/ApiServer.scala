@@ -15,6 +15,8 @@ import com.typesafe.config.Config
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsSettings
 import fr.davit.akka.http.metrics.core.scaladsl.server.HttpMetricsRoute._
 import fr.davit.akka.http.metrics.prometheus.PrometheusRegistry
+import scalacache.caffeine.CaffeineCache
+import scalacache.redis.RedisCache
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -33,7 +35,9 @@ class ApiServer(
   user: UserExtension,
   singleton: SingletonExtension,
   config: Config,
-  timeout: Timeout
+  timeout: Timeout,
+  redis: RedisCache[String],
+  caffeine: CaffeineCache[String],
 ) extends Routes {
   private[this] implicit val actorSystem: ClassicActorSystem =
     ctx.system.toClassic
@@ -65,7 +69,9 @@ object ApiServer {
     user: UserExtension,
     singletons: SingletonExtension,
     config: Config,
-    timeout: Timeout
+    timeout: Timeout,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
   ): Future[Http.ServerBinding] = new ApiServer(
     host,
     port,
