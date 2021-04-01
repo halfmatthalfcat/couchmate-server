@@ -44,7 +44,7 @@ spec:
             - name: REDIS_HOST
               value: {{.Values.app.redis.host}}
             - name: REDIS_PORT
-              value: {{.Values.app.redis.port}}
+              value: "{{.Values.app.redis.port}}"
             - name: REDIS_PASSWORD
               value: {{.Values.app.redis.password}}
             - name: MAILGUN_API_KEY
