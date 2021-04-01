@@ -131,8 +131,8 @@ jobs:
           --state-values-set dbUsername=doadmin \
           --state-values-set dbName=defaultdb \
           --state-values-set dbPassword=${{ secrets.DO_PG_DEV2_PW }} \
-          --state-values-set redisHost=${{ secrets.DO_REDIS_DEV_HOST }} \
-          --state-values-set redisPort=${{ secrets.DO_REDIS_DEV_PORT }} \
+          --state-values-set redisHost=redis-dev2-do-user-7059730-0.b.db.ondigitalocean.com \
+          --state-values-set redisPort=25061 \
           --state-values-set redisPassword=${{ secrets.DO_REDIS_DEV_PASSWORD }} \
           --state-values-set mailgunApiKey=${{ secrets.MAILGUN_API_KEY }} \
           --state-values-set mailgunValidationKey=${{ secrets.MAILGUN_VALIDATION_KEY }} \
