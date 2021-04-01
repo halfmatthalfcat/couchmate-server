@@ -8,9 +8,16 @@ case class Grid(
   providerId: Long,
   providerName: String,
   startTime: LocalDateTime,
-  userCount: Long,
   pages: Seq[GridPage],
-)
+) {
+  def getAiringIds: Seq[String] =
+    pages
+      .flatMap(
+        _.channels.flatMap(
+          _.airings.map(_.airingId)
+        )
+      ).distinct
+}
 
 object Grid {
   implicit val format: Format[Grid] = Json.format[Grid]

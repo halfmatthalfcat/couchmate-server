@@ -10,12 +10,14 @@ import akka.util.Timeout
 import com.couchmate.common.dao.{ListingJobDAO, ProviderDAO, UserProviderDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.data.{ProviderType, ListingJob => ListingJobModel}
+import com.couchmate.common.util.DateUtils
 import com.couchmate.services.gracenote.listing.{ListingJob, ListingPullType}
 import com.couchmate.util.akka.extensions.{CacheExtension, DatabaseExtension}
 import com.typesafe.akka.extension.quartz.QuartzSchedulerExtension
 import scalacache.caffeine.CaffeineCache
 import scalacache.redis.RedisCache
 
+import java.time.{LocalDateTime, ZoneId}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
@@ -113,7 +115,16 @@ object ListingUpdater {
           })
         case PreviousProviderJobSuccess(providerId, job) =>
           Effect.none.thenRun(_ => {
-            if (job.isEmpty) {
+            val hasHadJob: Boolean = job
+              .flatMap(_.completed).exists(date =>
+                date.isBefore(DateUtils.roundNearestDay(
+                  LocalDateTime.now(ZoneId.of("UTC"))
+                )) &&
+                date.isAfter(DateUtils.roundNearestDay(
+                  LocalDateTime.now(ZoneId.of("UTC"))
+                ).minusDays(1))
+              )
+            if (!hasHadJob) {
               ctx.spawnAnonymous(ListingJob(
                 jobId = UUID.randomUUID(),
                 providerId = providerId,

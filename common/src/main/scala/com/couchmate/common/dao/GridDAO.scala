@@ -2,20 +2,22 @@ package com.couchmate.common.dao
 
 import com.couchmate.common.db.PgProfile.plainAPI._
 import com.couchmate.common.models.api.grid._
-import com.couchmate.common.models.data.{RoomActivityType, RoomStatusType}
 import com.couchmate.common.util.DateUtils
 import scalacache.caffeine.CaffeineCache
 import scalacache.redis.RedisCache
-import slick.sql.SqlStreamingAction
 
 import java.time.{LocalDateTime, ZoneId}
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 object GridDAO {
   def getGrid(
     providerId: Long,
     pages: Int = 4,
-  )(bust: Boolean = false)(
+  )(
+    bust: Boolean = false,
+    bustFn: String => Future[_] = _ => Future.successful()
+  )(
     implicit
     db: Database,
     ec: ExecutionContext,
@@ -32,22 +34,23 @@ object GridDAO {
           .map(startDate => getGridPage(
             providerId,
             startDate
-          )(bust = bust))
+          )(bust = bust, bustFn = bustFn))
       )
-      count <- db.run(UserActivityDAO.getProviderUserCount(providerId).head)
     } yield Grid(
       providerId,
       provider.get.name,
       now,
-      count,
       pages,
     )
   }
 
-  private[this] def getGridPage(
+  def getGridPage(
     providerId: Long,
     startDate: LocalDateTime
-  )(bust: Boolean = false)(
+  )(
+    bust: Boolean = false,
+    bustFn: String => Future[_] = _ => Future.successful()
+  )(
     implicit
     db: Database,
     ec: ExecutionContext,
@@ -105,7 +108,27 @@ object GridDAO {
         ) :: page.channels
       )
     }
-  })(bust = bust)
+  })(bust = bust, bustFn = bustFn, ttl = Some(1.hour))
+
+  def getGridDynamic(providerId: Long)(bust: Boolean = false)(
+    implicit
+    db: Database,
+    ec: ExecutionContext,
+    redis: RedisCache[String],
+    caffeine: CaffeineCache[String],
+  ): Future[GridDynamic] = cache(
+    "getGridDynamic",
+    providerId
+  )(for {
+    grid <- getGrid(providerId)()
+    airings = grid.getAiringIds
+    count <- db.run(UserActivityDAO.getProviderUserCount(providerId).head)
+    dynamic <- getGridDynamicForAirings(airings)
+  } yield GridDynamic(
+    providerId = providerId,
+    userCount = count,
+    airings = dynamic
+  ))(bust = bust, ttl = Some(5.seconds))
 
   private[this] def getGridRaw(
     providerId: Long,
@@ -156,55 +179,60 @@ object GridDAO {
         """.as[GridAiring]
   ))()
 
-  private[common] def getGridDynamicForAirings(airingIds: Seq[String]) =
-    sql"""
+  private[this] def getGridDynamicForAirings(airingIds: Seq[String])(
+    implicit
+    db: Database
+  ): Future[Seq[GridAiringDynamic]] = {
+    if (airingIds.isEmpty) {
+      Future.successful(Seq.empty[GridAiringDynamic])
+    } else {
+      db.run(
+        sql"""
         SELECT a.airing_id,
-               coalesce(roomCount.count, 0) as count,
-               coalesce(followCount.following, 0) as following,
-               roomStatus.status as status
+        CASE
+        WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 15 AND
+                EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 > 0
+        THEN    'pregame'
+        WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 0 AND
+                duration - (EXTRACT(EPOCH FROM(end_time) - TIMEZONE('utc', NOW())) / 60) <= duration
+        THEN    'open'
+        WHEN    EXTRACT(EPOCH FROM(end_time) - TIMEZONE('utc', NOW())) / 60 < 0 AND
+                EXTRACT(EPOCH FROM(end_time) - TIMEZONE('utc', NOW())) / 60 >= -15
+        THEN    'postgame'
+        ELSE    'closed'
+        END AS  status,
+        coalesce(roomCount.count, 0) as count,
+        coalesce(followCount.following, 0) as following
         FROM airing as a
         LEFT OUTER JOIN (
-            SELECT  airing_id, count(*) as count
-            FROM    room_activity as current
-            JOIN    (
-                SELECT    user_id, max(created) as created
-                FROM      room_activity
-                GROUP BY  user_id
-            ) as latest
-            ON        current.user_id = latest.user_id
-            AND       current.created = latest.created
-            WHERE     action = 'joined'
-            GROUP BY  airing_id
+          SELECT  airing_id, count(*) as count
+          FROM    room_activity as current
+          JOIN    (
+            SELECT    user_id, max(created) as created
+            FROM      room_activity
+            GROUP BY  user_id
+          ) as latest
+          ON        current.user_id = latest.user_id
+          AND       current.created = latest.created
+          WHERE     action = 'joined'
+          GROUP BY  airing_id
         ) as roomCount
         ON roomCount.airing_id = a.airing_id
         -- Following
         LEFT OUTER JOIN (
-            SELECT t.airing_id, count(*) as following
-            FROM (
-                 SELECT      airing_id
-                 FROM        user_notification_queue
-                 GROUP BY    user_id, airing_id
-             ) as t
-            GROUP BY t.airing_id
+          SELECT t.airing_id, count(*) as following
+          FROM (
+             SELECT      airing_id
+             FROM        user_notification_queue
+             GROUP BY    user_id, airing_id
+           ) as t
+          GROUP BY t.airing_id
         ) as followCount
         ON followCount.airing_id = a.airing_id
-        -- Room Status
-        JOIN (
-            SELECT  airing_id, CASE
-            WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 15 AND
-                    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 > 0
-            THEN    'pregame'
-            WHEN    EXTRACT(EPOCH FROM(start_time) - TIMEZONE('utc', NOW())) / 60 <= 0 AND
-                    duration - (EXTRACT(EPOCH FROM(end_time) - TIMEZONE('utc', NOW())) / 60) <= duration
-            THEN    'open'
-            WHEN    EXTRACT(EPOCH FROM(end_time) - TIMEZONE('utc', NOW())) / 60 < 0 AND
-                    EXTRACT(EPOCH FROM(end_time) - TIMEZONE('utc', NOW())) / 60 >= -15
-            THEN    'postgame'
-            ELSE    'closed'
-            END AS  status
-            FROM    airing
-        ) as roomStatus
-        ON roomStatus.airing_id = a.airing_id
-        WHERE a.airing_id IN (#${airingIds.mkString(",")})
+        WHERE a.airing_id IN (#${airingIds.map(a => s"'$a'").mkString(",")})
        """.as[GridAiringDynamic]
+      )
+    }
+  }
+
 }

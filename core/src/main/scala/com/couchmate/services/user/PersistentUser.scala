@@ -9,12 +9,12 @@ import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 import com.couchmate.api.ws.protocol._
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.common.models.api.Provider
-import com.couchmate.common.models.api.grid.Grid
+import com.couchmate.common.models.api.grid.{Grid, GridAiringDynamic, GridDynamic}
 import com.couchmate.common.models.api.room.tenor.TenorGif
 import com.couchmate.common.models.api.user.UserMute
 import com.couchmate.common.models.data.{ApplicationPlatform, UserMeta, UserNotificationConfiguration, UserNotifications, UserReportType, UserRole}
 import com.couchmate.services.{GracenoteCoordinator, GridCoordinator, ProviderCoordinator}
-import com.couchmate.services.GridCoordinator.GridUpdate
+import com.couchmate.services.GridCoordinator.{GridDynamicUpdate, GridUpdate}
 import com.couchmate.services.gracenote.provider.ProviderJob
 import com.couchmate.services.room.TenorService.{GetTenorTrending, SearchTenor}
 import com.couchmate.services.room.{Chatroom, RoomId}
@@ -60,6 +60,9 @@ object PersistentUser {
 
   case class UpdateGrid(grid: Grid) extends Command
   case class UpdateGridFailed(ex: Throwable) extends Command
+
+  case class UpdateGridDynamic(updates: GridDynamic) extends Command
+  case class UpdateGridDynamicFailed(ex: Throwable) extends Command
 
   case class EmailValidated(exists: Boolean, valid: Boolean) extends Command
   case class EmailValidationFailed(ex: Throwable) extends Command
@@ -251,6 +254,7 @@ object PersistentUser {
 
     implicit val gridAdapter: ActorRef[GridCoordinator.Command] = ctx.messageAdapter {
       case GridUpdate(grid) => UpdateGrid(grid)
+      case GridDynamicUpdate(updates) => UpdateGridDynamic(updates)
     }
 
     val providerAdapter: ActorRef[ProviderJob.Command] = ctx.messageAdapter {
@@ -338,6 +342,8 @@ object PersistentUser {
             ConnectedCommands.disconnect(userContext, geo, device)
           case UpdateGrid(grid) =>
             ConnectedCommands.updateGrid(grid, ws)
+          case UpdateGridDynamic(updates) =>
+            ConnectedCommands.upgradeGridDynamic(updates, ws)
           case UpdateGridFailed(_) => Effect.none
           case validated: EmailValidated =>
             ConnectedCommands.emailValidated(validated, ws)

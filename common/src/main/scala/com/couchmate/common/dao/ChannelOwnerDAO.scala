@@ -35,7 +35,9 @@ object ChannelOwnerDAO {
     caffeine: CaffeineCache[String],
   ): Future[Option[ChannelOwner]] = cache(
     "getChannelOwnerForExt", extId
-  )(db.run(getChannelOwnerForExtQuery(extId).result.headOption))()
+  )(db.run(getChannelOwnerForExtQuery(extId).result.headOption))(
+    bust = bust
+  )
 
   private[this] def addChannelOwnerForId(co: ChannelOwner)(
     implicit

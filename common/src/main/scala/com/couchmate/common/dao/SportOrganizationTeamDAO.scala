@@ -9,7 +9,7 @@ import scalacache.redis.RedisCache
 import scala.concurrent.{ExecutionContext, Future}
 
 object SportOrganizationTeamDAO {
-  private[this] val getSportOrganizationTeamQuery = Compiled {
+  private[this] lazy val getSportOrganizationTeamQuery = Compiled {
     (sportOrganizationTeamId: Rep[Long]) =>
       SportOrganizationTeamTable.table.filter(
         _.sportOrganizationTeamId === sportOrganizationTeamId
@@ -27,7 +27,7 @@ object SportOrganizationTeamDAO {
     sportOrganizationTeamId
   )(db.run(getSportOrganizationTeamQuery(sportOrganizationTeamId).result.headOption))()
 
-  private[this] val getSportOrganizationTeamForSportAndOrgQuery = Compiled {
+  private[this] lazy val getSportOrganizationTeamForSportAndOrgQuery = Compiled {
     (sportTeamId: Rep[Long], sportOrganizationId: Rep[Long]) =>
       SportOrganizationTeamTable.table.filter { sOT =>
         sOT.sportTeamId === sportTeamId &&
@@ -93,21 +93,25 @@ object SportOrganizationTeamDAO {
   // I honestly have no idea why I need this but using getSportOrganizationTeamQuery
   // was returning sport_organization_id as both sport_organization_team_id _and_
   // sport_organization_id...no fucking clue
-  private[this] def getSportOrganizationTeamRaw(sportOrganizationTeamId: Long)(
+  private[this] def getSportOrganizationTeamRaw(
+    sportTeamId: Long,
+    sportOrganizationId: Long
+  )(bust: Boolean = true)(
     implicit
     db: Database,
     ec: ExecutionContext,
     redis: RedisCache[String],
     caffeine: CaffeineCache[String],
-  ): Future[SportOrganizationTeam] = cache(
+  ): Future[Option[SportOrganizationTeam]] = cache(
     "getSportOrganizationTeamRaw",
-    sportOrganizationTeamId
+    sportTeamId,
+    sportOrganizationId
   )(db.run(
     sql"""
           SELECT sport_organization_team_id, sport_team_id, sport_organization_id FROM sport_organization_team
-          WHERE sport_organization_team_id = ${sportOrganizationTeamId}
-         """.as[SportOrganizationTeam].head
-  ))()
+          WHERE sport_team_id = ${sportTeamId} AND sport_organization_id = ${sportOrganizationId}
+         """.as[SportOrganizationTeam].headOption
+  ))(bust = bust)
 
   private[common] def addAndGetSportOrganizationTeam(
     sportTeamId: Long,
@@ -123,12 +127,12 @@ object SportOrganizationTeamDAO {
     sportTeamId,
     sportOrganizationId
   )(for {
-    exists <- getSportOrganizationTeamForTeamAndOrg(
+    exists <- getSportOrganizationTeamRaw(
       sportTeamId, sportOrganizationId
     )()
     sot <- exists.fold(for {
-      _ <- addSportOrganizationTeamForId(sportTeamId, sportOrganizationId)
-      selected <- getSportOrganizationTeamForTeamAndOrg(
+      sportOrgId <- addSportOrganizationTeamForId(sportTeamId, sportOrganizationId)
+      selected <- getSportOrganizationTeamRaw(
         sportTeamId, sportOrganizationId
       )(bust = true).map(_.get)
     } yield selected)(Future.successful)

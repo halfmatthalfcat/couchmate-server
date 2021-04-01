@@ -16,4 +16,10 @@ object ChannelMigrations {
     )
   )()
 
+  val extIdIdx = MigrationItem(62L, ChannelTable.table)(
+    _.addIndexes(
+      _.channelExtIdIdx
+    )
+  )()
+
 }

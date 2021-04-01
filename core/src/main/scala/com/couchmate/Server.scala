@@ -4,6 +4,7 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorSystem, Behavior}
 import akka.cluster.typed.{Cluster, Join}
 import akka.management.cluster.bootstrap.ClusterBootstrap
+import com.couchmate.services.cache.ClusterCacheBuster
 import com.couchmate.util.http.HttpActor
 import com.typesafe.config.{Config, ConfigFactory}
 
@@ -29,6 +30,11 @@ object Server {
     ctx.spawn(HttpActor(
       host, port
     ), "http")
+
+    ctx.spawn(
+      ClusterCacheBuster(),
+      name = "ClusterCacheBuster"
+    )
 
     Behaviors.empty
   }

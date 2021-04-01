@@ -196,52 +196,63 @@ object ListingJob extends PlayJsonSupport {
             Source.fromIterator(() => listings.map(GracenoteSlotAiring(
               slot,
               _
-            )).iterator)
+            )).iterator).flatMapConcat(slotAiring =>
+              channel(
+                state.provider.providerId.get,
+                slotAiring.channelAiring,
+                slotAiring.slot
+              )).flatMapConcat(plan => {
+                Source
+                  .fromIterator(() => (plan.add.map(airing =>
+                    lineup(
+                      plan.providerChannelId,
+                      airing,
+                      state.sports
+                    ).map(Option(_))
+                  ) ++ plan.remove.map(airing =>
+                    disable(
+                      plan.providerChannelId,
+                      airing
+                    )
+                  )).iterator)
+                  .flatMapMerge(10, identity)
+                  .fold(GracenoteAiringPlanResult(
+                    plan.startTime,
+                    0, 0, plan.skip.size
+                  )) {
+                    case (acc, Some(lineup)) if lineup.active => acc.copy(added = acc.added + 1)
+                    case (acc, Some(lineup)) if !lineup.active => acc.copy(removed = acc.removed + 1)
+                    case (acc, _) => acc
+                  }
+            }).watchTermination()((_, f) => f.onComplete {
+              case Success(_) => for {
+                _ <- ListingJobDAO.upsertListingJob(
+                  state.job.copy(
+                    lastSlot = Some(slot)
+                  )
+                )
+                _ <- GridDAO.getGridPage(providerId, slot)(
+                  bust = true,
+                  bustFn = (cacheKey: String) =>
+                    Future.successful(caches.clusterBust(cacheKey))
+                )
+              } yield ()
+            })
           case GracenoteCoordinator.GetListingsFailure(ex) =>
             Source.failed(ex)
-        }.flatMapConcat(slotAiring =>
-          channel(
-            state.provider.providerId.get,
-            slotAiring.channelAiring,
-            slotAiring.slot
-          )).flatMapConcat(plan => {
-           Source
-             .fromIterator(() => (plan.add.map(airing =>
-               lineup(
-                 plan.providerChannelId,
-                 airing,
-                 state.sports
-               ).map(Option(_))
-             ) ++ plan.remove.map(airing =>
-               disable(
-                 plan.providerChannelId,
-                 airing
-               )
-             )).iterator)
-             .flatMapMerge(10, identity)
-             .fold(GracenoteAiringPlanResult(
-               plan.startTime,
-               0, 0, plan.skip.size
-             )) {
-               case (acc, Some(lineup)) if lineup.active => acc.copy(added = acc.added + 1)
-               case (acc, Some(lineup)) if !lineup.active => acc.copy(removed = acc.removed + 1)
-               case (acc, _) => acc
-             }
-           })
-          // Side-effect to update job
-          .alsoTo(Sink.foreachAsync(1)(plan => ListingJobDAO.upsertListingJob(
-            state.job.copy(
-              lastSlot = Some(plan.startTime)
-            )
-          ).map(_ => ())))
-          .reduce((prev: GracenoteAiringPlanResult, curr: GracenoteAiringPlanResult) => prev.copy(
+        }.reduce((prev: GracenoteAiringPlanResult, curr: GracenoteAiringPlanResult) => prev.copy(
            added = prev.added + curr.added,
            removed = prev.removed + curr.removed,
            skipped = prev.skipped + curr.skipped
          ))
         )
         .run
-        .flatMap(_ => GridDAO.getGrid(providerId)(bust = true))
+        .flatMap(_ => GridDAO.getGrid(providerId)(
+          bust = true,
+          bustFn = cacheKey => Future.successful(
+            caches.clusterBust(cacheKey)
+          )
+        ))
         .onComplete {
           case Success(value) =>
             ListingJobDAO.upsertListingJob(

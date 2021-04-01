@@ -7,7 +7,7 @@ import akka.persistence.typed.scaladsl.{Effect, EffectBuilder}
 import com.couchmate.api.ws.protocol.{External, ForgotPasswordError, ForgotPasswordErrorCause, LoginError, LoginErrorCause, PasswordResetError, PasswordResetErrorCause, Protocol, RegisterAccountError, RegisterAccountErrorCause, UpdateUsernameError, UpdateUsernameErrorCause}
 import com.couchmate.common.dao.{UserActivityDAO, ZipProviderDAO}
 import com.couchmate.common.db.PgProfile.api._
-import com.couchmate.common.models.api.grid.Grid
+import com.couchmate.common.models.api.grid.{Grid, GridAiringDynamic, GridDynamic}
 import com.couchmate.common.models.api.user.UserMute
 import com.couchmate.common.models.data.{ApplicationPlatform, User, UserActivity, UserActivityType, UserMeta, UserNotificationSeries, UserNotificationShow, UserNotificationTeam}
 import com.couchmate.services.{GridCoordinator, ListingUpdater}
@@ -71,6 +71,18 @@ object ConnectedCommands
   ) = Effect
     .none
     .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(External.UpdateGrid(grid)))
+
+  private[user] def upgradeGridDynamic(
+    updates: GridDynamic,
+    ws: ActorRef[WSPersistentActor.Command]
+  )(
+    implicit
+    ctx: ActorContext[PersistentUser.Command]
+  ): EffectBuilder[Nothing, State] = Effect
+    .none
+    .thenRun((_: State) => ws ! WSPersistentActor.OutgoingMessage(
+      External.UpdateGridDynamic(updates)
+    ))
 
   private[user] def validateEmail(email: String)(
     implicit

@@ -25,6 +25,12 @@ class ChannelTable(tag: Tag) extends Table[Channel](tag, "channel") {
     onUpdate = ForeignKeyAction.Cascade,
     onDelete = ForeignKeyAction.Restrict
   )
+
+  def channelExtIdIdx = index(
+    "channel_ext_id_idx",
+    extId,
+    unique = true
+  )
 }
 
 object ChannelTable extends WithTableQuery[ChannelTable] {

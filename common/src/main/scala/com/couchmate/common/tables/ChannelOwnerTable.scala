@@ -14,6 +14,12 @@ class ChannelOwnerTable(tag: Tag) extends Table[ChannelOwner](tag, "channel_owne
     extId,
     callsign
   ) <> ((ChannelOwner.apply _).tupled, ChannelOwner.unapply)
+
+  def extIdx = index(
+    "channel_owner_ext_id_idx",
+    extId,
+    unique = true
+  )
 }
 
 object ChannelOwnerTable extends WithTableQuery[ChannelOwnerTable] {

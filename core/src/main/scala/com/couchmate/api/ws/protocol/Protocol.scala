@@ -1,9 +1,8 @@
 package com.couchmate.api.ws.protocol
 
 import java.util.UUID
-
 import com.couchmate.common.models.api.Provider
-import com.couchmate.common.models.api.grid.Grid
+import com.couchmate.common.models.api.grid.{Grid, GridAiringDynamic, GridDynamic}
 import com.couchmate.common.models.api.room.Participant
 import com.couchmate.common.models.api.room.message.Message
 import com.couchmate.common.models.api.room.tenor.TenorGif
@@ -243,6 +242,9 @@ object External {
 
   case class UpdateGrid(
     grid: Grid
+  ) extends Protocol
+  case class UpdateGridDynamic(
+    updates: GridDynamic
   ) extends Protocol
 
   case class AddFavoriteChannel(channelId: Long) extends Protocol

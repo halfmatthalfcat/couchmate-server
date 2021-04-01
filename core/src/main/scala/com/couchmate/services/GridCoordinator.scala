@@ -3,7 +3,7 @@ package com.couchmate.services
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import com.couchmate.common.dao.GridDAO
-import com.couchmate.common.models.api.grid.Grid
+import com.couchmate.common.models.api.grid.{Grid, GridAiringDynamic, GridDynamic}
 import com.couchmate.util.akka.extensions.{CacheExtension, DatabaseExtension}
 import com.couchmate.common.db.PgProfile.api._
 
@@ -19,14 +19,19 @@ object GridCoordinator {
   final case class SwapListener(fromId: Long, toId: Long, listener: ActorRef[Command]) extends Command
 
   final case class GridUpdate(grid: Grid) extends Command
+  final case class GridDynamicUpdate(updates: GridDynamic) extends Command
 
   private final case object StartUpdate extends Command
+  private final case class  GridSuccess(providerId: Long, grid: Grid) extends Command
+  private final case class  GridFailure(providerId: Long, err: Throwable) extends Command
 
-  private final case class GridSuccess(grid: Grid) extends Command
-  private final case class GridFailure(err: Throwable) extends Command
+  private final case object StartDynamicUpdate extends Command
+  private final case class  GridDynamicSuccess(providerId: Long, updates: GridDynamic) extends Command
+  private final case class  GridDynamicFailure(providerId: Long, err: Throwable) extends Command
 
   private final case class GridCoordinatorState(
     currentGrid: Option[Grid],
+    currentDynamic: Option[GridDynamic],
     listeners: Set[ActorRef[Command]]
   )
 
@@ -38,7 +43,8 @@ object GridCoordinator {
     import caches._
 
     Behaviors.withTimers { timers =>
-      timers.startTimerAtFixedRate(StartUpdate, 5 seconds)
+      timers.startTimerAtFixedRate(StartDynamicUpdate, 5 seconds)
+      timers.startTimerAtFixedRate(StartUpdate, 1 minute)
 
       def run(state: Map[Long, GridCoordinatorState]): Behavior[Command] = Behaviors.receiveMessage {
         case AddListener(providerId, listener) =>
@@ -46,11 +52,15 @@ object GridCoordinator {
 
           val nextState: GridCoordinatorState = state.getOrElse(providerId, GridCoordinatorState(
             None,
+            None,
             Set.empty
           ))
 
           if (nextState.currentGrid.nonEmpty) {
             listener ! GridUpdate(nextState.currentGrid.get)
+          }
+          if (nextState.currentDynamic.nonEmpty) {
+            listener ! GridDynamicUpdate(nextState.currentDynamic.get)
           }
 
           run(state + (providerId -> nextState.copy(
@@ -58,6 +68,7 @@ object GridCoordinator {
           )))
         case RemoveListener(providerId, listener) =>
           val nextState: GridCoordinatorState = state.getOrElse(providerId, GridCoordinatorState(
+            None,
             None,
             Set.empty
           ))
@@ -76,9 +87,11 @@ object GridCoordinator {
 
           val fromState: GridCoordinatorState = state.getOrElse(fromId, GridCoordinatorState(
             None,
+            None,
             Set.empty
           ))
           val toState: GridCoordinatorState = state.getOrElse(toId, GridCoordinatorState(
+            None,
             None,
             Set.empty
           ))
@@ -86,23 +99,34 @@ object GridCoordinator {
           if (toState.currentGrid.nonEmpty) {
             listener ! GridUpdate(toState.currentGrid.get)
           }
+          if (toState.currentDynamic.nonEmpty) {
+            listener ! GridDynamicUpdate(toState.currentDynamic.get)
+          }
 
           run(state + (fromId -> fromState.copy(
             listeners = fromState.listeners - listener
           )) + (toId -> toState.copy(
             listeners = toState.listeners + listener
           )))
-        case StartUpdate => state.keys.foreach { providerId: Long =>
-          ctx.pipeToSelf(GridDAO.getGrid(providerId)()) {
-            case Success(value) => GridSuccess(value)
-            case Failure(exception) => GridFailure(exception)
+        case StartDynamicUpdate => state.keys.foreach { providerId: Long =>
+          ctx.pipeToSelf(GridDAO.getGridDynamic(providerId)(bust = true)) {
+            case Success(value) => GridDynamicSuccess(providerId, value)
+            case Failure(exception) => GridDynamicFailure(providerId, exception)
           }
         }
           Behaviors.same
-        case GridSuccess(grid) =>
-          ctx.log.debug(s"Sending grid update for ${grid.providerId}")
-          val nextState: GridCoordinatorState = state.getOrElse(grid.providerId, GridCoordinatorState(
+        case StartUpdate => state.keys.foreach { providerId: Long =>
+          ctx.pipeToSelf(GridDAO.getGrid(providerId)()) {
+            case Success(value) => GridSuccess(providerId, value)
+            case Failure(exception) => GridFailure(providerId, exception)
+          }
+        }
+          Behaviors.same
+        case GridSuccess(providerId, grid) =>
+          ctx.log.debug(s"Sending grid update for ${providerId}")
+          val nextState: GridCoordinatorState = state.getOrElse(providerId, GridCoordinatorState(
             Some(grid),
+            None,
             Set.empty
           ))
 
@@ -110,9 +134,29 @@ object GridCoordinator {
             listener ! GridUpdate(grid)
           }
 
-          run(state + (grid.providerId -> nextState))
-        case GridFailure(err) =>
-          ctx.log.error(s"Failed to get grid", err)
+          run(state + (providerId -> nextState.copy(
+            currentGrid = Some(grid)
+          )))
+        case GridDynamicSuccess(providerId, updates) =>
+          ctx.log.debug(s"Sending grid dynamic updates for $providerId")
+          val nextState: GridCoordinatorState = state.getOrElse(providerId, GridCoordinatorState(
+            None,
+            Some(updates),
+            Set.empty
+          ))
+
+          nextState.listeners.foreach { listener =>
+            listener ! GridDynamicUpdate(updates)
+          }
+
+          run(state + (providerId -> nextState.copy(
+            currentDynamic = Some(updates)
+          )))
+        case GridFailure(providerId, err) =>
+          ctx.log.error(s"Failed to get grid for provider $providerId", err)
+          Behaviors.same
+        case GridDynamicFailure(providerId, err) =>
+          ctx.log.error(s"Failed to get grid dynamic for provider $providerId", err)
           Behaviors.same
       }
 

@@ -58,6 +58,20 @@ object ProviderOwnerDAO {
     bust = bust
   )
 
+  def insertProviderOwner(
+    extProviderOwnerId: String,
+    name: String
+  )(
+    implicit
+    db: Database
+  ): Future[ProviderOwner] = db.run(
+    (ProviderOwnerTable.table returning ProviderOwnerTable.table) += ProviderOwner(
+      providerOwnerId = None,
+      extProviderOwnerId = extProviderOwnerId,
+      name = name
+    )
+  )
+
   private[this] def addProviderOwnerForId(
     extProviderOwnerId: String,
     name: String

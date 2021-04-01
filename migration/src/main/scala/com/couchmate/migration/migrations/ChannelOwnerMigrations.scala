@@ -13,4 +13,10 @@ object ChannelOwnerMigrations {
     )
   )()
 
+  val extId = MigrationItem(61L, ChannelOwnerTable.table)(
+    _.addIndexes(
+      _.extIdx
+    )
+  )()
+
 }

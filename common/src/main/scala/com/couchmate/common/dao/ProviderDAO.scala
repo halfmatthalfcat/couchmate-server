@@ -56,7 +56,9 @@ object ProviderDAO {
     redis: RedisCache[String],
     caffeine: CaffeineCache[String],
   ): Future[Option[Provider]] = cache(
-    "getProviderForExtAndOwner"
+    "getProviderForExtAndOwner",
+    extId,
+    providerOwnerId.getOrElse(0L)
   )(db.run(getProviderForExtAndOwnerQuery(
     extId,
     providerOwnerId
