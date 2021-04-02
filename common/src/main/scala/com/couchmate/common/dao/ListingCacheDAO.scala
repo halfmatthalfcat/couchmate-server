@@ -83,7 +83,7 @@ object ListingCacheDAO {
     providerChannelId: Long,
     startTime: LocalDateTime,
     airings: Seq[GracenoteAiring]
-  )(
+  )(bust: Boolean = false)(
     implicit
     db: Database,
     ec: ExecutionContext,
@@ -92,7 +92,7 @@ object ListingCacheDAO {
   ): Future[(Boolean, ListingCache)] = (for {
     exists <- getListingCacheForProviderAndStart(
       providerChannelId, startTime
-    )()
+    )(bust = bust)
     listingCache <- exists.fold(for {
       _ <- addListingCacheForId(providerChannelId, startTime, airings)
       lc <- getListingCacheForProviderAndStart(
@@ -117,21 +117,25 @@ object ListingCacheDAO {
   ): Future[GracenoteAiringPlan] = for {
     (exists, listingCache) <- addOrGetListingCache(
       providerChannelId, startTime, airings
-    )
+    )()
     cache = if (!exists) Seq.empty else listingCache.airings
     add = airings.filterNot(airing => cache.exists(_.equals(airing)))
     remove = cache.filterNot(airing => airings.exists(_.equals(airing)))
     skip = cache
       .filterNot(airing => remove.exists(_.equals(airing)))
       .filter(airing => airings.exists(_.equals(airing)))
-    _ <- if (exists && (add.nonEmpty || remove.nonEmpty)) {
-      db.run((for {
+    _ <- if (exists && (add.nonEmpty || remove.nonEmpty)) { for {
+      _ <- db.run((for {
         c <- ListingCacheTable.table.filter { lc =>
           lc.providerChannelId === providerChannelId &&
-            lc.startTime === startTime
+          lc.startTime === startTime
         }
       } yield c.airings).update(airings))
-    } else { Future.successful() }
+      _ <- getListingCacheForProviderAndStart(
+        providerChannelId,
+        startTime
+      )(bust = true)
+    } yield ()} else { Future.successful() }
   } yield GracenoteAiringPlan(
     providerChannelId,
     startTime,
