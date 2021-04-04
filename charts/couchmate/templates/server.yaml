@@ -55,6 +55,8 @@ spec:
               value: {{.Values.app.tenor.apiKey}}
             - name: FCM_API_KEY
               value: {{.Values.app.notifications.android}}
+            - name: KAMON_API_KEY
+              value: {{.Values.app.kamonApiKey}}
             - name: HOSTNAME
               value: {{if ne .Values.env "prod"}}{{.Values.env}}.{{end}}couchmate.com
           readinessProbe:

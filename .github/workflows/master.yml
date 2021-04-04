@@ -142,6 +142,7 @@ jobs:
           --state-values-set oauthClientId=${{ secrets.OAUTH_CLIENT_ID }} \
           --state-values-set oauthClientSecret=${{ secrets.OAUTH_CLIENT_SECRET }} \
           --state-values-set androidNotificationKey=${{ secrets.ANDROID_NOTIFICATION_KEY }} \
+          --state-values-set kamonApiKey=${{ secrets.KAMON_DEV_API_KEY }} \
           --quiet \
           -l name=couchmate \
           sync
