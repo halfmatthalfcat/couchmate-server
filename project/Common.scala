@@ -41,4 +41,7 @@ object Common {
 
     "com.github.cb372" %% trueModule % Versions.scalaCache
   }
+
+  def kamon(module: String): ModuleID =
+    s"io.kamon" %% s"kamon-$module" % Versions.kamon
 }

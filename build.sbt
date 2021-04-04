@@ -83,7 +83,8 @@ lazy val core = (project in file("core"))
   .settings(
     name := "core",
     javaAgents ++= Seq(
-      "org.mortbay.jetty.alpn" % "jetty-alpn-agent" % "2.0.10" % "runtime"
+      "org.mortbay.jetty.alpn"  % "jetty-alpn-agent"  % "2.0.10"  % "runtime",
+      "io.kamon"                % "kanela-agent"      % "1.0.7"   % "runtime"
     ),
     libraryDependencies ++= Seq(
       akka("actor-typed"),
@@ -100,6 +101,8 @@ lazy val core = (project in file("core"))
       akkaManagement(),
       akkaManagement("cluster-http"),
       akkaManagement("cluster-bootstrap"),
+      kamon("bundle"),
+      kamon("apm-reporter"),
       // Bootstrapping
       "com.lightbend.akka.discovery"  %%  "akka-discovery-kubernetes-api" % Versions.akkaManagement,
       "com.lightbend.akka"            %%  "akka-persistence-jdbc"         % "4.0.0",

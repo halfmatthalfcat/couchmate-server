@@ -7,6 +7,7 @@ import akka.management.cluster.bootstrap.ClusterBootstrap
 import com.couchmate.services.cache.ClusterCacheBuster
 import com.couchmate.util.http.HttpActor
 import com.typesafe.config.{Config, ConfigFactory}
+import kamon.Kamon
 
 object Server {
   sealed trait Command
@@ -40,6 +41,8 @@ object Server {
   }
 
   def main(args: Array[String]): Unit = {
+    Kamon.init()
+
     implicit val config: Config =
       ConfigFactory.load()
 
