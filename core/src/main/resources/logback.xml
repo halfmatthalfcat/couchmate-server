@@ -17,4 +17,5 @@
   <logger name="com.zaxxer"                         level="INFO" />
   <logger name="com.typesafe"                       level="INFO" />
   <logger name="org.quartz"                         level="INFO" />
+  <logger name="oshi"                               level="INFO" />
 </configuration>
