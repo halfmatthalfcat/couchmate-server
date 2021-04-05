@@ -18,4 +18,10 @@ object EpisodeMigrations {
     )
   )()
 
+  val seriesIdx = MigrationItem(63L, EpisodeTable.table)(
+    _.addIndexes(
+      _.seriesIdIdx
+    )
+  )()
+
 }

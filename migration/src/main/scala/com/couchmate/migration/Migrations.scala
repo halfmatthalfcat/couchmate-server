@@ -85,7 +85,8 @@ object Migrations extends LazyLogging {
     LineupMigrations.airingIdx,
     ProviderChannelMigrations.createUniqueIdx,
     ChannelOwnerMigrations.extId,
-    ChannelMigrations.extIdIdx
+    ChannelMigrations.extIdIdx,
+    EpisodeMigrations.seriesIdx
   )
 
   val functions: Seq[DBIO[Int]] = Seq(

@@ -31,6 +31,11 @@ class EpisodeTable(tag: Tag) extends Table[Episode](tag, "episode") {
     (seriesId, season, episode),
     unique = true
   )
+
+  def seriesIdIdx = index(
+    "episode_series_id_idx",
+    seriesId
+  )
 }
 
 object EpisodeTable extends WithTableQuery[EpisodeTable] {
