@@ -104,6 +104,27 @@ object SeriesDAO {
          """.as[GridSeries]
   ))()
 
+  def getSomeGridSeries(episodes: Seq[Long])(
+    implicit
+    db: Database,
+  ): Future[Seq[GridSeries]] = db.run(
+    sql"""SELECT
+            s.series_id, s.series_name,
+            e.episode_id, e.season, e.episode,
+            COALESCE(seriesFollows.following, 0) as following
+          FROM episode as e
+          JOIN series as s
+          ON e.series_id = s.series_id
+          LEFT JOIN (
+            SELECT    series_id, count(*) as following
+            FROM      user_notification_series
+            GROUP BY  series_id
+          ) as seriesFollows
+          ON seriesFollows.series_id = s.series_id
+          WHERE e.episode_id = any($episodes)
+         """.as[GridSeries]
+  )
+
   def getGridSeries(episodeId: Long)(
     implicit
     db: Database,

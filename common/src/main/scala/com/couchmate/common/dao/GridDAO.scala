@@ -62,8 +62,10 @@ object GridDAO {
     startDate.toString
   )(for {
     airings <- getGridRaw(providerId, startDate, startDate.plusHours(1))
-    gridSeries <- SeriesDAO.getAllGridSeries
-    gridSportTeams <- SportTeamDAO.getAllGridSportRows
+    episodes = airings.flatMap(_.episodeId)
+    sports = airings.flatMap(_.sportEventId)
+    gridSeries <- SeriesDAO.getSomeGridSeries(episodes)
+    gridSportTeams <- SportTeamDAO.getSomeGridSportRows(sports)
     groupedGridSportTeams = gridSportTeams.groupBy(_.sportEventId)
     extendedAirings = airings.map(airing => airing.toExtended(
       series = airing.episodeId.flatMap(

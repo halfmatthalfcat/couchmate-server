@@ -133,9 +133,40 @@ object SportTeamDAO {
               GROUP BY team_id
           ) as notifications
           ON      notifications.team_id = sot.sport_organization_team_id
-          ORDER BY sport_event_id DESC
          """.as[GridSportRow]
   ))()
+
+  def getSomeGridSportRows(sportEvents: Seq[Long])(
+    implicit
+    db: Database,
+  ): Future[Seq[GridSportRow]] = db.run(
+    sql"""
+          SELECT  set.sport_event_id,
+                  sot.sport_organization_team_id,
+                  se.sport_event_title,
+                  so.sport_name,
+                  so.org_name,
+                  st.name,
+                  set.is_home,
+                  coalesce(notifications.count, 0) as follows
+          FROM    sport_organization_team as sot
+          JOIN    sport_team as st
+          ON      st.sport_team_id = sot.sport_team_id
+          JOIN    sport_organization as so
+          ON      sot.sport_organization_id = so.sport_organization_id
+          JOIN    sport_event_team as set
+          ON      set.sport_organization_team_id = sot.sport_organization_team_id
+          JOIN    sport_event as se
+          ON      se.sport_event_id = set.sport_event_id
+          LEFT JOIN (
+              SELECT  team_id, count(*) as count
+              FROM    user_notification_team
+              GROUP BY team_id
+          ) as notifications
+          ON      notifications.team_id = sot.sport_organization_team_id
+          WHERE   se.sport_event_id = any($sportEvents)
+         """.as[GridSportRow]
+  )
 
   def getGridSportRow(
     sportEventId: Long,

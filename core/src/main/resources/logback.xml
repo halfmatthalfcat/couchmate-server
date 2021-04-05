@@ -18,4 +18,5 @@
   <logger name="com.typesafe"                       level="INFO" />
   <logger name="org.quartz"                         level="INFO" />
   <logger name="oshi"                               level="INFO" />
+  <logger name="kamon"                              level="INFO" />
 </configuration>

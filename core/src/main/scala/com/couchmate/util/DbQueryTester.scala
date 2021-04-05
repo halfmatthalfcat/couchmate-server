@@ -1,6 +1,6 @@
 package com.couchmate.util
 
-import com.couchmate.common.dao.{ChannelDAO, GridDAO, RoomActivityAnalyticsDAO, UserActivityAnalyticsDAO}
+import com.couchmate.common.dao.{ChannelDAO, GridDAO, RoomActivityAnalyticsDAO, SeriesDAO, UserActivityAnalyticsDAO}
 import com.couchmate.common.db.PgProfile.api._
 import com.couchmate.util.mail.AnalyticsReport
 import com.couchmate.util.mail.Fragments.{banner, email, row}
@@ -34,9 +34,11 @@ object DbQueryTester {
     implicit val redis: RedisCache[String] =
       RedisCache(jedisPool)
 
-    Await.result(
-      GridDAO.getGridDynamic(1L)(),
-      Duration.Inf
+    println(
+      Await.result(
+        SeriesDAO.getSomeGridSeries(Seq(1L, 2L)),
+        Duration.Inf
+      )
     )
   }
 }
