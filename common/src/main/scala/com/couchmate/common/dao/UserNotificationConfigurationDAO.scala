@@ -76,13 +76,30 @@ object UserNotificationConfigurationDAO {
     os: ApplicationPlatform,
     deviceId: Option[String],
     active: Boolean
-  )(implicit db: Database): Future[Int] = db.run((for {
-    configurations <- UserNotificationConfigurationTable.table if (
-      configurations.userId === userId &&
-      configurations.platform === os &&
-      configurations.deviceId === deviceId
+  )(
+    implicit
+    db: Database,
+    ec: ExecutionContext
+  ): Future[Unit] = for {
+    n <- getUserNotificationConfiguration(
+      userId, os, deviceId
     )
-  } yield configurations.active).update(active))
+    updated <- n.fold(for {
+      _ <- db.run((UserNotificationConfigurationTable.table returning UserNotificationConfigurationTable.table) += UserNotificationConfiguration(
+        userId = userId,
+        platform = os,
+        deviceId = deviceId,
+        active = active,
+        token = None
+      ))
+    } yield ())(_ => db.run((for {
+      configurations <- UserNotificationConfigurationTable.table if (
+        configurations.userId === userId &&
+          configurations.platform === os &&
+          configurations.deviceId === deviceId
+        )
+    } yield configurations.active).update(active)).map(_ => ()))
+  } yield updated
 
   def updateUserNotificationToken(
     userId: UUID,

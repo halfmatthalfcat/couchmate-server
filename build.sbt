@@ -41,6 +41,7 @@ lazy val common = (project in file("common"))
       scalaCache(),
       scalaCache("redis"),
       scalaCache("caffeine"),
+      kamon("bundle"),
       "com.github.blemale"            %%  "scaffeine"                 % "4.0.2",
       "redis.clients"                 %   "jedis"                     % "2.9.3",
       "org.julienrf"                  %%  "play-json-derived-codecs"  % "7.0.0",
@@ -101,7 +102,6 @@ lazy val core = (project in file("core"))
       akkaManagement(),
       akkaManagement("cluster-http"),
       akkaManagement("cluster-bootstrap"),
-      kamon("bundle"),
       kamon("apm-reporter"),
       // Bootstrapping
       "com.lightbend.akka.discovery"  %%  "akka-discovery-kubernetes-api" % Versions.akkaManagement,
